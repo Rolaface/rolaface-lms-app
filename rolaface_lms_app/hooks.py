@@ -256,3 +256,17 @@ app_license = "mit"
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+fixtures = [
+    {
+        "doctype": "Custom Field",
+        "filters": [
+            ["dt", "in", [
+                "Loan"
+                "Loan Product",
+            ]],
+            ["is_system_generated", "=", 0]
+        ]
+    }
+]
+
+after_request = ["rolaface_lms_app.hooks.pagination_hook.inject_pagination_metadata"]

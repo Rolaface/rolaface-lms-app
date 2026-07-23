@@ -1,15 +1,19 @@
 import frappe
+from frappe.utils import cint, flt
 from .utils import (
+    build_loan_product_filters,
+    validate_loan_product_payload,
+    sync_loan_charges
+)
+
+from .constant import (
     ALLOWED_LOAN_PRODUCT_FIELDS,
     RETURN_FIELDS_GET_ALL,
     RETURN_FIELDS_GET_BY_ID,
-    ALLOWED_SORT_FIELDS,
-    build_loan_product_filters,
-    validate_loan_product_payload
+    ALLOWED_SORT_FIELDS
 )
 
 def create_loan_product(data: dict):
-    # 1. Run strict business validations
     validate_loan_product_payload(data, is_update=False)
 
     product = frappe.new_doc("Loan Product")
@@ -21,6 +25,7 @@ def create_loan_product(data: dict):
     if not product.get("company"):
         product.company = frappe.defaults.get_user_default("Company")
 
+    sync_loan_charges(product, data.get("loan_charges"))
     product.insert(ignore_permissions=True)
     return get_loan_product_by_id(product.name)
 
@@ -29,7 +34,6 @@ def update_loan_product(product_id: str, data: dict):
     if not frappe.db.exists("Loan Product", product_id):
         raise frappe.DoesNotExistError(f"Loan Product '{product_id}' does not exist.")
 
-    # Inject name so validation can exclude itself in duplicate checks
     data["name"] = product_id
     validate_loan_product_payload(data, is_update=True)
     
@@ -42,6 +46,10 @@ def update_loan_product(product_id: str, data: dict):
                 product.set(field, data.get(field))
                 has_changes = True
 
+    if "loan_charges" in data:
+        if sync_loan_charges(product, data.get("loan_charges")):
+            has_changes = True
+
     if has_changes:
         product.save(ignore_permissions=True)
 
@@ -52,7 +60,22 @@ def get_loan_product_by_id(product_id: str):
     if not frappe.db.exists("Loan Product", product_id):
         raise frappe.DoesNotExistError(f"Loan Product '{product_id}' does not exist.")
         
-    return frappe.db.get_value("Loan Product", product_id, RETURN_FIELDS_GET_BY_ID, as_dict=True)
+    doc = frappe.get_doc("Loan Product", product_id)
+    
+    result = {field: doc.get(field) for field in RETURN_FIELDS_GET_BY_ID}
+    
+    charges = []
+    for row in doc.get("loan_charges", []):
+        charges.append({
+            "name": row.name,
+            "charge_type": row.charge_type,
+            "charge_based_on": row.charge_based_on,
+            "percentage": row.percentage,
+            "amount": row.amount
+        })
+        
+    result["loan_charges"] = charges
+    return result
 
 
 def get_loan_products(args: dict, page: int, page_size: int, sort_by="creation", sort_order="desc"):
@@ -69,7 +92,6 @@ def get_loan_products(args: dict, page: int, page_size: int, sort_by="creation",
             ["loan_category", "like", search_term],
         ]
 
-    # Build advanced query filters
     safe_filters = build_loan_product_filters(args)
 
     if sort_by not in ALLOWED_SORT_FIELDS:
@@ -109,7 +131,6 @@ def delete_loan_product(product_id: str):
     if not frappe.db.exists("Loan Product", product_id):
         raise frappe.DoesNotExistError(f"Loan Product '{product_id}' does not exist.")
         
-    # Validation: Prevent deletion if linked to active loans
     linked_loans = frappe.db.count("Loan", {"loan_product": product_id, "docstatus": ["!=", 2]})
     if linked_loans > 0:
         raise frappe.ValidationError(f"Cannot delete Loan Product '{product_id}' because it is linked to {linked_loans} active loan(s). Disable it instead.")

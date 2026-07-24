@@ -120,3 +120,68 @@ def delete_loan(loan_id: str):
         raise frappe.ValidationError(f"Cannot delete a submitted Loan '{loan_id}'. Cancel it first.")
 
     frappe.delete_doc("Loan", loan_id, ignore_permissions=True)
+
+def process_approval(loan):
+    if loan.docstatus == 1:
+        raise frappe.ValidationError("Loan is already approved.")
+    if loan.docstatus == 2:
+        raise frappe.ValidationError("Cannot approve a cancelled Loan. Please amend it first.")
+
+    loan.submit()
+
+    return {
+        "id": loan.name,
+        "status": loan.status,
+        "docstatus": loan.docstatus
+    }
+
+def process_cancellation(loan):
+    if loan.docstatus == 2:
+        raise frappe.ValidationError("Loan is already cancelled.")
+    if loan.docstatus == 0:
+        raise frappe.ValidationError("Cannot cancel a Draft Loan. Submit it first.")
+
+    loan.cancel()
+
+    return {
+        "id": loan.name,
+        "status": loan.status,
+        "docstatus": loan.docstatus
+    }
+
+def process_amendment(loan):
+    if loan.docstatus == 0:
+        raise frappe.ValidationError("Loan is already in Draft state.")
+    if loan.docstatus == 1:
+        raise frappe.ValidationError("Cannot amend an approved Loan. Cancel it first.")
+
+    amended_doc = frappe.copy_doc(loan)
+    amended_doc.amended_from = loan.name
+    amended_doc.docstatus = 0
+    
+    amended_doc.insert()
+
+    return {
+        "id": amended_doc.name,
+        "status": amended_doc.status,
+        "docstatus": amended_doc.docstatus,
+        "amended_from": amended_doc.amended_from
+    }
+
+def update_loan_status(loan_id: str, action: str):
+    loan = frappe.get_doc("Loan", loan_id)
+
+    if not frappe.has_permission("Loan", "write", loan):
+        raise frappe.PermissionError("No permission to modify this Loan.")
+
+    if action == "approved":
+        return process_approval(loan)
+        
+    elif action == "cancelled":
+        return process_cancellation(loan)
+        
+    elif action == "amend":
+        return process_amendment(loan)
+        
+    else:
+        raise frappe.ValidationError("Invalid action. Allowed: approved, cancelled, amend")

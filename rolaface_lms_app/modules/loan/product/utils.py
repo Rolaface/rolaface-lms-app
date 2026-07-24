@@ -114,43 +114,6 @@ def build_loan_product_filters(args: Dict[str, Any]) -> Dict[str, Any]:
 
     return frappe_filters
 
-
-def handle_api_error(e: Exception, context_message: str):
-    frappe.db.rollback()
-    
-    if not isinstance(e, (frappe.ValidationError, frappe.DuplicateEntryError, frappe.DoesNotExistError)):
-        frappe.log_error(frappe.get_traceback(), context_message)
-
-    error_message = str(e).strip()
-    import re
-    error_message = re.sub('<[^<]+?>', '', error_message)
-
-    status_code = 500
-    status_type = "error"
-
-    if isinstance(e, frappe.DoesNotExistError):
-        status_code = 404
-        status_type = "fail"
-    elif isinstance(e, frappe.DuplicateEntryError):
-        status_code = 409
-        status_type = "fail"
-    elif isinstance(e, frappe.PermissionError):
-        status_code = 403
-        status_type = "fail"
-        error_message = "You do not have permission to perform this action."
-    elif isinstance(e, frappe.ValidationError):
-        status_code = 400
-        status_type = "fail"
-
-    from rolaface_lms_app.utils.api_response import send_response 
-    
-    return send_response(
-        status=status_type,
-        message=error_message,
-        status_code=status_code,
-        http_status=status_code,
-    )
-
 def sync_loan_charges(product_doc, charges_payload: list) -> bool:
     if charges_payload is None:
         return False

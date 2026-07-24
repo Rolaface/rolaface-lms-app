@@ -1,9 +1,8 @@
 import frappe
-from rolaface_lms_app.utils.api_response import send_response, send_response_list
+from rolaface_lms_app.utils.api_response import send_response, send_response_list, handle_api_error
 from rolaface_lms_app.utils.api_request import parse_api_payload
 
 from . import service
-from .utils import handle_api_error
 
 
 @frappe.whitelist(allow_guest=False, methods=["POST"])

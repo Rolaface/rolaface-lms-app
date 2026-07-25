@@ -71,7 +71,12 @@ def get_loan_product_by_id(product_id: str):
             "charge_type": row.charge_type,
             "charge_based_on": row.charge_based_on,
             "percentage": row.percentage,
-            "amount": row.amount
+            "amount": row.amount,
+            "income_account": row.income_account,
+            "waiver_account": row.waiver_account,
+            "suspense_account": row.suspense_account,
+            "receivable_account": row.receivable_account,
+            "write_off_account": row.write_off_account,
         })
         
     result["loan_charges"] = charges

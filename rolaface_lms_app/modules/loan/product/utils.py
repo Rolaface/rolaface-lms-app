@@ -125,6 +125,10 @@ def sync_loan_charges(product_doc, charges_payload: list) -> bool:
             "charge_type": charge.get("charge_type"),
             "charge_based_on": charge.get("charge_based_on"),
             "percentage": flt(charge.get("percentage")),
-            "amount": flt(charge.get("amount"))
+            "income_account": charge.get("income_account"),
+            "waiver_account": charge.get("waiver_account"),
+            "suspense_account": charge.get("suspense_account"),
+            "receivable_account": charge.get("receivable_account"),
+            "write_off_account": charge.get("write_off_account"),
         })
     return True

@@ -3,7 +3,7 @@ from rolaface_lms_app.utils.api_response import send_response, send_response_lis
 from rolaface_lms_app.utils.api_request import parse_api_payload
 from . import service
 
-@frappe.whitelist(allow_guest=False, methods=["POST"])
+@frappe.whitelist(allow_guest=True, methods=["POST"])
 def create_loan_disbursement():
     """
     Create Loan Disbursement
@@ -62,7 +62,7 @@ def create_loan_disbursement():
         return handle_api_error(e, "Create Loan Disbursement API Error")
 
 
-@frappe.whitelist(allow_guest=False, methods=["PUT", "PATCH"])
+@frappe.whitelist(allow_guest=True, methods=["PUT", "PATCH"])
 def update_loan_disbursement(id=None):
     """
     Update Loan Disbursement
@@ -102,7 +102,7 @@ def update_loan_disbursement(id=None):
         return handle_api_error(e, "Update Loan Disbursement API Error")
 
 
-@frappe.whitelist(allow_guest=False, methods=["GET"])
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loan_disbursement_by_id(id=None):
     """
     Get Loan Disbursement By ID
@@ -136,7 +136,7 @@ def get_loan_disbursement_by_id(id=None):
         return handle_api_error(e, "Get Loan Disbursement By ID Error")
 
 
-@frappe.whitelist(allow_guest=False, methods=["GET"])
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loan_disbursements(page=1, page_size=20):
     """
     List Loan Disbursements
@@ -185,7 +185,7 @@ def get_loan_disbursements(page=1, page_size=20):
         return handle_api_error(e, "Get All Loan Disbursements Error")
 
 
-@frappe.whitelist(allow_guest=False, methods=["DELETE"])
+@frappe.whitelist(allow_guest=True, methods=["DELETE"])
 def delete_loan_disbursement(id=None):
     """
     Delete Loan Disbursement
@@ -217,7 +217,7 @@ def delete_loan_disbursement(id=None):
         return handle_api_error(e, "Delete Loan Disbursement Error")
 
 
-@frappe.whitelist(allow_guest=False, methods=["PUT", "PATCH"])
+@frappe.whitelist(allow_guest=True, methods=["PUT", "PATCH"])
 def update_loan_disbursement_status(id=None, action=None):
     """
     Update Loan Disbursement Status (Submit/Approve, Cancel, Amend)

@@ -5,7 +5,7 @@ from rolaface_lms_app.utils.api_request import parse_api_payload
 from . import service
 
 
-@frappe.whitelist(allow_guest=False, methods=["POST"])
+@frappe.whitelist(allow_guest=True, methods=["POST"])
 def create_loan_product():
     """
     Create Loan Product
@@ -57,7 +57,7 @@ def create_loan_product():
         return handle_api_error(e, "Create Loan Product API Error")
 
 
-@frappe.whitelist(allow_guest=False, methods=["PUT", "PATCH"])
+@frappe.whitelist(allow_guest=True, methods=["PUT", "PATCH"])
 def update_loan_product(id=None):
     """
     Update Loan Product
@@ -107,7 +107,7 @@ def update_loan_product(id=None):
         return handle_api_error(e, "Update Loan Product API Error")
 
 
-@frappe.whitelist(allow_guest=False, methods=["GET"])
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loan_product_by_id(id=None):
     """
     Get Loan Product
@@ -146,7 +146,7 @@ def get_loan_product_by_id(id=None):
         return handle_api_error(e, "Get Loan Product By ID Error")
 
 
-@frappe.whitelist(allow_guest=False, methods=["GET"])
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loan_products(page=1, page_size=20):
     """
     List Loan Products
@@ -249,7 +249,7 @@ def get_loan_products(page=1, page_size=20):
         return handle_api_error(e, "Get All Loan Products Error")
 
 
-@frappe.whitelist(allow_guest=False, methods=["DELETE"])
+@frappe.whitelist(allow_guest=True, methods=["DELETE"])
 def delete_loan_product(id=None):
     """
     Delete Loan Product
@@ -289,7 +289,7 @@ def delete_loan_product(id=None):
         return handle_api_error(e, "Delete Loan Product Error")
 
 
-@frappe.whitelist(allow_guest=False, methods=["PUT", "PATCH"])
+@frappe.whitelist(allow_guest=True, methods=["PUT", "PATCH"])
 def enable_loan_product(id=None):
     """
     Enable Loan Product
@@ -326,7 +326,7 @@ def enable_loan_product(id=None):
         return handle_api_error(e, "Enable Loan Product API Error")
 
 
-@frappe.whitelist(allow_guest=False, methods=["PUT", "PATCH"])
+@frappe.whitelist(allow_guest=True, methods=["PUT", "PATCH"])
 def disable_loan_product(id=None):
     """
     Disable Loan Product

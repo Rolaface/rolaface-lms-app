@@ -3,7 +3,7 @@ from rolaface_lms_app.utils.api_response import send_response, send_response_lis
 from rolaface_lms_app.utils.api_request import parse_api_payload
 from . import service
 
-@frappe.whitelist(allow_guest=False, methods=["POST"])
+@frappe.whitelist(allow_guest=True, methods=["POST"])
 def create_loan_security():
     """
     Create Loan Security
@@ -28,7 +28,7 @@ def create_loan_security():
         return handle_api_error(e, "Create Loan Security API Error")
 
 
-@frappe.whitelist(allow_guest=False, methods=["PUT", "PATCH"])
+@frappe.whitelist(allow_guest=True, methods=["PUT", "PATCH"])
 def update_loan_security(id=None):
     """
     Update Loan Security
@@ -58,7 +58,7 @@ def update_loan_security(id=None):
         return handle_api_error(e, "Update Loan Security API Error")
 
 
-@frappe.whitelist(allow_guest=False, methods=["GET"])
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loan_security_by_id(id=None):
     """
     Get Loan Security By ID
@@ -85,7 +85,7 @@ def get_loan_security_by_id(id=None):
         return handle_api_error(e, "Get Loan Security By ID Error")
 
 
-@frappe.whitelist(allow_guest=False, methods=["GET"])
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loan_securities(page=1, page_size=20):
     """
     List Loan Securities
@@ -133,7 +133,7 @@ def get_loan_securities(page=1, page_size=20):
         return handle_api_error(e, "Get All Loan Securities Error")
 
 
-@frappe.whitelist(allow_guest=False, methods=["DELETE"])
+@frappe.whitelist(allow_guest=True, methods=["DELETE"])
 def delete_loan_security(id=None):
     """
     Delete Loan Security
@@ -160,7 +160,7 @@ def delete_loan_security(id=None):
         return handle_api_error(e, "Delete Loan Security Error")
 
 
-@frappe.whitelist(allow_guest=False, methods=["PUT", "PATCH"])
+@frappe.whitelist(allow_guest=True, methods=["PUT", "PATCH"])
 def enable_loan_security(id=None):
     """
     Enable Loan Security
@@ -198,7 +198,7 @@ def enable_loan_security(id=None):
         return handle_api_error(e, "Enable Loan Security API Error")
 
 
-@frappe.whitelist(allow_guest=False, methods=["PUT", "PATCH"])
+@frappe.whitelist(allow_guest=True, methods=["PUT", "PATCH"])
 def disable_loan_security(id=None):
     """
     Disable Loan Security

@@ -3,7 +3,7 @@ from rolaface_lms_app.utils.api_response import send_response, send_response_lis
 from rolaface_lms_app.utils.api_request import parse_api_payload
 from . import service
 
-@frappe.whitelist(allow_guest=False, methods=["POST"])
+@frappe.whitelist(allow_guest=True, methods=["POST"])
 def create_loan():
     """
     Create Loan
@@ -51,7 +51,7 @@ def create_loan():
         return handle_api_error(e, "Create Loan API Error")
 
 
-@frappe.whitelist(allow_guest=False, methods=["PUT", "PATCH"])
+@frappe.whitelist(allow_guest=True, methods=["PUT", "PATCH"])
 def update_loan(id=None):
     """
     Update Loan
@@ -90,7 +90,7 @@ def update_loan(id=None):
         return handle_api_error(e, "Update Loan API Error")
 
 
-@frappe.whitelist(allow_guest=False, methods=["GET"])
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loan_by_id(id=None):
     """
     Get Loan By ID
@@ -124,7 +124,7 @@ def get_loan_by_id(id=None):
         return handle_api_error(e, "Get Loan By ID Error")
 
 
-@frappe.whitelist(allow_guest=False, methods=["GET"])
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loans(page=1, page_size=20):
     """
     List Loans
@@ -190,7 +190,7 @@ def get_loans(page=1, page_size=20):
         return handle_api_error(e, "Get All Loans Error")
 
 
-@frappe.whitelist(allow_guest=False, methods=["DELETE"])
+@frappe.whitelist(allow_guest=True, methods=["DELETE"])
 def delete_loan(id=None):
     """
     Delete Loan
@@ -221,7 +221,7 @@ def delete_loan(id=None):
         return handle_api_error(e, "Delete Loan Error")
 
 
-@frappe.whitelist(allow_guest=False, methods=["PUT", "PATCH"])
+@frappe.whitelist(allow_guest=True, methods=["PUT", "PATCH"])
 def update_loan_status(id=None, action=None):
     """
     Update Loan Status (Submit/Approve, Cancel, Amend)

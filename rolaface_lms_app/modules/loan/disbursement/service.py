@@ -15,7 +15,7 @@ def create_loan_disbursement(data: Dict[str, Any]) -> Dict[str, Any]:
             loan_disbursement_doc.set(field, data.get(field))
             
     sync_loan_disbursement_charges(loan_disbursement_doc, data.get("loan_disbursement_charges"))
-    
+    loan_disbursement_doc.set_missing_values()    
     loan_disbursement_doc.insert(ignore_permissions=True)
     return get_loan_disbursement_by_id(loan_disbursement_doc.name)
 

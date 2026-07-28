@@ -261,8 +261,7 @@ fixtures = [
         "doctype": "Custom Field",
         "filters": [
             ["dt", "in", [
-                "Loan"
-                "Loan Product",
+                "Loan Classification",
             ]],
             ["is_system_generated", "=", 0]
         ]

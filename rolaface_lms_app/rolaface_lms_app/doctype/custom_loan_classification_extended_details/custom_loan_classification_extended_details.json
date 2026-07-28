@@ -1,0 +1,37 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-07-28 13:02:39.127832",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "level"
+ ],
+ "fields": [
+  {
+   "description": "Loan Classification Level",
+   "fieldname": "level",
+   "fieldtype": "Int",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "label": "Level",
+   "reqd": 1,
+   "unique": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-28 15:38:37.115985",
+ "modified_by": "Administrator",
+ "module": "Rolaface Lms App",
+ "name": "Custom Loan Classification Extended Details",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

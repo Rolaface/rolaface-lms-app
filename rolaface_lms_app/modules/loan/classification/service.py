@@ -1,180 +1,234 @@
 import frappe
 from frappe.utils import flt
 from typing import Tuple, Dict, Any
-from .utils import validate_classification_payload, validate_dpd_logic, get_target_company
-from .constant import ALLOWED_SORT_FIELDS, PARENT_TYPE, DPD_RANGES_FIELD, PROVISION_RATES_FIELD
-
-# ==========================================
-# PUBLIC CRUD SERVICES
-# ==========================================
+from .utils import validate_classification_payload, validate_dpd_logic, validate_level_uniqueness, get_target_company, build_classification_filters
+from .constant import ALLOWED_SORT_FIELDS
 
 def create_loan_classification(data: Dict[str, Any]) -> Dict[str, Any]:
     validate_classification_payload(data, is_update=False)
-    company = get_target_company(data)
+    company_name = get_target_company(data)
     
-    code = data.get("classificationCode")
-    name = data.get("classificationName")
-    min_dpd = flt(data.get("minDpdRange", 0))
-    max_dpd = flt(data.get("maxDpdRange", 0))
-    prov_rate = flt(data.get("provisionRate", 0.0))
+    classification_code = data.get("classificationCode")
+    classification_name = data.get("classificationName")
+    classification_level = data.get("level")
+    min_dpd_range = flt(data.get("minDpdRange", 0))
+    max_dpd_range = flt(data.get("maxDpdRange", 0))
+    provision_rate = flt(data.get("provisionRate", 0.0))
 
-    validate_dpd_logic(min_dpd, max_dpd)
+    validate_dpd_logic(min_dpd_range, max_dpd_range)
+    validate_level_uniqueness(classification_level)
 
-    # 1. Ensure classification doesn't already exist globally
-    if frappe.db.exists("Loan Classification", {"classification_code": code}):
-        raise frappe.ValidationError(f"Loan Classification Code '{code}' already exists.")
+    if frappe.db.exists("Loan Classification", {"classification_code": classification_code}):
+        raise frappe.ValidationError(f"Loan Classification Code '{classification_code}' already exists.")
 
-    # 2. Insert Standalone Parent DocType
-    cls_doc = frappe.new_doc("Loan Classification")
-    cls_doc.classification_code = code
-    cls_doc.classification_name = name
-    cls_doc.insert(ignore_permissions=True)
+    loan_classification_doc = frappe.new_doc("Loan Classification")
+    loan_classification_doc.classification_code = classification_code
+    loan_classification_doc.classification_name = classification_name
+    loan_classification_doc.insert(ignore_permissions=True)
+    
+    loan_classification_name = loan_classification_doc.name
 
-    # 3. Explicitly Create & Attach DPD Child to Company
-    dpd_child = frappe.new_doc("Loan Classification Range")
-    dpd_child.parent = company
-    dpd_child.parenttype = PARENT_TYPE
-    dpd_child.parentfield = DPD_RANGES_FIELD
-    dpd_child.classification_code = code
-    dpd_child.classification_name = name
-    dpd_child.min_dpd_range = min_dpd
-    dpd_child.max_dpd_range = max_dpd
-    dpd_child.insert(ignore_permissions=True)
+    extended_details_doc = frappe.new_doc("Custom Loan Classification Extended Details")
+    extended_details_doc.parent = loan_classification_name
+    extended_details_doc.parenttype = "Loan Classification"
+    extended_details_doc.parentfield = "custom_loan_classification_extended_details"
+    extended_details_doc.level = classification_level
+    extended_details_doc.insert(ignore_permissions=True)
 
-    # 4. Explicitly Create & Attach Provisioning Child to Company
-    prov_child = frappe.new_doc("Loan IRAC Provisioning Configuration")
-    prov_child.parent = company
-    prov_child.parenttype = PARENT_TYPE
-    prov_child.parentfield = PROVISION_RATES_FIELD
-    prov_child.classification_code = code
-    prov_child.classification_name = name
-    prov_child.provision_rate = prov_rate
-    prov_child.insert(ignore_permissions=True)
+    dpd_range_doc = frappe.new_doc("Loan Classification Range")
+    dpd_range_doc.parent = company_name
+    dpd_range_doc.parenttype = "Company"
+    dpd_range_doc.parentfield = "loan_classification_ranges"
+    dpd_range_doc.classification_code = classification_code
+    dpd_range_doc.classification_name = classification_name
+    dpd_range_doc.min_dpd_range = min_dpd_range
+    dpd_range_doc.max_dpd_range = max_dpd_range
+    dpd_range_doc.insert(ignore_permissions=True)
 
-    return get_loan_classification_by_id(code, company)
+    provision_rate_doc = frappe.new_doc("Loan IRAC Provisioning Configuration")
+    provision_rate_doc.parent = company_name
+    provision_rate_doc.parenttype = "Company"
+    provision_rate_doc.parentfield = "irac_provisioning_configurations"
+    provision_rate_doc.classification_code = classification_code
+    provision_rate_doc.classification_name = classification_name
+    provision_rate_doc.provision_rate = provision_rate
+    provision_rate_doc.insert(ignore_permissions=True)
+
+    return get_loan_classification_by_id(classification_code, company_name)
 
 
-def update_loan_classification(code: str, data: Dict[str, Any]) -> Dict[str, Any]:
+def update_loan_classification(classification_code: str, data: Dict[str, Any]) -> Dict[str, Any]:
     validate_classification_payload(data, is_update=True)
-    company = get_target_company(data)
+    company_name = get_target_company(data)
     
-    cls_name = frappe.db.get_value("Loan Classification", {"classification_code": code}, "name")
-    if not cls_name:
-        raise frappe.DoesNotExistError(f"Loan Classification '{code}' not found.")
+    loan_classification_name = frappe.db.get_value("Loan Classification", {"classification_code": classification_code}, "name")
+    if not loan_classification_name:
+        raise frappe.DoesNotExistError(f"Loan Classification '{classification_code}' not found.")
 
-    new_name = data.get("classificationName")
+    new_classification_name = data.get("classificationName")
 
-    # 1. Update Standalone Parent
-    if new_name:
-        frappe.db.set_value("Loan Classification", cls_name, "classification_name", new_name)
+    if new_classification_name:
+        frappe.db.set_value("Loan Classification", loan_classification_name, "classification_name", new_classification_name)
 
-    # 2. Update Company's DPD Range Child
-    dpd_names = frappe.get_all("Loan Classification Range", filters={"parent": company, "classification_code": code}, pluck="name")
-    if dpd_names:
-        dpd_child = frappe.get_doc("Loan Classification Range", dpd_names[0])
-        if new_name: dpd_child.classification_name = new_name
-        if "minDpdRange" in data: dpd_child.min_dpd_range = flt(data["minDpdRange"])
-        if "maxDpdRange" in data: dpd_child.max_dpd_range = flt(data["maxDpdRange"])
-        validate_dpd_logic(dpd_child.min_dpd_range, dpd_child.max_dpd_range)
-        dpd_child.save(ignore_permissions=True)
+    if "level" in data:
+        validate_level_uniqueness(data["level"], ignore_parent=loan_classification_name)
+        extended_details_names = frappe.get_all("Custom Loan Classification Extended Details", filters={"parent": loan_classification_name}, pluck="name")
+        
+        if extended_details_names:
+            extended_details_doc = frappe.get_doc("Custom Loan Classification Extended Details", extended_details_names[0])
+            extended_details_doc.level = data["level"]
+            extended_details_doc.save(ignore_permissions=True)
+        else:
+            extended_details_doc = frappe.new_doc("Custom Loan Classification Extended Details")
+            extended_details_doc.parent = loan_classification_name
+            extended_details_doc.parenttype = "Loan Classification"
+            extended_details_doc.parentfield = "custom_loan_classification_extended_details"
+            extended_details_doc.level = data["level"]
+            extended_details_doc.insert(ignore_permissions=True)
 
-    # 3. Update Company's Provision Rate Child
-    prov_names = frappe.get_all("Loan IRAC Provisioning Configuration", filters={"parent": company, "classification_code": code}, pluck="name")
-    if prov_names:
-        prov_child = frappe.get_doc("Loan IRAC Provisioning Configuration", prov_names[0])
-        if new_name: prov_child.classification_name = new_name
-        if "provisionRate" in data: prov_child.provision_rate = flt(data["provisionRate"])
-        prov_child.save(ignore_permissions=True)
+    dpd_range_names = frappe.get_all("Loan Classification Range", filters={"parent": company_name, "classification_code": classification_code}, pluck="name")
+    if dpd_range_names:
+        dpd_range_doc = frappe.get_doc("Loan Classification Range", dpd_range_names[0])
+        if new_classification_name: 
+            dpd_range_doc.classification_name = new_classification_name
+        if "minDpdRange" in data: 
+            dpd_range_doc.min_dpd_range = flt(data["minDpdRange"])
+        if "maxDpdRange" in data: 
+            dpd_range_doc.max_dpd_range = flt(data["maxDpdRange"])
+        validate_dpd_logic(dpd_range_doc.min_dpd_range, dpd_range_doc.max_dpd_range)
+        dpd_range_doc.save(ignore_permissions=True)
 
-    return get_loan_classification_by_id(code, company)
+    provision_rate_names = frappe.get_all("Loan IRAC Provisioning Configuration", filters={"parent": company_name, "classification_code": classification_code}, pluck="name")
+    if provision_rate_names:
+        provision_rate_doc = frappe.get_doc("Loan IRAC Provisioning Configuration", provision_rate_names[0])
+        if new_classification_name: 
+            provision_rate_doc.classification_name = new_classification_name
+        if "provisionRate" in data: 
+            provision_rate_doc.provision_rate = flt(data["provisionRate"])
+        provision_rate_doc.save(ignore_permissions=True)
+
+    return get_loan_classification_by_id(classification_code, company_name)
 
 
-def get_loan_classification_by_id(code: str, company: str = None) -> Dict[str, Any]:
-    company = company or get_target_company()
+def get_loan_classification_by_id(classification_code: str, company_name: str = None) -> Dict[str, Any]:
+    company_name = company_name or get_target_company()
 
-    cls_name = frappe.db.get_value("Loan Classification", {"classification_code": code}, "name")
-    if not cls_name:
-        raise frappe.DoesNotExistError(f"Loan Classification '{code}' not found.")
+    loan_classification_name = frappe.db.get_value("Loan Classification", {"classification_code": classification_code}, "name")
+    if not loan_classification_name:
+        raise frappe.DoesNotExistError(f"Loan Classification '{classification_code}' not found.")
 
-    cls_doc = frappe.get_doc("Loan Classification", cls_name)
-
-    # Fetch explicitly by company (parent)
-    dpd_rows = frappe.get_all("Loan Classification Range", filters={"parent": company, "classification_code": code}, fields=["min_dpd_range", "max_dpd_range"])
-    prov_rows = frappe.get_all("Loan IRAC Provisioning Configuration", filters={"parent": company, "classification_code": code}, fields=["provision_rate"])
+    loan_classification_doc = frappe.get_doc("Loan Classification", loan_classification_name)
+    
+    extended_details_records = frappe.get_all("Custom Loan Classification Extended Details", filters={"parent": loan_classification_name}, fields=["level"])
+    dpd_range_records = frappe.get_all("Loan Classification Range", filters={"parent": company_name, "classification_code": classification_code}, fields=["min_dpd_range", "max_dpd_range"])
+    provision_rate_records = frappe.get_all("Loan IRAC Provisioning Configuration", filters={"parent": company_name, "classification_code": classification_code}, fields=["provision_rate"])
 
     return {
-        "classificationCode": cls_doc.classification_code,
-        "classificationName": cls_doc.classification_name,
-        "minDpdRange": dpd_rows[0].min_dpd_range if dpd_rows else 0,
-        "maxDpdRange": dpd_rows[0].max_dpd_range if dpd_rows else 0,
-        "provisionRate": prov_rows[0].provision_rate if prov_rows else 0.0,
-        "company": company
+        "classificationCode": loan_classification_doc.classification_code,
+        "classificationName": loan_classification_doc.classification_name,
+        "level": extended_details_records[0].level if extended_details_records else None,
+        "minDpdRange": dpd_range_records[0].min_dpd_range if dpd_range_records else 0,
+        "maxDpdRange": dpd_range_records[0].max_dpd_range if dpd_range_records else 0,
+        "provisionRate": provision_rate_records[0].provision_rate if provision_rate_records else 0.0,
+        "company": company_name
     }
 
 
 def get_loan_classifications(args: Dict[str, Any], page: int, page_size: int, sort_by="creation", sort_order="desc") -> Tuple[list, int, int]:
-    company = get_target_company(args)
-    start = (page - 1) * page_size
-    or_filters = []
+    company_name = get_target_company(args)
+    start_index = (page - 1) * page_size
+    query_or_filters = []
 
-    if search := args.get("search"):
-        search_term = f"%{str(search).strip()}%"
-        or_filters = [
-            ["classification_code", "like", search_term],
-            ["classification_name", "like", search_term]
+    search_term = args.get("search")
+    if search_term:
+        formatted_search_term = f"%{str(search_term).strip()}%"
+        query_or_filters = [
+            ["classification_code", "like", formatted_search_term],
+            ["classification_name", "like", formatted_search_term]
         ]
 
     if sort_by not in ALLOWED_SORT_FIELDS:
         raise frappe.ValidationError(f"Invalid sort field: {sort_by}")
 
-    # Fetch Base Classifications
-    classifications = frappe.get_all(
+    safe_filters = build_classification_filters(args)
+
+    loan_classifications = frappe.get_all(
         "Loan Classification",
-        or_filters=or_filters if search else None,
-        fields=["classification_code", "classification_name"],
-        limit_start=start,
-        limit_page_length=page_size,
-        order_by=f"`tabLoan Classification`.`{sort_by}` {sort_order}",
+        filters=safe_filters,
+        or_filters=query_or_filters if search_term else None,
+        fields=["name", "classification_code", "classification_name", "creation", "modified"]
     )
 
-    # Optimized O(1) Dictionary Mapping for Child Tables attached to the Company
-    dpd_records = frappe.get_all("Loan Classification Range", filters={"parent": company}, fields=["classification_code", "min_dpd_range", "max_dpd_range"])
-    prov_records = frappe.get_all("Loan IRAC Provisioning Configuration", filters={"parent": company}, fields=["classification_code", "provision_rate"])
+    level_records = frappe.get_all("Custom Loan Classification Extended Details", fields=["parent", "level"])
+    level_map = {record.parent: record.level for record in level_records}
 
-    dpd_map = {r.classification_code: {"min": r.min_dpd_range, "max": r.max_dpd_range} for r in dpd_records}
-    prov_map = {r.classification_code: r.provision_rate for r in prov_records}
+    dpd_range_records = frappe.get_all("Loan Classification Range", filters={"parent": company_name}, fields=["classification_code", "min_dpd_range", "max_dpd_range"])
+    provision_rate_records = frappe.get_all("Loan IRAC Provisioning Configuration", filters={"parent": company_name}, fields=["classification_code", "provision_rate"])
 
-    result = []
-    for cls in classifications:
-        code = cls.classification_code
-        result.append({
-            "classificationCode": code,
-            "classificationName": cls.classification_name,
-            "minDpdRange": dpd_map.get(code, {}).get("min", 0),
-            "maxDpdRange": dpd_map.get(code, {}).get("max", 0),
-            "provisionRate": prov_map.get(code, 0.0),
-            "company": company
+    dpd_range_map = {record.classification_code: {"min": record.min_dpd_range, "max": record.max_dpd_range} for record in dpd_range_records}
+    provision_rate_map = {record.classification_code: record.provision_rate for record in provision_rate_records}
+
+    full_results = []
+    for classification_record in loan_classifications:
+        current_code = classification_record.classification_code
+        full_results.append({
+            "classificationCode": current_code,
+            "classificationName": classification_record.classification_name,
+            "level": level_map.get(classification_record.name),
+            "minDpdRange": dpd_range_map.get(current_code, {}).get("min", 0),
+            "maxDpdRange": dpd_range_map.get(current_code, {}).get("max", 0),
+            "provisionRate": provision_rate_map.get(current_code, 0.0),
+            "company": company_name,
+            "creation": classification_record.creation,
+            "modified": classification_record.modified
         })
 
-    total_records = len(frappe.get_all(
-        "Loan Classification",
-        or_filters=or_filters if search else None,
-        pluck="name"
-    ))
-    
+    sort_field_map = {
+        "level": "level",
+        "provisionRate": "provisionRate",
+        "provision_rate": "provisionRate",
+        "minDpdRange": "minDpdRange",
+        "min_dpd_range": "minDpdRange",
+        "maxDpdRange": "maxDpdRange",
+        "max_dpd_range": "maxDpdRange",
+        "classificationCode": "classificationCode",
+        "classification_code": "classificationCode",
+        "name": "classificationCode",
+        "classificationName": "classificationName",
+        "classification_name": "classificationName",
+        "creation": "creation",
+        "modified": "modified"
+    }
+
+    mapped_sort_by = sort_field_map.get(sort_by, "creation")
+    is_reverse = (str(sort_order).lower() == "desc")
+
+    def sort_key(item):
+        val = item.get(mapped_sort_by)
+        if val is None:
+            return "" if mapped_sort_by in ["level", "classificationCode", "classificationName"] else 0
+        return str(val) if mapped_sort_by in ["creation", "modified"] else val
+
+    full_results.sort(key=sort_key, reverse=is_reverse)
+
+    total_records = len(full_results)
     total_pages = (total_records + page_size - 1) // page_size
+    paginated_results = full_results[start_index:start_index + page_size]
 
-    return result, total_records, total_pages
+    for result in paginated_results:
+        result.pop("creation", None)
+        result.pop("modified", None)
+
+    return paginated_results, total_records, total_pages
 
 
-def delete_loan_classification(code: str):
-    cls_name = frappe.db.get_value("Loan Classification", {"classification_code": code}, "name")
-    if not cls_name:
-        raise frappe.DoesNotExistError(f"Loan Classification '{code}' not found.")
+def delete_loan_classification(classification_code: str):
+    loan_classification_name = frappe.db.get_value("Loan Classification", {"classification_code": classification_code}, "name")
+    if not loan_classification_name:
+        raise frappe.DoesNotExistError(f"Loan Classification '{classification_code}' not found.")
 
-
-    frappe.db.delete("Loan Classification Range", {"classification_code": code})
-    frappe.db.delete("Loan IRAC Provisioning Configuration", {"classification_code": code})
+    frappe.db.delete("Loan Classification Range", {"classification_code": classification_code})
+    frappe.db.delete("Loan IRAC Provisioning Configuration", {"classification_code": classification_code})
+    frappe.db.delete("Custom Loan Classification Extended Details", {"parent": loan_classification_name})
     
-    # Finally, delete the standalone parent
-    frappe.delete_doc("Loan Classification", cls_name, ignore_permissions=True)
+    frappe.delete_doc("Loan Classification", loan_classification_name, ignore_permissions=True)

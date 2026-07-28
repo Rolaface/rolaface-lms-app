@@ -113,3 +113,170 @@ def get_customers():
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Get Customers API Error")
         return send_response("fail", str(e), None, 500, 500)
+
+@frappe.whitelist(allow_guest=False, methods=["GET"])
+def get_loan_products():
+    try:
+        data = _fetch_paginated_autosuggest(
+            doctype="Loan Product",
+            filters=frappe._dict({}),
+            search_fields=["name", "product_name"],
+            field_map={
+                "value": "name",
+                "label": "product_name",
+                "description": "name",
+            },
+        )
+        return send_response_list("success", "Loan Products fetched successfully.", data)
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Get Loan Products API Error")
+        return send_response("fail", str(e), None, 500, 500)
+
+@frappe.whitelist(allow_guest=False, methods=["GET"])
+def get_loan_applications():
+    try:
+        data = _fetch_paginated_autosuggest(
+            doctype="Loan Application",
+            filters=frappe._dict({"docstatus": 1}),
+            search_fields=["name", "applicant", "applicant_name", "status"],
+            field_map={
+                "value": "name",
+                "label": "applicant_name",
+                "description": ["loan_product", "loan_amount", "status"],
+            },
+        )
+        return send_response_list("success", "Loan Applications fetched successfully.", data)
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Get Loan Applications API Error")
+        return send_response("fail", str(e), None, 500, 500)
+
+
+@frappe.whitelist(allow_guest=False, methods=["GET"])
+def get_loans():
+    try:
+        data = _fetch_paginated_autosuggest(
+            doctype="Loan",
+            filters=frappe._dict({"status": ["!=", "Closed"]}),
+            search_fields=["name", "applicant", "applicant_name", "loan_product"],
+            field_map={
+                "value": "name",
+                "label": "name",
+                "description": ["applicant_name", "loan_amount"],
+            },
+        )
+        return send_response_list("success", "Loans fetched successfully.", data)
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Get Loans API Error")
+        return send_response("fail", str(e), None, 500, 500)
+
+
+@frappe.whitelist(allow_guest=False, methods=["GET"])
+def get_loan_charges():
+    try:
+        data = _fetch_paginated_autosuggest(
+            doctype="Loan Charge",
+            filters=frappe._dict({}),
+            search_fields=["name", "charge_name"],
+            field_map={
+                "value": "name",
+                "label": "charge_name",
+                "description": ["charge_type", "amount"],
+            },
+        )
+        return send_response_list("success", "Loan Charges fetched successfully.", data)
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Get Loan Charges API Error")
+        return send_response("fail", str(e), None, 500, 500)
+
+@frappe.whitelist(allow_guest=False, methods=["GET"])
+def get_loan_security_types():
+    try:
+        data = _fetch_paginated_autosuggest(
+            doctype="Loan Security Type",
+            filters=frappe._dict({}),
+            search_fields=["name", "loan_security_type_name"],
+            field_map={
+                "value": "name",
+                "label": "loan_security_type_name",
+                "description": "name",
+            },
+        )
+        return send_response_list("success", "Loan Security Types fetched successfully.", data)
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Get Loan Security Types API Error")
+        return send_response("fail", str(e), None, 500, 500)
+
+
+@frappe.whitelist(allow_guest=False, methods=["GET"])
+def get_loan_securities():
+    try:
+        data = _fetch_paginated_autosuggest(
+            doctype="Loan Security",
+            filters=frappe._dict({}),
+            search_fields=["name", "loan_security_name", "loan_security_code"],
+            field_map={
+                "value": "name",
+                "label": "loan_security_name",
+                "description": "loan_security_type",
+            },
+        )
+        return send_response_list("success", "Loan Securities fetched successfully.", data)
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Get Loan Securities API Error")
+        return send_response("fail", str(e), None, 500, 500)
+
+
+@frappe.whitelist(allow_guest=False, methods=["GET"])
+def get_loan_disbursements():
+    try:
+        data = _fetch_paginated_autosuggest(
+            doctype="Loan Disbursement",
+            filters=frappe._dict({"docstatus": 1}),
+            search_fields=["name", "loan", "applicant"],
+            field_map={
+                "value": "name",
+                "label": "name",
+                "description": ["loan", "disbursed_amount"],
+            },
+        )
+        return send_response_list("success", "Loan Disbursements fetched successfully.", data)
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Get Loan Disbursements API Error")
+        return send_response("fail", str(e), None, 500, 500)
+
+
+@frappe.whitelist(allow_guest=False, methods=["GET"])
+def get_loan_repayments():
+    try:
+        data = _fetch_paginated_autosuggest(
+            doctype="Loan Repayment",
+            filters=frappe._dict({"docstatus": 1}),
+            search_fields=["name", "loan", "applicant"],
+            field_map={
+                "value": "name",
+                "label": "name",
+                "description": ["loan", "amount_paid"],
+            },
+        )
+        return send_response_list("success", "Loan Repayments fetched successfully.", data)
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Get Loan Repayments API Error")
+        return send_response("fail", str(e), None, 500, 500)
+
+@frappe.whitelist(allow_guest=False, methods=["GET"])
+def get_loan_partners():
+    try:
+        data = _fetch_paginated_autosuggest(
+            doctype="Loan Partner",
+            filters=frappe._dict({}),
+            search_fields=["name", "partner_name"],
+            field_map={
+                "value": "name",
+                "label": "partner_name",
+                "description": "name",
+            },
+        )
+        return send_response_list("success", "Loan Partners fetched successfully.", data)
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Get Loan Partners API Error")
+        return send_response("fail", str(e), None, 500, 500)

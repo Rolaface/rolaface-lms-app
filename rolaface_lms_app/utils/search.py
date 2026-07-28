@@ -96,7 +96,7 @@ def _fetch_paginated_autosuggest(
         },
     }
 
-@frappe.whitelist(allow_guest=False, methods=["GET"])
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_customers():
     try:
         data = _fetch_paginated_autosuggest(
@@ -114,7 +114,7 @@ def get_customers():
         frappe.log_error(frappe.get_traceback(), "Get Customers API Error")
         return send_response("fail", str(e), None, 500, 500)
 
-@frappe.whitelist(allow_guest=False, methods=["GET"])
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loan_products():
     try:
         data = _fetch_paginated_autosuggest(
@@ -132,7 +132,7 @@ def get_loan_products():
         frappe.log_error(frappe.get_traceback(), "Get Loan Products API Error")
         return send_response("fail", str(e), None, 500, 500)
 
-@frappe.whitelist(allow_guest=False, methods=["GET"])
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loan_applications():
     try:
         data = _fetch_paginated_autosuggest(
@@ -151,7 +151,7 @@ def get_loan_applications():
         return send_response("fail", str(e), None, 500, 500)
 
 
-@frappe.whitelist(allow_guest=False, methods=["GET"])
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loans():
     try:
         data = _fetch_paginated_autosuggest(
@@ -170,7 +170,7 @@ def get_loans():
         return send_response("fail", str(e), None, 500, 500)
 
 
-@frappe.whitelist(allow_guest=False, methods=["GET"])
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loan_charges():
     try:
         data = _fetch_paginated_autosuggest(
@@ -188,7 +188,7 @@ def get_loan_charges():
         frappe.log_error(frappe.get_traceback(), "Get Loan Charges API Error")
         return send_response("fail", str(e), None, 500, 500)
 
-@frappe.whitelist(allow_guest=False, methods=["GET"])
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loan_security_types():
     try:
         data = _fetch_paginated_autosuggest(
@@ -207,7 +207,7 @@ def get_loan_security_types():
         return send_response("fail", str(e), None, 500, 500)
 
 
-@frappe.whitelist(allow_guest=False, methods=["GET"])
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loan_securities():
     try:
         data = _fetch_paginated_autosuggest(
@@ -226,7 +226,7 @@ def get_loan_securities():
         return send_response("fail", str(e), None, 500, 500)
 
 
-@frappe.whitelist(allow_guest=False, methods=["GET"])
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loan_disbursements():
     try:
         data = _fetch_paginated_autosuggest(
@@ -245,7 +245,7 @@ def get_loan_disbursements():
         return send_response("fail", str(e), None, 500, 500)
 
 
-@frappe.whitelist(allow_guest=False, methods=["GET"])
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loan_repayments():
     try:
         data = _fetch_paginated_autosuggest(
@@ -263,7 +263,7 @@ def get_loan_repayments():
         frappe.log_error(frappe.get_traceback(), "Get Loan Repayments API Error")
         return send_response("fail", str(e), None, 500, 500)
 
-@frappe.whitelist(allow_guest=False, methods=["GET"])
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loan_partners():
     try:
         data = _fetch_paginated_autosuggest(

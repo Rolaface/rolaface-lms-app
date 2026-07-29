@@ -113,3 +113,73 @@ def get_customers():
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Get Customers API Error")
         return send_response("fail", str(e), None, 500, 500)
+
+
+@frappe.whitelist(allow_guest=False, methods=["GET"])
+def get_loan_demand_offset_orders():
+    try:
+        data = _fetch_paginated_autosuggest(
+            doctype="Loan Demand Offset Order",
+            filters=frappe._dict({}),
+            search_fields=["name"],
+            field_map={
+                "value": "name",
+                "label": "name",
+                "description": "name",
+            },
+        )
+        return send_response_list("success", "Loan Demand Offset Orders fetched successfully.", data)
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Get Loan Demand Offset Order API Error")
+        return send_response("fail", str(e), None, 500, 500)
+
+def _get_account_filters():
+    filters = {}
+
+    root_type = frappe.request.args.get("root_type")
+    if root_type:
+        values = [v.strip() for v in root_type.split(",") if v.strip()]
+        filters["root_type"] = ["in", values] if len(values) > 1 else values[0]
+
+    is_group = frappe.request.args.get("is_group")
+    if is_group is not None and is_group != "":
+        filters["is_group"] = is_group
+
+    return filters
+
+
+@frappe.whitelist(allow_guest=False, methods=["GET"])
+def get_accounts():
+    try:
+        data = _fetch_paginated_autosuggest(
+            doctype="Account",
+            filters=_get_account_filters(),
+            search_fields=["name"],
+            field_map={
+                "value": "name",
+                "label": "name",
+                "description": "name",
+            },
+        )
+        return send_response_list("success", "Accounts fetched successfully.", data)
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Get Accounts API Error")
+        return send_response("fail", str(e), None, 500, 500)
+
+@frappe.whitelist(allow_guest=False, methods=["GET"])
+def get_items():
+    try:
+        data = _fetch_paginated_autosuggest(
+            doctype="Item",
+            filters=frappe._dict({}),
+            search_fields=["name"],
+            field_map={
+                "value": "name",
+                "label": "name",
+                "description": "name",
+            },
+        )
+        return send_response_list("success", "Items fetched successfully.", data)
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Get Items API Error")
+        return send_response("fail", str(e), None, 500, 500)

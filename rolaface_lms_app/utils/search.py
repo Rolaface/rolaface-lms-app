@@ -281,7 +281,7 @@ def get_loan_partners():
         frappe.log_error(frappe.get_traceback(), "Get Loan Partners API Error")
         return send_response("fail", str(e), None, 500, 500)
 
-@frappe.whitelist(allow_guest=False, methods=["GET"])
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loan_demand_offset_orders():
     try:
         data = _fetch_paginated_autosuggest(
@@ -314,7 +314,7 @@ def _get_account_filters():
     return filters
 
 
-@frappe.whitelist(allow_guest=False, methods=["GET"])
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_accounts():
     try:
         data = _fetch_paginated_autosuggest(
@@ -332,7 +332,7 @@ def get_accounts():
         frappe.log_error(frappe.get_traceback(), "Get Accounts API Error")
         return send_response("fail", str(e), None, 500, 500)
 
-@frappe.whitelist(allow_guest=False, methods=["GET"])
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_items():
     try:
         data = _fetch_paginated_autosuggest(

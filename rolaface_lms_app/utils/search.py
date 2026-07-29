@@ -297,6 +297,24 @@ def get_loan_security_types():
         frappe.log_error(frappe.get_traceback(), "Get Loan Security Types API Error")
         return send_response("fail", str(e), None, 500, 500)
 
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_loan_category():
+    try:
+        data = _fetch_paginated_autosuggest(
+            doctype="Loan Category",
+            filters=frappe._dict({}),
+            search_fields=["name", "loan_category_code", "loan_category_name"],
+            field_map={
+                "value": "loan_category_code",
+                "label": "loan_category_name",
+                "description": "loan_category_name",
+            },
+        )
+        return send_response_list("success", "Loan Category fetched successfully.", data)
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Get Loan Category API Error")
+        return send_response("fail", str(e), None, 500, 500)
+
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loan_securities():

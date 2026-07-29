@@ -8,7 +8,7 @@ ALLOWED_LOAN_FIELDS = {
     "is_secured_loan", "is_term_loan", "repayment_start_date", "repayment_frequency",
     "monthly_repayment_amount", "repayment_method", "repayment_periods", "moratorium_type",
     "moratorium_tenure", "treatment_of_interest", "cost_center", "disbursement_account",
-    "payment_account", "loan_account", "interest_income_account", "penalty_income_account"
+    "payment_account", "loan_account", "interest_income_account", "penalty_income_account", "branch"
 }
 
 ALLOWED_SORT_FIELDS = {
@@ -18,7 +18,7 @@ ALLOWED_SORT_FIELDS = {
 
 RETURN_FIELDS_GET_ALL = [
     "name", "applicant_type", "applicant", "applicant_name", "loan_product", 
-    "loan_amount", "status", "posting_date", "company"
+    "loan_amount", "branch", "rate_of_interest", "status", "posting_date"
 ]
 
 RETURN_FIELDS_GET_BY_ID = list(ALLOWED_LOAN_FIELDS) + [

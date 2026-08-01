@@ -1,6 +1,6 @@
 import frappe
 from typing import Tuple, Dict,List, Any
-from .constant import ALLOWED_PAYMENT_FIELD
+from .constant import ALLOWED_PAYMENT_FIELD, RETURN_FIELDS_GET_ALL, RETURN_FIELDS_GET_BY_ID, ALLOWED_SORT_FIELDS 
 
 def create_payment(data: Dict[str, Any]):
     payment_doc = frappe.new_doc("Loan Repayment")
@@ -90,3 +90,169 @@ def _attach_phone_numbers(loans: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         loan.setdefault("emi", None)
 
     return loans
+
+def get_loan_repayment_by_id(repayment_id: str) -> Dict[str, Any]:
+    if not frappe.db.exists("Loan Repayment", repayment_id):
+        raise frappe.DoesNotExistError(f"Loan Repayment '{repayment_id}' does not exist.")
+
+    repayment_doc = frappe.get_doc("Loan Repayment", repayment_id)
+    result = {field: repayment_doc.get(field) for field in RETURN_FIELDS_GET_BY_ID}
+    return result
+
+
+def get_loan_repayments(args: Dict[str, Any], page: int, page_size: int, sort_by="creation", sort_order="desc") -> Tuple[list, int, int]:
+    start = (page - 1) * page_size
+    or_filters = []
+
+    search = args.get("search")
+    if search:
+        search_term = f"%{str(search).strip()}%"
+        or_filters = [
+            ["name", "like", search_term],
+            ["against_loan", "like", search_term],
+            ["applicant", "like", search_term]
+        ]
+
+    safe_filters = {}
+    if args.get("applicant"):
+        safe_filters["applicant"] = args.get("applicant")
+    if args.get("against_loan"):
+        safe_filters["against_loan"] = args.get("against_loan")
+    # if args.get("status"):
+        # safe_filters["status"] = args.get("status")
+    if args.get("repayment_type"):
+        safe_filters["repayment_type"] = args.get("repayment_type")
+
+    if sort_by not in ALLOWED_SORT_FIELDS:
+        raise frappe.ValidationError(f"Invalid sort_by field: {sort_by}")
+
+    sort_order_clean = str(sort_order).lower()
+    if sort_order_clean not in ["asc", "desc"]:
+        raise frappe.ValidationError("Invalid sort_order value. Use 'asc' or 'desc'.")
+
+    order_by_string = f"`tabLoan Repayment`.`{sort_by}` {sort_order_clean}"
+
+    repayments = frappe.get_all(
+        "Loan Repayment",
+        filters=safe_filters,
+        or_filters=or_filters if search else None,
+        fields=RETURN_FIELDS_GET_ALL,
+        limit_start=start,
+        limit_page_length=page_size,
+        order_by=order_by_string,
+    )
+
+    total_repayments = len(
+        frappe.get_all(
+            "Loan Repayment",
+            filters=safe_filters,
+            or_filters=or_filters if search else None,
+            pluck="name",
+        )
+    )
+
+    total_pages = (total_repayments + page_size - 1) // page_size
+
+    return repayments, total_repayments, total_pages
+
+
+def update_loan_repayment(repayment_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    if not frappe.db.exists("Loan Repayment", repayment_id):
+        raise frappe.DoesNotExistError(f"Loan Repayment '{repayment_id}' does not exist.")
+
+    repayment_doc = frappe.get_doc("Loan Repayment", repayment_id)
+
+    if repayment_doc.docstatus == 1:
+        raise frappe.ValidationError(f"Cannot update submitted Loan Repayment '{repayment_id}'.")
+
+    has_changes = False
+    for field in ALLOWED_PAYMENT_FIELD:
+        if field in data and data.get(field) is not None:
+            if repayment_doc.get(field) != data.get(field):
+                repayment_doc.set(field, data.get(field))
+                has_changes = True
+
+    if has_changes:
+        repayment_doc.save(ignore_permissions=True)
+
+    return get_loan_repayment_by_id(repayment_doc.name)
+
+
+def delete_loan_repayment(repayment_id: str):
+    if not frappe.db.exists("Loan Repayment", repayment_id):
+        raise frappe.DoesNotExistError(f"Loan Repayment '{repayment_id}' does not exist.")
+
+    docstatus = frappe.db.get_value("Loan Repayment", repayment_id, "docstatus")
+    if docstatus == 1:
+        raise frappe.ValidationError(f"Cannot delete a submitted Loan Repayment '{repayment_id}'. Cancel it first.")
+
+    frappe.delete_doc("Loan Repayment", repayment_id, ignore_permissions=True)
+
+
+def process_approval(repayment_doc):
+    if repayment_doc.docstatus == 1:
+        raise frappe.ValidationError("Loan Repayment is already approved.")
+    if repayment_doc.docstatus == 2:
+        raise frappe.ValidationError("Cannot approve a cancelled Loan Repayment. Please amend it first.")
+
+    repayment_doc.submit()
+
+    return {
+        "id": repayment_doc.name,
+        "status": repayment_doc.status,
+        "docstatus": repayment_doc.docstatus
+    }
+
+
+def process_cancellation(repayment_doc):
+    if repayment_doc.docstatus == 2:
+        raise frappe.ValidationError("Loan Repayment is already cancelled.")
+    if repayment_doc.docstatus == 0:
+        raise frappe.ValidationError("Cannot cancel a Draft Loan Repayment. Submit it first.")
+
+    repayment_doc.cancel()
+
+    return {
+        "id": repayment_doc.name,
+        "status": repayment_doc.status,
+        "docstatus": repayment_doc.docstatus
+    }
+
+
+def process_amendment(repayment_doc):
+    if repayment_doc.docstatus == 0:
+        raise frappe.ValidationError("Loan Repayment is already in Draft state.")
+    if repayment_doc.docstatus == 1:
+        raise frappe.ValidationError("Cannot amend an approved Loan Repayment. Cancel it first.")
+
+    amended_doc = frappe.copy_doc(repayment_doc)
+    amended_doc.amended_from = repayment_doc.name
+    amended_doc.docstatus = 0
+
+    amended_doc.insert()
+
+    return {
+        "id": amended_doc.name,
+        "status": amended_doc.status,
+        "docstatus": amended_doc.docstatus,
+        "amended_from": amended_doc.amended_from
+    }
+
+
+def update_loan_repayment_status(repayment_id: str, action: str):
+    repayment_doc = frappe.get_doc("Loan Repayment", repayment_id)
+
+    if not frappe.has_permission("Loan Repayment", "write", repayment_doc):
+        raise frappe.PermissionError("No permission to modify this Loan Repayment.")
+
+    if action == "approved":
+        return process_approval(repayment_doc)
+
+    elif action == "cancelled":
+        return process_cancellation(repayment_doc)
+
+    elif action == "amend":
+        return process_amendment(repayment_doc)
+
+    else:
+        raise frappe.ValidationError("Invalid action. Allowed: approved, cancelled, amend")

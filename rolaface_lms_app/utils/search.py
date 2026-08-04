@@ -285,11 +285,11 @@ def get_loan_security_types():
         data = _fetch_paginated_autosuggest(
             doctype="Loan Security Type",
             filters=frappe._dict({}),
-            search_fields=["name", "loan_security_type_name"],
+            search_fields=["name", "loan_security_type"],
             field_map={
                 "value": "name",
-                "label": "loan_security_type_name",
-                "description": "name",
+                "label": "loan_security_type",
+                "description": "loan_security_type",
             },
         )
         return send_response_list("success", "Loan Security Types fetched successfully.", data)

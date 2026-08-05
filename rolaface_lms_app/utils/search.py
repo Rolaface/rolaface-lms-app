@@ -432,8 +432,8 @@ def get_accounts():
             search_fields=["name"],
             field_map={
                 "value": "name",
-                "label": "name",
-                "description": "name",
+                "label": "account_name",
+                "description": "account_name",
             },
         )
         return send_response_list("success", "Accounts fetched successfully.", data)

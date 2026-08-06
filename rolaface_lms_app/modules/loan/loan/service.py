@@ -185,3 +185,45 @@ def update_loan_status(loan_id: str, action: str):
         
     else:
         raise frappe.ValidationError("Invalid action. Allowed: approved, cancelled, amend")
+
+
+def get_repayment_schedule_by_id(loan_id: str) -> Dict[str, Any]:
+    if not frappe.db.exists("Loan", loan_id):
+        raise frappe.DoesNotExistError(f"Loan '{loan_id}' does not exist.")
+
+    schedule_doc_name = frappe.db.get_value(
+        "Loan Repayment Schedule",
+        {"loan": loan_id, "docstatus": 1},
+        "name",
+        order_by="creation desc",
+    )
+
+    if not schedule_doc_name:
+        return {
+            "id": loan_id,
+            "maturity_date": None,
+            "repayment_schedule": [],
+        }
+
+    schedule_doc = frappe.get_doc("Loan Repayment Schedule", schedule_doc_name)
+
+    schedule = []
+    for row in schedule_doc.get("repayment_schedule") or []:
+        schedule.append({
+            "no": row.idx,
+            "name": row.name,
+            "payment_date": row.payment_date,
+            "number_of_days": row.number_of_days,
+            "principal_amount": row.principal_amount,
+            "interest_amount": row.interest_amount,
+            "total_payment": row.total_payment,
+            "balance_loan_amount": row.balance_loan_amount,
+            "charges": row.charges,
+            "demand_generated": row.demand_generated,
+        })
+
+    return {
+        "id": loan_id,
+        "maturity_date": schedule_doc.get("maturity_date"),
+        "repayment_schedule": schedule,
+    }

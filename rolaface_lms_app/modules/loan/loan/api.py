@@ -319,3 +319,39 @@ def update_loan_status(id=None, action=None):
             status_code=500,
             http_status=500,
         )
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_repayment_schedule_by_id(id=None):
+    """
+    Get Repayment Schedule By Loan ID
+    ---
+    tags:
+      - Loan
+    summary: Fetch repayment schedule rows for a Loan by ID.
+    parameters:
+      - in: query
+        name: id
+        schema:
+          type: string
+        required: true
+    responses:
+      200:
+        description: Repayment schedule retrieved successfully.
+    """
+    try:
+        loan_id = id or frappe.request.args.get("id")
+
+        if not loan_id:
+            raise frappe.ValidationError("Loan ID is required.")
+
+        data = service.get_repayment_schedule_by_id(loan_id)
+
+        return send_response(
+            status="success",
+            message="Repayment schedule retrieved successfully.",
+            data=data,
+            status_code=200,
+            http_status=200,
+        )
+    except Exception as e:
+        return handle_api_error(e, "Get Repayment Schedule By ID Error")

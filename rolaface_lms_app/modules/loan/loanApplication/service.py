@@ -1,6 +1,11 @@
 import frappe
 from typing import Dict, Tuple, Any
-from .utils import build_loan_application_filters, validate_loan_application_payload
+from .utils import (
+    build_loan_application_filters,
+    validate_loan_application_payload,
+    sync_loan_application_co_applicants,
+    sync_loan_application_documents,
+)
 from .constant import (
     ALLOWED_LOAN_APPLICATION_FIELDS,
     RETURN_FIELDS_GET_ALL,
@@ -20,6 +25,9 @@ def create_loan_application(data: Dict[str, Any]) -> Dict[str, Any]:
     for field in ALLOWED_LOAN_APPLICATION_FIELDS:
         if field in data and data.get(field) is not None:
             loan_application.set(field, data.get(field))
+
+    sync_loan_application_co_applicants(loan_application, data.get("co_applicants"))
+    sync_loan_application_documents(loan_application, data.get("documents"))
 
     loan_application.insert(ignore_permissions=True)
     return get_loan_application_by_id(loan_application.name)
@@ -43,6 +51,14 @@ def update_loan_application(loan_application_id: str, data: Dict[str, Any]) -> D
                 loan_application.set(field, data.get(field))
                 has_changes = True
 
+    if "co_applicants" in data:
+        if sync_loan_application_co_applicants(loan_application, data.get("co_applicants")):
+            has_changes = True
+
+    if "documents" in data:
+        if sync_loan_application_documents(loan_application, data.get("documents")):
+            has_changes = True
+
     if has_changes:
         loan_application.save(ignore_permissions=True)
 
@@ -55,8 +71,27 @@ def get_loan_application_by_id(loan_application_id: str) -> Dict[str, Any]:
 
     doc = frappe.get_doc("Loan Application", loan_application_id)
     result = {field: doc.get(field) for field in RETURN_FIELDS_GET_BY_ID}
-    return result
 
+    co_applicants = []
+    for row in doc.get("co_applicants", []) or []:
+        co_applicants.append({
+            "name": row.name,
+            "applicant_name": row.applicant_name,
+            "applicant_email": row.applicant_email,
+            "applicant_mobile": row.applicant_mobile,
+        })
+    result["co_applicants"] = co_applicants
+
+    documents = []
+    for row in doc.get("documents", []) or []:
+        documents.append({
+            "name": row.name,
+            "document_type": row.document_type,
+            "file": row.file,
+        })
+    result["documents"] = documents
+
+    return result
 
 def get_loan_applications(args: Dict[str, Any], page: int, page_size: int, sort_by="creation", sort_order="desc") -> Tuple[list, int, int]:
     start = (page - 1) * page_size

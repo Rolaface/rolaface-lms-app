@@ -47,3 +47,29 @@ def build_loan_application_filters(args: Dict[str, Any]) -> Dict[str, Any]:
             filters["loan_amount"] = [">=", min_amount]
 
     return filters
+
+def sync_loan_application_co_applicants(loan_application, co_applicants_data):
+    if co_applicants_data is None:
+        return False
+
+    loan_application.set("co_applicants", [])
+    for row in co_applicants_data:
+        loan_application.append("co_applicants", {
+            "applicant_name": row.get("applicant_name"),
+            "applicant_email": row.get("applicant_email"),
+            "applicant_mobile": row.get("applicant_mobile"),
+        })
+    return True
+
+
+def sync_loan_application_documents(loan_application, documents_data):
+    if documents_data is None:
+        return False
+
+    loan_application.set("documents", [])
+    for row in documents_data:
+        loan_application.append("documents", {
+            "document_type": row.get("document_type"),
+            "file": row.get("file"),
+        })
+    return True

@@ -256,14 +256,38 @@ app_license = "mit"
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+# fixtures = [
+#     {
+#         "doctype": "Custom Field",
+#         "filters": [
+#             ["dt", "in", [
+#                 "Loan Classification",
+#             ]],
+#             ["is_system_generated", "=", 0]
+#         ]
+#     }
+# ]
 fixtures = [
     {
         "doctype": "Custom Field",
         "filters": [
             ["dt", "in", [
                 "Loan Classification",
+                "Custom Loan Application",
+                "Custom Loan Application Director Details",
+                "Custom Loan Application Document",
             ]],
             ["is_system_generated", "=", 0]
+        ]
+    },
+    {
+        "doctype": "Property Setter",
+        "filters": [
+            ["doc_type", "in", [
+                "Custom Loan Application",
+                "Custom Loan Application Director Details",
+                "Custom Loan Application Document",
+            ]]
         ]
     }
 ]

@@ -1,0 +1,475 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "naming_series:ACC-LOANAP-.YYYY.-.#####",
+ "creation": "2026-08-10 20:52:59.623977",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "application_details",
+  "application_type",
+  "status",
+  "column_break_vheb",
+  "customer",
+  "naming_series",
+  "column_break_uafc",
+  "application_date",
+  "personal_information",
+  "first_name",
+  "phone",
+  "gender",
+  "column_break_zaoo",
+  "middle_name",
+  "email",
+  "marital_status",
+  "column_break_hvvz",
+  "last_name",
+  "national_registration_card",
+  "birth_date",
+  "residence_employment",
+  "residential_address",
+  "nationality",
+  "next_of_kin_phone",
+  "column_break_xcuv",
+  "occupation",
+  "loan_purpose",
+  "next_of_kin_email",
+  "column_break_sjkp",
+  "employer_name",
+  "next_of_kin_name",
+  "next_of_kin_relationship",
+  "documents_section",
+  "documents",
+  "business_information",
+  "company_name",
+  "nature_of_business",
+  "purpose_of_loan",
+  "column_break_qihd",
+  "type_of_business",
+  "registered_office",
+  "column_break_ifls",
+  "established_date",
+  "collateral_pledged",
+  "director_details",
+  "directors",
+  "applicant_information",
+  "applicant_first_name",
+  "applicant_phone",
+  "applicant_gender",
+  "applicant_address",
+  "column_break_dmsv",
+  "applicant_middle_name",
+  "applicant_email",
+  "applicant_marital_status",
+  "applicant_position",
+  "column_break_nfgm",
+  "applicant_last_name",
+  "applicant_national_registration_card",
+  "applicant_birth_date",
+  "applicant_nationality",
+  "business_document_section",
+  "business_documents"
+ ],
+ "fields": [
+  {
+   "fieldname": "application_details",
+   "fieldtype": "Section Break",
+   "label": "Application Details"
+  },
+  {
+   "fieldname": "application_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Application Type",
+   "options": "Personal Loan\nBusiness Loan",
+   "reqd": 1
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Customer"
+  },
+  {
+   "default": "Today",
+   "fieldname": "application_date",
+   "fieldtype": "Date",
+   "label": "Application Date"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nSubmitted\nCancelled"
+  },
+  {
+   "depends_on": "eval:doc.application_type == \"Personal Loan\"",
+   "fieldname": "personal_information",
+   "fieldtype": "Section Break",
+   "label": "Personal Information",
+   "mandatory_depends_on": "eval:doc.application_type == \"Personal Loan\""
+  },
+  {
+   "fieldname": "first_name",
+   "fieldtype": "Data",
+   "label": "First Name",
+   "mandatory_depends_on": "eval:doc.application_type == \"Personal Loan\""
+  },
+  {
+   "fieldname": "middle_name",
+   "fieldtype": "Data",
+   "label": "Middle Name"
+  },
+  {
+   "fieldname": "last_name",
+   "fieldtype": "Data",
+   "label": "Last Name",
+   "mandatory_depends_on": "eval:doc.application_type == \"Personal Loan\""
+  },
+  {
+   "fieldname": "column_break_zaoo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_hvvz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_vheb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_uafc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "phone",
+   "fieldtype": "Data",
+   "label": "Phone",
+   "mandatory_depends_on": "eval:doc.application_type == \"Personal Loan\""
+  },
+  {
+   "fieldname": "gender",
+   "fieldtype": "Select",
+   "label": "Gender",
+   "mandatory_depends_on": "eval:doc.application_type == \"Personal Loan\"",
+   "options": "Male\nFemale\nOther"
+  },
+  {
+   "fieldname": "email",
+   "fieldtype": "Data",
+   "label": "Email",
+   "mandatory_depends_on": "eval:doc.application_type == \"Personal Loan\""
+  },
+  {
+   "fieldname": "marital_status",
+   "fieldtype": "Select",
+   "label": "Marital Status",
+   "mandatory_depends_on": "eval:doc.application_type == \"Personal Loan\"",
+   "options": "Single\nMarried\nDivorced\nWidowed\nSeparated"
+  },
+  {
+   "fieldname": "national_registration_card",
+   "fieldtype": "Data",
+   "label": "National Registration Card",
+   "mandatory_depends_on": "eval:doc.application_type == \"Personal Loan\""
+  },
+  {
+   "fieldname": "birth_date",
+   "fieldtype": "Date",
+   "label": "Birth Date",
+   "mandatory_depends_on": "eval:doc.application_type == \"Personal Loan\""
+  },
+  {
+   "depends_on": "eval:doc.application_type == \"Personal Loan\"",
+   "fieldname": "residence_employment",
+   "fieldtype": "Section Break",
+   "label": "Residence & Employment",
+   "mandatory_depends_on": "eval:doc.application_type == \"Personal Loan\""
+  },
+  {
+   "fieldname": "residential_address",
+   "fieldtype": "Data",
+   "label": "Residential Address",
+   "mandatory_depends_on": "eval:doc.application_type == \"Personal Loan\""
+  },
+  {
+   "fieldname": "nationality",
+   "fieldtype": "Link",
+   "label": "Nationality",
+   "options": "Country"
+  },
+  {
+   "fieldname": "next_of_kin_phone",
+   "fieldtype": "Data",
+   "label": "Next of Kin Phone",
+   "mandatory_depends_on": "eval:doc.application_type == \"Personal Loan\""
+  },
+  {
+   "fieldname": "column_break_xcuv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "occupation",
+   "fieldtype": "Data",
+   "label": "Occupation",
+   "mandatory_depends_on": "eval:doc.application_type == \"Personal Loan\""
+  },
+  {
+   "fieldname": "loan_purpose",
+   "fieldtype": "Data",
+   "label": "Loan  Purpose",
+   "mandatory_depends_on": "eval:doc.application_type == \"Personal Loan\""
+  },
+  {
+   "fieldname": "next_of_kin_email",
+   "fieldtype": "Data",
+   "label": "Next of Kin Email",
+   "mandatory_depends_on": "eval:doc.application_type == \"Personal Loan\""
+  },
+  {
+   "fieldname": "column_break_sjkp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "employer_name",
+   "fieldtype": "Data",
+   "label": "Employer Name",
+   "mandatory_depends_on": "eval:doc.application_type == \"Personal Loan\""
+  },
+  {
+   "fieldname": "next_of_kin_name",
+   "fieldtype": "Data",
+   "label": "Next of Kin Name",
+   "mandatory_depends_on": "eval:doc.application_type == \"Personal Loan\""
+  },
+  {
+   "fieldname": "next_of_kin_relationship",
+   "fieldtype": "Select",
+   "label": "Relationship",
+   "mandatory_depends_on": "eval:doc.application_type == \"Personal Loan\"",
+   "options": "Spouse\nParent\nChild\nSibling\nOther"
+  },
+  {
+   "depends_on": "eval:doc.application_type == \"Personal Loan\"",
+   "fieldname": "documents_section",
+   "fieldtype": "Section Break",
+   "label": "Documents",
+   "mandatory_depends_on": "eval:doc.application_type == \"Personal Loan\""
+  },
+  {
+   "fieldname": "documents",
+   "fieldtype": "Table",
+   "label": "Documents",
+   "options": "Custom Loan Application Document"
+  },
+  {
+   "depends_on": "eval:doc.application_type==\"Business Loan\"",
+   "fieldname": "business_information",
+   "fieldtype": "Section Break",
+   "label": "Business Information",
+   "mandatory_depends_on": "eval:doc.application_type==\"Business Loan\""
+  },
+  {
+   "fieldname": "company_name",
+   "fieldtype": "Data",
+   "label": "Company Name",
+   "mandatory_depends_on": "eval:doc.application_type==\"Business Loan\""
+  },
+  {
+   "fieldname": "nature_of_business",
+   "fieldtype": "Data",
+   "label": "Nature of Business",
+   "mandatory_depends_on": "eval:doc.application_type==\"Business Loan\""
+  },
+  {
+   "fieldname": "column_break_qihd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "type_of_business",
+   "fieldtype": "Select",
+   "label": "Type of Business",
+   "mandatory_depends_on": "eval:doc.application_type==\"Business Loan\"",
+   "options": "Sole Proprietorship\nPartnership\nPrivate Limited Company\nPublic Limited Company\nLimited Liability Company\nCooperative\nOther"
+  },
+  {
+   "fieldname": "column_break_ifls",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "established_date",
+   "fieldtype": "Date",
+   "label": "Established Date",
+   "mandatory_depends_on": "eval:doc.application_type==\"Business Loan\""
+  },
+  {
+   "depends_on": "eval:doc.application_type==\"Business Loan\"",
+   "fieldname": "director_details",
+   "fieldtype": "Section Break",
+   "label": "Director Details",
+   "mandatory_depends_on": "eval:doc.application_type==\"Business Loan\""
+  },
+  {
+   "fieldname": "directors",
+   "fieldtype": "Table",
+   "label": "Directors",
+   "mandatory_depends_on": "eval:doc.application_type==\"Business Loan\"",
+   "options": "Custom Loan Application Director Details"
+  },
+  {
+   "fieldname": "purpose_of_loan",
+   "fieldtype": "Data",
+   "label": "Purpose of Loan",
+   "mandatory_depends_on": "eval:doc.application_type==\"Business Loan\""
+  },
+  {
+   "fieldname": "registered_office",
+   "fieldtype": "Data",
+   "label": "Registered Office",
+   "mandatory_depends_on": "eval:doc.application_type==\"Business Loan\""
+  },
+  {
+   "fieldname": "collateral_pledged",
+   "fieldtype": "Data",
+   "label": "Collateral Pledged",
+   "mandatory_depends_on": "eval:doc.application_type==\"Business Loan\""
+  },
+  {
+   "depends_on": "eval:doc.application_type==\"Business Loan\"",
+   "fieldname": "applicant_information",
+   "fieldtype": "Section Break",
+   "label": "Applicant Information",
+   "mandatory_depends_on": "eval:doc.application_type==\"Business Loan\""
+  },
+  {
+   "fieldname": "applicant_first_name",
+   "fieldtype": "Data",
+   "label": " Applicant First Name",
+   "mandatory_depends_on": "eval:doc.application_type==\"Business Loan\""
+  },
+  {
+   "fieldname": "applicant_phone",
+   "fieldtype": "Data",
+   "label": "Applicant Phone",
+   "mandatory_depends_on": "eval:doc.application_type==\"Business Loan\""
+  },
+  {
+   "fieldname": "applicant_gender",
+   "fieldtype": "Select",
+   "label": " Applicant Gender",
+   "mandatory_depends_on": "eval:doc.application_type==\"Business Loan\"",
+   "options": "Male\nFemale\nOther"
+  },
+  {
+   "fieldname": "applicant_address",
+   "fieldtype": "Data",
+   "label": "Applicant Address",
+   "mandatory_depends_on": "eval:doc.application_type==\"Business Loan\""
+  },
+  {
+   "fieldname": "column_break_dmsv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "applicant_middle_name",
+   "fieldtype": "Data",
+   "label": "Applicant Middle Name"
+  },
+  {
+   "fieldname": "applicant_email",
+   "fieldtype": "Data",
+   "label": "Applicant Email",
+   "mandatory_depends_on": "eval:doc.application_type==\"Business Loan\""
+  },
+  {
+   "fieldname": "applicant_marital_status",
+   "fieldtype": "Select",
+   "label": "Applicant Marital Status",
+   "mandatory_depends_on": "eval:doc.application_type==\"Business Loan\"",
+   "options": "Single\nMarried\nDivorced\nWidowed"
+  },
+  {
+   "fieldname": "applicant_position",
+   "fieldtype": "Data",
+   "label": "Applicant Position",
+   "mandatory_depends_on": "eval:doc.application_type==\"Business Loan\""
+  },
+  {
+   "fieldname": "column_break_nfgm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "applicant_last_name",
+   "fieldtype": "Data",
+   "label": "Applicant Last Name",
+   "mandatory_depends_on": "eval:doc.application_type==\"Business Loan\""
+  },
+  {
+   "fieldname": "applicant_national_registration_card",
+   "fieldtype": "Data",
+   "label": "Applicant National Registration Card",
+   "mandatory_depends_on": "eval:doc.application_type==\"Business Loan\""
+  },
+  {
+   "fieldname": "applicant_birth_date",
+   "fieldtype": "Date",
+   "label": "Applicant Birth Date",
+   "mandatory_depends_on": "eval:doc.application_type==\"Business Loan\""
+  },
+  {
+   "fieldname": "applicant_nationality",
+   "fieldtype": "Link",
+   "label": "Applicant Nationality",
+   "options": "Country"
+  },
+  {
+   "depends_on": "eval:doc.application_type==\"Business Loan\"",
+   "fieldname": "business_document_section",
+   "fieldtype": "Section Break",
+   "label": "Business Document",
+   "mandatory_depends_on": "eval:doc.application_type==\"Business Loan\""
+  },
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Naming Series",
+   "options": "ACC-LOANAP-.YYYY.-.#####"
+  },
+  {
+   "fieldname": "business_documents",
+   "fieldtype": "Table",
+   "label": "Busniess Documents",
+   "options": "Custom Loan Application Document"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-11 00:55:09.576146",
+ "modified_by": "Administrator",
+ "module": "Rolaface Lms App",
+ "name": "Custom Loan Application",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

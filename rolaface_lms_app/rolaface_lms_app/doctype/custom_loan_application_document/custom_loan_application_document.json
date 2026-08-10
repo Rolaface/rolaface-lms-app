@@ -1,0 +1,58 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-08-10 22:39:44.237839",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "document_name",
+  "column_break_mhsx",
+  "file",
+  "column_break_hyjy",
+  "document_for"
+ ],
+ "fields": [
+  {
+   "fieldname": "document_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Document Name"
+  },
+  {
+   "fieldname": "file",
+   "fieldtype": "Attach",
+   "in_list_view": 1,
+   "label": "File"
+  },
+  {
+   "fieldname": "column_break_mhsx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_hyjy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "document_for",
+   "fieldtype": "Select",
+   "label": "Document For",
+   "options": "Applicant\nDirector\nBusiness\nPersonal"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-11 00:17:19.020740",
+ "modified_by": "Administrator",
+ "module": "Rolaface Lms App",
+ "name": "Custom Loan Application Document",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

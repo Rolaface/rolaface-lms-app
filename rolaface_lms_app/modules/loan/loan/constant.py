@@ -18,7 +18,7 @@ ALLOWED_SORT_FIELDS = {
 
 RETURN_FIELDS_GET_ALL = [
     "name", "applicant_type", "applicant", "applicant_name", "loan_product", 
-    "loan_amount", "rate_of_interest", "status", "posting_date"
+    "loan_amount", "rate_of_interest", "status", "posting_date", "repayment_start_date", "loan_account"
 ]
 
 RETURN_FIELDS_GET_BY_ID = list(ALLOWED_LOAN_FIELDS) + [

@@ -189,6 +189,57 @@ def delete_loan_repayment(repayment_id: str):
     frappe.delete_doc("Loan Repayment", repayment_id, ignore_permissions=True)
 
 
+# def process_approval(repayment_doc):
+#     if repayment_doc.docstatus == 1:
+#         raise frappe.ValidationError("Loan Repayment is already approved.")
+#     if repayment_doc.docstatus == 2:
+#         raise frappe.ValidationError("Cannot approve a cancelled Loan Repayment. Please amend it first.")
+
+#     repayment_doc.submit()
+
+#     return {
+#         "id": repayment_doc.name,
+#         "status": repayment_doc.status,
+#         "docstatus": repayment_doc.docstatus
+#     }
+
+
+# def process_cancellation(repayment_doc):
+#     if repayment_doc.docstatus == 2:
+#         raise frappe.ValidationError("Loan Repayment is already cancelled.")
+#     if repayment_doc.docstatus == 0:
+#         raise frappe.ValidationError("Cannot cancel a Draft Loan Repayment. Submit it first.")
+
+#     repayment_doc.cancel()
+
+#     return {
+#         "id": repayment_doc.name,
+#         "status": repayment_doc.status,
+#         "docstatus": repayment_doc.docstatus
+#     }
+
+
+# def process_amendment(repayment_doc):
+#     if repayment_doc.docstatus == 0:
+#         raise frappe.ValidationError("Loan Repayment is already in Draft state.")
+#     if repayment_doc.docstatus == 1:
+#         raise frappe.ValidationError("Cannot amend an approved Loan Repayment. Cancel it first.")
+
+#     amended_doc = frappe.copy_doc(repayment_doc)
+#     amended_doc.amended_from = repayment_doc.name
+#     amended_doc.docstatus = 0
+
+#     amended_doc.insert()
+
+#     return {
+#         "id": amended_doc.name,
+#         "status": amended_doc.status,
+#         "docstatus": amended_doc.docstatus,
+#         "amended_from": amended_doc.amended_from
+#     }
+DOCSTATUS_LABELS = {0: "Draft", 1: "Submitted", 2: "Cancelled"}
+
+
 def process_approval(repayment_doc):
     if repayment_doc.docstatus == 1:
         raise frappe.ValidationError("Loan Repayment is already approved.")
@@ -199,7 +250,7 @@ def process_approval(repayment_doc):
 
     return {
         "id": repayment_doc.name,
-        "status": repayment_doc.status,
+        "status": DOCSTATUS_LABELS.get(repayment_doc.docstatus),
         "docstatus": repayment_doc.docstatus
     }
 
@@ -214,7 +265,7 @@ def process_cancellation(repayment_doc):
 
     return {
         "id": repayment_doc.name,
-        "status": repayment_doc.status,
+        "status": DOCSTATUS_LABELS.get(repayment_doc.docstatus),
         "docstatus": repayment_doc.docstatus
     }
 
@@ -233,11 +284,10 @@ def process_amendment(repayment_doc):
 
     return {
         "id": amended_doc.name,
-        "status": amended_doc.status,
+        "status": DOCSTATUS_LABELS.get(amended_doc.docstatus),
         "docstatus": amended_doc.docstatus,
         "amended_from": amended_doc.amended_from
     }
-
 
 def update_loan_repayment_status(repayment_id: str, action: str):
     repayment_doc = frappe.get_doc("Loan Repayment", repayment_id)

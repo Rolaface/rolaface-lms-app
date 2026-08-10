@@ -1,0 +1,137 @@
+# ---------------- api.py ----------------
+
+import frappe
+from rolaface_lms_app.utils.api_response import send_response, handle_api_error, send_response_list
+from rolaface_lms_app.utils.api_request import parse_api_payload
+from . import service
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def create_custom_loan_application():
+    """
+    Create Custom Loan Application
+    ---
+    tags:
+      - Custom Loan Application
+    summary: Create a new Custom Loan Application (Personal Loan or Business Loan).
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - application_type
+    responses:
+      201:
+        description: Custom Loan Application created successfully.
+    """
+    try:
+        data = parse_api_payload()
+        loan_application_data = service.create_custom_loan_application(data)
+        frappe.db.commit()
+
+        return send_response(
+            status="success",
+            message="Custom Loan Application created successfully.",
+            data=loan_application_data,
+            status_code=201,
+            http_status=201,
+        )
+    except Exception as e:
+        return handle_api_error(e, "Create Custom Loan Application API Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_custom_loan_application_by_id(id=None):
+    """
+    Get Custom Loan Application By ID
+    ---
+    tags:
+      - Custom Loan Application
+    summary: Fetch full details of a Custom Loan Application by ID.
+    parameters:
+      - in: query
+        name: id
+        schema:
+          type: string
+        required: true
+    """
+    try:
+        loan_application_id = id or frappe.request.args.get("id")
+
+        if not loan_application_id:
+            raise frappe.ValidationError("Custom Loan Application ID is required.")
+
+        data = service.get_custom_loan_application_by_id(loan_application_id)
+
+        return send_response(
+            status="success",
+            message="Custom Loan Application retrieved successfully.",
+            data=data,
+            status_code=200,
+            http_status=200,
+        )
+    except Exception as e:
+        return handle_api_error(e, "Get Custom Loan Application By ID Error")
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_custom_loan_applications(page=1, page_size=20):
+    """
+    List Custom Loan Applications
+    ---
+    tags:
+      - Custom Loan Application
+    summary: Paginated list of Custom Loan Applications with filtering.
+    parameters:
+      - in: query
+        name: page
+      - in: query
+        name: page_size
+      - in: query
+        name: search
+      - in: query
+        name: status
+      - in: query
+        name: application_type
+      - in: query
+        name: customer
+    """
+    try:
+        args = frappe.local.form_dict
+        page, page_size = int(page), int(page_size)
+
+        sort_by = args.get("sort_by", "creation")
+        sort_order = args.get("sort_order", "desc")
+
+        loan_applications, total, total_pages = service.get_custom_loan_applications(
+            args=args,
+            page=page,
+            page_size=page_size,
+            sort_by=sort_by,
+            sort_order=sort_order,
+        )
+
+        response_data = {
+            "success": True,
+            "message": "Custom Loan Applications retrieved successfully.",
+            "data": loan_applications,
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total": total,
+                "total_pages": total_pages,
+                "has_next": page < total_pages,
+                "has_prev": page > 1,
+            },
+        }
+
+        return send_response_list(
+            status="success",
+            message="Success",
+            data=response_data,
+            status_code=200,
+            http_status=200,
+        )
+    except Exception as e:
+        return handle_api_error(e, "Get All Custom Loan Applications Error")

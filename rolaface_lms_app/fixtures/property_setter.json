@@ -1,0 +1,18 @@
+[
+ {
+  "default_value": null,
+  "doc_type": "Custom Loan Application",
+  "docstatus": 0,
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocField",
+  "field_name": "naming_series",
+  "is_system_generated": 1,
+  "modified": "2026-08-11 01:28:25.502212",
+  "module": null,
+  "name": "Custom Loan Application-naming_series-options",
+  "property": "options",
+  "property_type": "Text",
+  "row_name": null,
+  "value": "ACC-LOANAP-.YYYY.-.#####"
+ }
+]

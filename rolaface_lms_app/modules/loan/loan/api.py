@@ -1,7 +1,12 @@
 import frappe
-from rolaface_lms_app.utils.api_response import send_response, send_response_list, handle_api_error
+from rolaface_lms_app.utils.api_response import (
+    send_response,
+    send_response_list,
+    handle_api_error,
+)
 from rolaface_lms_app.utils.api_request import parse_api_payload
 from . import service
+
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 def create_loan():
@@ -10,30 +15,7 @@ def create_loan():
     ---
     tags:
       - Loan
-    summary: Create a new Loan entry.
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            type: object
-            required:
-              - applicant_type
-              - applicant
-              - loan_product
-              - loan_amount
-            properties:
-              applicant_type:
-                type: string
-              applicant:
-                type: string
-              loan_product:
-                type: string
-              loan_amount:
-                type: number
-    responses:
-      201:
-        description: Loan created successfully.
+    summary: Create a new Loan entry and associated Collaterals.
     """
     try:
         data = parse_api_payload()
@@ -42,39 +24,30 @@ def create_loan():
 
         return send_response(
             status="success",
-            message="Loan created successfully.",
+            message="Loan and Collaterals created successfully.",
             data=loan_data,
             status_code=201,
             http_status=201,
         )
     except Exception as e:
+        if db := getattr(frappe.local, "db", None):
+            try:
+                db.rollback(chain=True)
+            except TypeError:
+                db.rollback()
         return handle_api_error(e, "Create Loan API Error")
 
 
 @frappe.whitelist(allow_guest=True, methods=["PUT", "PATCH"])
 def update_loan(id=None):
-    """
-    Update Loan
-    ---
-    tags:
-      - Loan
-    summary: Update specific attributes of a Loan.
-    parameters:
-      - in: query
-        name: id
-        schema:
-          type: string
-        required: true
-    responses:
-      200:
-        description: Loan updated successfully.
-    """
     try:
         data = parse_api_payload()
         loan_id = id or frappe.request.args.get("id")
 
         if not loan_id:
-            raise frappe.ValidationError("Loan ID is required as a query parameter (?id=...).")
+            raise frappe.ValidationError(
+                "Loan ID is required as a query parameter (?id=...)."
+            )
 
         loan_data = service.update_loan(loan_id, data)
         frappe.db.commit()
@@ -92,27 +65,14 @@ def update_loan(id=None):
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loan_by_id(id=None):
-    """
-    Get Loan By ID
-    ---
-    tags:
-      - Loan
-    summary: Fetch full details of a Loan by ID.
-    parameters:
-      - in: query
-        name: id
-        schema:
-          type: string
-        required: true
-    """
     try:
         loan_id = id or frappe.request.args.get("id")
-        
+
         if not loan_id:
             raise frappe.ValidationError("Loan ID is required.")
 
         data = service.get_loan_by_id(loan_id)
-        
+
         return send_response(
             status="success",
             message="Loan retrieved successfully.",
@@ -126,30 +86,6 @@ def get_loan_by_id(id=None):
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loans(page=1, page_size=20):
-    """
-    List Loans
-    ---
-    tags:
-      - Loan
-    summary: Paginated list of Loans with advanced filtering.
-    parameters:
-      - in: query
-        name: page
-      - in: query
-        name: page_size
-      - in: query
-        name: search
-      - in: query
-        name: status
-      - in: query
-        name: applicant
-      - in: query
-        name: loan_product
-      - in: query
-        name: minAmount
-      - in: query
-        name: maxAmount
-    """
     try:
         args = frappe.local.form_dict
         page, page_size = int(page), int(page_size)
@@ -192,17 +128,6 @@ def get_loans(page=1, page_size=20):
 
 @frappe.whitelist(allow_guest=True, methods=["DELETE"])
 def delete_loan(id=None):
-    """
-    Delete Loan
-    ---
-    tags:
-      - Loan
-    summary: Delete a Draft Loan.
-    parameters:
-      - in: query
-        name: id
-        required: true
-    """
     try:
         loan_id = id or frappe.local.form_dict.get("id")
         if not loan_id:
@@ -223,30 +148,9 @@ def delete_loan(id=None):
 
 @frappe.whitelist(allow_guest=True, methods=["PUT", "PATCH"])
 def update_loan_status(id=None, action=None):
-    """
-    Update Loan Status (Submit/Approve, Cancel, Amend)
-    ---
-    tags:
-      - Loan
-    summary: Updates the status lifecycle of a Loan.
-    parameters:
-      - in: query
-        name: id
-        required: true
-        description: The ID of the Loan.
-      - in: query
-        name: action
-        required: true
-        schema:
-          type: string
-          enum: [approved, cancelled, amend]
-    responses:
-      200:
-        description: Loan status updated successfully.
-    """
     action_value = action or frappe.request.args.get("action")
     loan_id = id or frappe.request.args.get("id")
-    
+
     try:
         if not loan_id:
             return send_response(
@@ -285,7 +189,11 @@ def update_loan_status(id=None, action=None):
         result = service.update_loan_status(loan_id, action_clean)
         frappe.db.commit()
 
-        action_map = {"approved": "approved", "cancelled": "cancelled", "amend": "amended"}
+        action_map = {
+            "approved": "approved",
+            "cancelled": "cancelled",
+            "amend": "amended",
+        }
 
         return send_response(
             status="success",
@@ -304,10 +212,10 @@ def update_loan_status(id=None, action=None):
     except frappe.exceptions.PermissionError as e:
         frappe.db.rollback()
         return send_response(
-            status="fail", 
-            message=f"You do not have permission to {action_value} the status of this Loan. Please contact your Administrator.", 
-            status_code=403, 
-            http_status=403
+            status="fail",
+            message=f"Permission denied to {action_value} this Loan.",
+            status_code=403,
+            http_status=403,
         )
 
     except Exception as e:
@@ -320,24 +228,9 @@ def update_loan_status(id=None, action=None):
             http_status=500,
         )
 
+
 @frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_repayment_schedule_by_id(id=None):
-    """
-    Get Repayment Schedule By Loan ID
-    ---
-    tags:
-      - Loan
-    summary: Fetch repayment schedule rows for a Loan by ID.
-    parameters:
-      - in: query
-        name: id
-        schema:
-          type: string
-        required: true
-    responses:
-      200:
-        description: Repayment schedule retrieved successfully.
-    """
     try:
         loan_id = id or frappe.request.args.get("id")
 

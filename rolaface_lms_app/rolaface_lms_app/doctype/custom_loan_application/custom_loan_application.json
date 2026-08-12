@@ -8,12 +8,15 @@
  "field_order": [
   "application_details",
   "application_type",
+  "application_date",
   "status",
   "column_break_vheb",
   "customer",
   "naming_series",
   "column_break_uafc",
-  "application_date",
+  "amount",
+  "tenure",
+  "total_amount",
   "personal_information",
   "first_name",
   "phone",
@@ -442,12 +445,27 @@
    "fieldtype": "Table",
    "label": "Busniess Documents",
    "options": "Custom Loan Application Document"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Float",
+   "label": "Amount"
+  },
+  {
+   "fieldname": "tenure",
+   "fieldtype": "Data",
+   "label": "Tenure"
+  },
+  {
+   "fieldname": "total_amount",
+   "fieldtype": "Float",
+   "label": "Total Amount"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-11 00:55:09.576146",
+ "modified": "2026-08-12 14:05:05.868009",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom Loan Application",

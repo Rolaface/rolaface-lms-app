@@ -16,6 +16,9 @@ def validate_loan_payload(data: Dict[str, Any], is_update=False):
             if not data.get(field):
                 raise frappe.ValidationError(f"'{field}' is required.")
 
+    if not data.get("maximum_loan_amount") and data.get("loan_amount"):
+        data["maximum_loan_amount"] = data.get("loan_amount")
+
     numeric_fields = ["loan_amount", "rate_of_interest", "repayment_periods"]
     for field in numeric_fields:
         if field in data and flt(data.get(field)) < 0:

@@ -3,7 +3,8 @@ ALLOWED_LOAN_APPLICATION_FIELDS = {
     "applicant_name", "company", "posting_date", "status", "loan_purpose",
     "loan_product", "loan_amount", "rate_of_interest", "is_term_loan", "is_secured_loan",
     "repayment_method", "repayment_periods", "monthly_repayment_amount",
-    "repayment_start_date", "country","address_line_1","address_line_2","city","state","zip_code"
+    "repayment_start_date", "country","address_line_1","address_line_2","city","state","zip_code",
+    "amount", "tenure", "total_amount"
 }
 
 ALLOWED_SORT_FIELDS = {

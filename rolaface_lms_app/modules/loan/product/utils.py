@@ -117,18 +117,36 @@ def build_loan_product_filters(args: Dict[str, Any]) -> Dict[str, Any]:
 def sync_loan_charges(product_doc, charges_payload: list) -> bool:
     if charges_payload is None:
         return False
-        
+
     product_doc.set("loan_charges", [])
-    
+
     for charge in charges_payload:
+        charge_based_on = charge.get("charge_based_on")
+
+        if charge_based_on == "Fixed Amount":
+            amount = flt(charge.get("amount"))
+            percentage = 0
+
+        elif charge_based_on == "Percentage":
+            percentage = flt(charge.get("percentage"))
+            amount = 0
+
+        else:
+            frappe.throw(
+                f"Invalid charge_based_on '{charge_based_on}' "
+                f"for charge '{charge.get('charge_type')}'"
+            )
+
         product_doc.append("loan_charges", {
             "charge_type": charge.get("charge_type"),
-            "charge_based_on": charge.get("charge_based_on"),
-            "percentage": flt(charge.get("percentage")),
+            "charge_based_on": charge_based_on,
+            "percentage": percentage,
+            "amount": amount,
             "income_account": charge.get("income_account"),
             "waiver_account": charge.get("waiver_account"),
             "suspense_account": charge.get("suspense_account"),
             "receivable_account": charge.get("receivable_account"),
             "write_off_account": charge.get("write_off_account"),
         })
+
     return True

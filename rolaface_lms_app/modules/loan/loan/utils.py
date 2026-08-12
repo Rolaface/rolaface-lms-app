@@ -32,7 +32,7 @@ def validate_loan_payload(data: Dict[str, Any], is_update=False):
         )
 
     charges = data.get("loan_charges")
-    if charges is not None:
+    if charges:
         if not isinstance(charges, list):
             raise frappe.ValidationError("'loan_charges' must be an array.")
 

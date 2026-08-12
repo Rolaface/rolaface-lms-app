@@ -64,7 +64,7 @@ def validate_loan_payload(data: Dict[str, Any], is_update=False):
                 )
 
     collaterals = data.get("collaterals")
-    if collaterals is not None:
+    if collaterals:
         if not isinstance(collaterals, dict):
             raise frappe.ValidationError("'collaterals' must be an object.")
 

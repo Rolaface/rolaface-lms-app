@@ -14,7 +14,7 @@ ALLOWED_LOAN_PRODUCT_FIELDS = {
     "payment_account", "subsidy_adjustment_account", "loan_account",
     "security_deposit_account", "suspense_collection_account",
     "customer_refund_account", "interest_income_account", "interest_accrued_account",
-    "interest_waiver_account", "interest_receivable_account", "suspense_interest_income",
+    "interest_waiver_account", "interest_receivable_account", "suspense_interest_income", "broken_period_interest_recovery_account",
     "same_as_regular_interest_accounts", "additional_interest_income", "additional_interest_accrued",
     "additional_interest_receivable", "additional_interest_suspense",
     "additional_interest_waiver", "penalty_income_account", "penalty_accrued_account",

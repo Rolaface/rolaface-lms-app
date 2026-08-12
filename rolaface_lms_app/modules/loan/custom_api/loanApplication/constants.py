@@ -1,6 +1,6 @@
 ALLOWED_CUSTOM_LOAN_APPLICATION_FIELDS = {
     # Application Details
-    "application_type", "customer", "application_date", "status",
+    "application_type", "customer", "application_date", "status",  "amount", "tenure", "total_amount",
 
     # Personal Loan - Personal Information
     "first_name", "middle_name", "last_name",

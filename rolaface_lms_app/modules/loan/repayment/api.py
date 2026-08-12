@@ -1,8 +1,10 @@
+from rolaface_lms_app.utils.decorators import validate_payload
 import frappe
 from . import service
 from rolaface_lms_app.utils.api_response import send_response
 
 @frappe.whitelist(allow_guest = False, methods=["POST"])
+@validate_payload("validate_payload") 
 def create():
     data = frappe.local.form_dict
     try:

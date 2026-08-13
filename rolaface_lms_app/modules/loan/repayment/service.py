@@ -1,3 +1,4 @@
+from rolaface_lms_app.modules.loan.restructure.utils import _add_periods
 import frappe
 from typing import Tuple, Dict,List, Any
 from .constant import ALLOWED_PAYMENT_FIELD, RETURN_FIELDS_GET_ALL, RETURN_FIELDS_GET_BY_ID, ALLOWED_SORT_FIELDS 
@@ -80,7 +81,7 @@ def get_loan_repayment_account(search_term: str = "", limit: int = 20) -> List[D
             periods = loan.get("repayment_periods")
 
             if start_date and periods:
-                loan["maturity_date"] = add_months(getdate(start_date), int(periods))
+                loan["maturity_date"] = _add_periods(start_date, periods,loan.get("repayment_frequency"))
             else:
                 loan["maturity_date"] = None
 

@@ -1,13 +1,19 @@
+from rolaface_lms_app.modules.loan.restructure.utils import _add_periods
 from rolaface_lms_app.modules.loan.category.utils import create_search_filters
 import frappe
 from typing import Dict, Any
 from .constant import ALLOWED_RESTRUCTURE_FIELD, ALLOWED_CHARGE_FIELDS, RETURN_GET_FIELD_BY_ID, GET_FIELDS
 from frappe.client import delete_doc
+from frappe.utils import add_months, getdate, add_days
 
 def create_restructure(data: Dict[str, Any]):
     restructure_doc = frappe.new_doc("Loan Restructure")
     for field in ALLOWED_RESTRUCTURE_FIELD:
         if field in data and data.get(field) is not None:
+            if field == "new_repayment_period_in_months":
+                old_repayment_period = frappe.db.get_value('Loan', data.get("loan"), "repayment_periods")
+                data["new_repayment_period_in_months"] = data["new_repayment_period_in_months"] + old_repayment_period
+
             restructure_doc.set(field, data.get(field))
 
     charges = data.get("loan_restructure_charges") or []
@@ -30,6 +36,9 @@ def update_restructure(data: Dict[str, Any]):
 
     for field in ALLOWED_RESTRUCTURE_FIELD:
         if field in data and data.get(field) is not None:
+            if field == "new_repayment_period_in_months":
+                old_repayment_period = frappe.db.get_value('Loan', data.get("loan"), "repayment_periods")
+                data["new_repayment_period_in_months"] = data["new_repayment_period_in_months"] + old_repayment_period
             restructure_doc.set(field, data.get(field))
 
     restructure_doc.set("loan_restructure_charges", [])
@@ -48,7 +57,25 @@ def update_restructure(data: Dict[str, Any]):
 
 def get_by_name(name):
     repayment_doc = frappe.get_doc("Loan Restructure", name)
+    loan_fields = frappe.db.get_value('Loan', repayment_doc.loan, ["repayment_periods", "repayment_start_date", "repayment_frequency"], as_dict=True)
+    old_periods = loan_fields.get("repayment_periods")
+    new_periods = repayment_doc.new_repayment_period_in_months
+    frequency = loan_fields.get("repayment_frequency")
+
+    repayment_doc.new_repayment_period_in_months = repayment_doc.new_repayment_period_in_months -  loan_fields.get("repayment_periods")
     result = {field: repayment_doc.get(field) for field in RETURN_GET_FIELD_BY_ID}
+
+    result["old_maturity_date"] = _add_periods(
+                                                loan_fields.get("repayment_start_date"),
+                                                old_periods,
+                                                frequency,
+                                            )
+
+    result["new_maturity_date"] = _add_periods(
+                                                    loan_fields.get("repayment_start_date"),
+                                                    new_periods,
+                                                    frequency,
+                                                )
     return result
 
 def get_restructures(search, order_by, page, page_size):

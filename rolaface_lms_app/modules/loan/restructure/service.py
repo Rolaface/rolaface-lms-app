@@ -1,4 +1,4 @@
-from apps.rolaface_lms_app.rolaface_lms_app.modules.loan.category.utils import create_search_filters
+from rolaface_lms_app.modules.loan.category.utils import create_search_filters
 import frappe
 from typing import Dict, Any
 from .constant import ALLOWED_RESTRUCTURE_FIELD, ALLOWED_CHARGE_FIELDS, RETURN_GET_FIELD_BY_ID, GET_FIELDS

@@ -1,5 +1,3 @@
-# ---------------- api.py ----------------
-
 import frappe
 from rolaface_lms_app.utils.api_response import send_response, handle_api_error, send_response_list
 from rolaface_lms_app.utils.api_request import parse_api_payload

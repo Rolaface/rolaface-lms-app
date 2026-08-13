@@ -1,6 +1,6 @@
 import frappe
 from typing import Dict, Any
-
+from .constants import CUSTOMER_GROUP, TERRITORY
 
 def validate_custom_loan_application_payload(data: Dict[str, Any], is_update: bool = False):
     if not is_update:
@@ -95,3 +95,41 @@ def build_custom_loan_application_filters(args: Dict[str, Any]) -> Dict[str, Any
         filters["customer"] = args.get("customer")
 
     return filters
+
+def create_customer_from_application(application) -> str:
+    if application.application_type == "Personal Loan":
+        customer_name = " ".join(
+            part for part in [application.first_name, application.middle_name, application.last_name] if part
+        )
+        mobile_no = application.phone
+        email_id = application.email
+        customer_type = "Individual"
+    elif application.application_type == "Business Loan":
+        customer_name = application.company_name
+        mobile_no = application.applicant_phone
+        email_id = application.applicant_email
+        customer_type = "Company"
+    else:
+        raise frappe.ValidationError(
+            f"Cannot create Customer for application_type '{application.application_type}'."
+        )
+
+    if not customer_name:
+        raise frappe.ValidationError("Cannot create Customer: applicant name is missing on the application.")
+
+    customer = frappe.new_doc("Customer")
+    customer.customer_name = customer_name
+    customer.customer_type = customer_type
+    customer_group = frappe.db.get_value("Customer Group", {"is_group": 0}, "name")
+    territory = frappe.db.get_value("Territory", {"is_group": 0}, "name")
+    if not customer_group:
+        raise frappe.ValidationError("No non-group Customer Group exists in the system to assign to the new Customer.")
+    if not territory:
+        raise frappe.ValidationError("No non-group Territory exists in the system to assign to the new Customer.")
+    customer.customer_group = customer_group
+    customer.territory = territory
+    customer.mobile_no = mobile_no
+    customer.email_id = email_id
+    customer.insert(ignore_permissions=True)
+
+    return customer.name

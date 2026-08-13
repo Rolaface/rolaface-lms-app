@@ -133,3 +133,34 @@ def get_custom_loan_applications(page=1, page_size=20):
         )
     except Exception as e:
         return handle_api_error(e, "Get All Custom Loan Applications Error")
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def convert_custom_loan_application_to_loan(id=None):
+    try:
+        data = parse_api_payload()
+        loan_application_id = id or frappe.request.args.get("id")
+
+        if not loan_application_id:
+            raise frappe.ValidationError("Custom Loan Application ID is required.")
+
+        # loan_product = data.get("loan_product")
+        # if not loan_product:
+        #     raise frappe.ValidationError("'loan_product' is required to convert this application into a Loan.")
+
+        company = data.get("company")
+        if not company:
+            raise frappe.ValidationError("'company' is required to convert this application into a Loan.")
+
+        # loan_data = service.convert_custom_loan_application_to_loan(loan_application_id, loan_product, company)
+        loan_data = service.convert_custom_loan_application_to_loan(loan_application_id, company)
+        frappe.db.commit()
+
+        return send_response(
+            status="success",
+            message="Custom Loan Application converted to Loan successfully.",
+            data=loan_data,
+            status_code=201,
+            http_status=201,
+        )
+    except Exception as e:
+        return handle_api_error(e, "Convert Custom Loan Application To Loan API Error")

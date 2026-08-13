@@ -250,7 +250,7 @@ def _build_snapshot_metrics(loan_doc: Any, total_disbursed: float) -> Dict[str, 
             lrs.name, 
             lrs.total_installments_paid, 
             lrs.total_installments_raised,
-            lrs.monthly_repayment_amount,
+            lrs.monthly_repayment_amount
         )
         .where((lrs.loan == loan_doc.name) & (lrs.docstatus == 1))
         .orderby(lrs.creation, order=Order.desc)
@@ -260,7 +260,7 @@ def _build_snapshot_metrics(loan_doc: Any, total_disbursed: float) -> Dict[str, 
     
     emis_paid = f"{schedule_summary[0].total_installments_paid or 0} / {schedule_summary[0].total_installments_raised or 0}" if schedule_summary else "0 / 0"
     
-    emi_amount = schedule_summary[0].monthly_repayment_amount or 0.0
+    emi_amount = schedule_summary[0].monthly_repayment_amount if schedule_summary else 0.0
     
     return {
         "currency": company_currency, 
@@ -269,7 +269,7 @@ def _build_snapshot_metrics(loan_doc: Any, total_disbursed: float) -> Dict[str, 
         "loan_amount": flt(loan_doc.loan_amount, 2), 
         "disbursed_amount": flt(total_disbursed, 2),
         "roi": flt(loan_doc.rate_of_interest, 2), 
-        "emi_amount": emi_amount,
+        "emi_amount": flt(emi_amount, 2),
         "emi_start_date": loan_doc.repayment_start_date, 
         "next_due_date": _get_next_due_date(loan_doc.name),
         "emis_paid": emis_paid

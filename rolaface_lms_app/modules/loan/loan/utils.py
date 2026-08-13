@@ -16,6 +16,9 @@ def validate_loan_payload(data: Dict[str, Any], is_update=False):
             if not data.get(field):
                 raise frappe.ValidationError(f"'{field}' is required.")
 
+    if not data.get("maximum_loan_amount") and data.get("loan_amount"):
+        data["maximum_loan_amount"] = data.get("loan_amount")
+
     numeric_fields = ["loan_amount", "rate_of_interest", "repayment_periods"]
     for field in numeric_fields:
         if field in data and flt(data.get(field)) < 0:
@@ -32,7 +35,7 @@ def validate_loan_payload(data: Dict[str, Any], is_update=False):
         )
 
     charges = data.get("loan_charges")
-    if charges is not None:
+    if charges:
         if not isinstance(charges, list):
             raise frappe.ValidationError("'loan_charges' must be an array.")
 
@@ -64,32 +67,39 @@ def validate_loan_payload(data: Dict[str, Any], is_update=False):
                 )
 
     collaterals = data.get("collaterals")
-    if collaterals is not None:
+
+    if collaterals:
         if not isinstance(collaterals, dict):
             raise frappe.ValidationError("'collaterals' must be an object.")
 
         items = collaterals.get("items")
-        if not items or not isinstance(items, list) or len(items) == 0:
+
+        if not isinstance(items, list) or len(items) == 0:
             raise frappe.ValidationError(
                 "At least one item is required inside 'collaterals.items'."
             )
 
         for idx, item in enumerate(items):
+            if not isinstance(item, dict):
+                raise frappe.ValidationError(
+                    f"Row {idx + 1} in collaterals must be an object."
+                )
+
             if not item.get("loan_security"):
                 raise frappe.ValidationError(
-                    f"Row {idx+1} in collaterals: 'loan_security' is required."
+                    f"Row {idx + 1} in collaterals: 'loan_security' is required."
                 )
 
             qty = flt(item.get("qty"))
             if qty <= 0:
                 raise frappe.ValidationError(
-                    f"Row {idx+1} in collaterals: 'qty' must be greater than zero."
+                    f"Row {idx + 1} in collaterals: 'qty' must be greater than zero."
                 )
 
             price = flt(item.get("loan_security_price"))
             if price <= 0:
                 raise frappe.ValidationError(
-                    f"Row {idx+1} in collaterals: 'loan_security_price' must be greater than zero."
+                    f"Row {idx + 1} in collaterals: 'loan_security_price' must be greater than zero."
                 )
 
             if not frappe.db.exists("Loan Security", item.get("loan_security")):

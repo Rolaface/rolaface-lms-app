@@ -1,5 +1,3 @@
-# ---------------- utils.py ----------------
-
 import frappe
 from typing import Dict, Any
 

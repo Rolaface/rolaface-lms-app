@@ -248,3 +248,25 @@ def get_repayment_schedule_by_id(id=None):
         )
     except Exception as e:
         return handle_api_error(e, "Get Repayment Schedule By ID Error")
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def attach_loan_documents(id=None):
+    try:
+        data = parse_api_payload()
+        loan_id = id or frappe.request.args.get("id")
+
+        if not loan_id:
+            raise frappe.ValidationError("Loan ID is required as a query parameter (?id=...).")
+
+        documents = data.get("documents")
+        loan_data = service.attach_loan_documents(loan_id, documents)
+
+        return send_response(
+            status="success",
+            message="Documents attached successfully.",
+            data=loan_data,
+            status_code=200,
+            http_status=200,
+        )
+    except Exception as e:
+        return handle_api_error(e, "Attach Loan Documents API Error")

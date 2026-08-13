@@ -172,3 +172,39 @@ def sync_loan_charges(loan_doc, charges_payload: list) -> bool:
             },
         )
     return True
+
+def sync_loan_documents(loan_id: str, documents_payload: list):
+    if not documents_payload:
+        raise frappe.ValidationError("'documents' array is required.")
+
+    attached = []
+    for idx, doc in enumerate(documents_payload):
+        file_url = doc.get("file_url")
+        if not file_url:
+            raise frappe.ValidationError(f"Row {idx+1}: 'file_url' is required.")
+
+        file_name = doc.get("file_name") or file_url.split("/")[-1]
+        existing_file = frappe.db.get_value("File", {"file_url": file_url}, "name")
+
+        if existing_file:
+            frappe.db.set_value(
+                "File",
+                existing_file,
+                {"attached_to_doctype": "Loan", "attached_to_name": loan_id},
+            )
+            attached.append(existing_file)
+        else:
+            new_file = frappe.get_doc(
+                {
+                    "doctype": "File",
+                    "file_name": file_name,
+                    "file_url": file_url,
+                    "attached_to_doctype": "Loan",
+                    "attached_to_name": loan_id,
+                    "is_private": doc.get("is_private", 1),
+                }
+            )
+            new_file.insert(ignore_permissions=True)
+            attached.append(new_file.name)
+
+    return attached

@@ -41,3 +41,7 @@ RETURN_FIELDS_GET_ALL = [
     "name", "application_type", "customer", "status", "application_date",
     "first_name", "last_name", "company_name"
 ]
+
+CONVERTIBLE_STATUS = "Submitted"
+CUSTOMER_GROUP = "All Customer Groups"  
+TERRITORY = "All Territories"            

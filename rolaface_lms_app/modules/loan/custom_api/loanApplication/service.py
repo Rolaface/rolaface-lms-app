@@ -6,9 +6,10 @@ from .utils import (
     sync_custom_loan_application_directors,
     sync_custom_loan_application_business_documents,
     build_custom_loan_application_filters,
+    create_customer_from_application,
 )
-from .constants import ALLOWED_CUSTOM_LOAN_APPLICATION_FIELDS, RETURN_FIELDS_GET_BY_ID, ALLOWED_SORT_FIELDS, RETURN_FIELDS_GET_ALL
-
+from .constants import ALLOWED_CUSTOM_LOAN_APPLICATION_FIELDS, RETURN_FIELDS_GET_BY_ID, ALLOWED_SORT_FIELDS, RETURN_FIELDS_GET_ALL, CONVERTIBLE_STATUS
+from rolaface_lms_app.modules.loan.loan import service as loan_service
 
 def create_custom_loan_application(data: Dict[str, Any]) -> Dict[str, Any]:
     validate_custom_loan_application_payload(data, is_update=False)
@@ -114,3 +115,62 @@ def get_custom_loan_applications(args: Dict[str, Any], page: int, page_size: int
 
     return loan_applications, total, total_pages
 
+def convert_custom_loan_application_to_loan(loan_application_id: str, company: str) -> Dict[str, Any]:
+    if not frappe.db.exists("Custom Loan Application", loan_application_id):
+        raise frappe.DoesNotExistError(f"Custom Loan Application '{loan_application_id}' does not exist.")
+
+    application = frappe.get_doc("Custom Loan Application", loan_application_id)
+
+    if application.status != CONVERTIBLE_STATUS:
+        raise frappe.ValidationError(
+            f"Only applications with status '{CONVERTIBLE_STATUS}' can be converted. "
+            f"Current status: '{application.status}'."
+        )
+
+    # if frappe.db.exists("Loan", {"loan_application": loan_application_id}):
+    #     raise frappe.ValidationError(
+    #         f"Custom Loan Application '{loan_application_id}' has already been converted to a Loan."
+    #     )
+
+    applicant = application.customer
+    if not applicant:
+        applicant = create_customer_from_application(application)
+        frappe.db.set_value("Custom Loan Application", application.name, "customer", applicant)
+    loan_product = frappe.db.get_value("Loan Product", {}, "name")
+    if not loan_product:
+        raise frappe.ValidationError("No Loan Product exists in the system to use for conversion.")
+
+    loan_payload = {
+        "applicant_type": "Customer",
+        "applicant": applicant,
+        "loan_product": loan_product,
+        "company": company,
+        "loan_amount": application.amount,
+        "posting_date": frappe.utils.nowdate(),
+        # "loan_application": application.name,
+    }
+
+    if application.tenure:
+        loan_payload["repayment_periods"] = application.tenure
+        loan_payload["repayment_method"] = "Repay Over Number of Periods"
+
+    loan_data = loan_service.create_loan(loan_payload)
+
+    documents_payload = []
+    for row in application.get("documents", []) or []:
+        if row.get("file"):
+            documents_payload.append(
+                {"file_name": row.get("document_name"), "file_url": row.get("file")}
+            )
+
+    if application.application_type == "Business Loan":
+        for row in application.get("business_documents", []) or []:
+            if row.get("file"):
+                documents_payload.append(
+                    {"file_name": row.get("document_name"), "file_url": row.get("file")}
+                )
+
+    if documents_payload:
+        loan_service.attach_loan_documents(loan_data["name"], documents_payload)
+
+    return loan_data

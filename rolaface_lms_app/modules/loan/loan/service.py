@@ -2,13 +2,29 @@ import frappe
 from typing import Tuple, Dict, Any
 from frappe.utils import flt
 
-from .utils import build_loan_filters, validate_loan_payload, sync_loan_charges
+from .utils import build_loan_filters, validate_loan_payload, sync_loan_charges, sync_loan_documents
 from .constant import (
     ALLOWED_LOAN_FIELDS,
     RETURN_FIELDS_GET_ALL,
     RETURN_FIELDS_GET_BY_ID,
     ALLOWED_SORT_FIELDS,
 )
+
+def attach_loan_documents(loan_id: str, documents: list) -> Dict[str, Any]:
+    if not frappe.db.exists("Loan", loan_id):
+        raise frappe.DoesNotExistError(f"Loan '{loan_id}' does not exist.")
+
+    try:
+        sync_loan_documents(loan_id, documents)
+        frappe.db.commit()
+        return get_loan_by_id(loan_id)
+    except Exception as e:
+        if db := getattr(frappe.local, "db", None):
+            try:
+                db.rollback(chain=True)
+            except TypeError:
+                db.rollback()
+        raise e
 
 
 def create_loan_security_assignment(loan_doc, collaterals: Dict[str, Any]):
@@ -157,6 +173,62 @@ def update_loan(loan_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         raise e
 
 
+# def get_loan_by_id(loan_id: str) -> Dict[str, Any]:
+#     if not frappe.db.exists("Loan", loan_id):
+#         raise frappe.DoesNotExistError(f"Loan '{loan_id}' does not exist.")
+
+#     doc = frappe.get_doc("Loan", loan_id)
+#     result = {field: doc.get(field) for field in RETURN_FIELDS_GET_BY_ID}
+
+#     charges = []
+#     for row in doc.get("loan_charges", []):
+#         charges.append(
+#             {
+#                 "name": row.name,
+#                 "charge": row.charge,
+#                 "amount": row.amount,
+#                 "account": row.account,
+#                 "treatment_of_charge": row.treatment_of_charge,
+#             }
+#         )
+#     result["loan_charges"] = charges
+
+#     assignments = frappe.get_all(
+#         "Loan Security Assignment",
+#         filters={"loan": loan_id, "docstatus": ["<", 2]},
+#         fields=[
+#             "name",
+#             "status",
+#             "total_security_value",
+#             "maximum_loan_value",
+#             "reference_no",
+#             "description",
+#         ],
+#     )
+#     if assignments:
+#         assignment_info = assignments[0]
+#         assignment_doc = frappe.get_doc(
+#             "Loan Security Assignment", assignment_info.name
+#         )
+
+#         items = []
+#         for row in assignment_doc.get("securities"):
+#             items.append(
+#                 {
+#                     "loan_security": row.get("loan_security"),
+#                     "qty": row.get("qty"),
+#                     "loan_security_price": row.get("loan_security_price"),
+#                     "amount": row.get("amount", 0),
+#                 }
+#             )
+
+#         assignment_info["items"] = items
+#         result["collaterals"] = assignment_info
+#     else:
+#         result["collaterals"] = None
+
+#     return result
+
 def get_loan_by_id(loan_id: str) -> Dict[str, Any]:
     if not frappe.db.exists("Loan", loan_id):
         raise frappe.DoesNotExistError(f"Loan '{loan_id}' does not exist.")
@@ -211,8 +283,14 @@ def get_loan_by_id(loan_id: str) -> Dict[str, Any]:
     else:
         result["collaterals"] = None
 
-    return result
+    attached_files = frappe.get_all(
+        "File",
+        filters={"attached_to_doctype": "Loan", "attached_to_name": loan_id},
+        fields=["name", "file_name", "file_url", "is_private"]
+    )
+    result["attachments"] = attached_files
 
+    return result
 
 def get_loans(
     args: Dict[str, Any],

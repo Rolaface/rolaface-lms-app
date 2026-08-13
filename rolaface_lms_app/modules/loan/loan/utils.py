@@ -184,16 +184,38 @@ def sync_loan_documents(loan_id: str, documents_payload: list):
             raise frappe.ValidationError(f"Row {idx+1}: 'file_url' is required.")
 
         file_name = doc.get("file_name") or file_url.split("/")[-1]
-        existing_file = frappe.db.get_value("File", {"file_url": file_url}, "name")
+
+        # Only reuse if this exact file is ALREADY attached to THIS loan
+        existing_file = frappe.db.get_value(
+            "File",
+            {
+                "file_url": file_url,
+                "attached_to_doctype": "Loan",
+                "attached_to_name": loan_id,
+            },
+            "name",
+        )
 
         if existing_file:
+            attached.append(existing_file)
+            continue
+
+        # Otherwise check if it's a "loose" file not attached to anything yet
+        loose_file = frappe.db.get_value(
+            "File",
+            {"file_url": file_url, "attached_to_name": ["in", ["", None]]},
+            "name",
+        )
+
+        if loose_file:
             frappe.db.set_value(
                 "File",
-                existing_file,
+                loose_file,
                 {"attached_to_doctype": "Loan", "attached_to_name": loan_id},
             )
-            attached.append(existing_file)
+            attached.append(loose_file)
         else:
+            # file_url belongs to another document (or nothing found) -> make a new File row for this loan
             new_file = frappe.get_doc(
                 {
                     "doctype": "File",

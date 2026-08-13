@@ -2,6 +2,7 @@ from apps.rolaface_lms_app.rolaface_lms_app.modules.loan.category.utils import c
 import frappe
 from typing import Dict, Any
 from .constant import ALLOWED_RESTRUCTURE_FIELD, ALLOWED_CHARGE_FIELDS, RETURN_GET_FIELD_BY_ID, GET_FIELDS
+from frappe.client import delete_doc
 
 def create_restructure(data: Dict[str, Any]):
     restructure_doc = frappe.new_doc("Loan Restructure")
@@ -83,3 +84,11 @@ def get_restructures(search, order_by, page, page_size):
                             }
                 }
     return response
+
+def delete_restructure(name):
+    loan_repayment_schedule = frappe.db.get_value('Loan Repayment Schedule', {"loan_restructure": name}, 'name')
+    if loan_repayment_schedule:
+        delete_doc("Loan Repayment Schedule", loan_repayment_schedule)
+
+    delete_doc("Loan Restructure", name)
+    

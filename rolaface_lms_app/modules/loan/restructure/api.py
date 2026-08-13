@@ -100,3 +100,22 @@ def get_all(search=None, order_by="creation desc", page=1, page_size=10):
             status_code=500,
             http_status=500,
         )
+
+@frappe.whitelist(allow_guest=False, methods=["DELETE"])
+def delete(name):
+    try:
+        service.delete_restructure(name)
+        return send_response(
+                    status="success",
+                    message="Loan Restructure Deleted successfully",
+                    status_code=200,
+                    http_status=200,
+                )
+    except Exception as e:
+        frappe.log_error(str(e), "Get Loan Restructure By Name API Error")
+        return send_response(
+                    status="fail",
+                    message=str(e),
+                    status_code=500,
+                    http_status=500,
+        )

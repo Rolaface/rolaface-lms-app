@@ -1,6 +1,7 @@
 import frappe
 from typing import Tuple, Dict,List, Any
 from .constant import ALLOWED_PAYMENT_FIELD, RETURN_FIELDS_GET_ALL, RETURN_FIELDS_GET_BY_ID, ALLOWED_SORT_FIELDS 
+from frappe.utils import add_months, getdate
 
 def create_payment(data: Dict[str, Any]):
     payment_doc = frappe.new_doc("Loan Repayment")
@@ -44,6 +45,7 @@ def get_loan_repayment_account(search_term: str = "", limit: int = 20) -> List[D
         "applicant",
         "applicant_type",
         "sanctioned_amount",
+        "repayment_frequency"
     ]
     if loan_meta.has_field("applicant_name"):
         fields.append("applicant_name")
@@ -56,6 +58,15 @@ def get_loan_repayment_account(search_term: str = "", limit: int = 20) -> List[D
     if emi_field:
         fields.append(f"{emi_field} as emi")
 
+
+    has_repayment_start_date = loan_meta.has_field("repayment_start_date")
+    has_repayment_periods = loan_meta.has_field("repayment_periods")
+
+    if has_repayment_start_date:
+        fields.append("repayment_start_date")
+    if has_repayment_periods:
+        fields.append("repayment_periods")
+
     loans = frappe.get_list(
         "Loan",
         or_filters=or_filters,
@@ -63,6 +74,15 @@ def get_loan_repayment_account(search_term: str = "", limit: int = 20) -> List[D
         limit_page_length=limit,
         order_by="modified desc",
     )
+    if has_repayment_start_date and has_repayment_periods:
+        for loan in loans:
+            start_date = loan.get("repayment_start_date")
+            periods = loan.get("repayment_periods")
+
+            if start_date and periods:
+                loan["maturity_date"] = add_months(getdate(start_date), int(periods))
+            else:
+                loan["maturity_date"] = None
 
     return _attach_phone_numbers(loans)
 

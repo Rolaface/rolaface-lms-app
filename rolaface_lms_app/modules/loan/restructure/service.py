@@ -92,6 +92,8 @@ def get_restructures(search, order_by, page, page_size):
                                     filters=filters, or_filters=or_filters, fields=GET_FIELDS, 
                                     order_by=order_by, start=offset, page_length=int(page_size)
                                 )
+    for r in restructures:
+        r.status = "Draft" if r.docstatus == 0 else r.status
     total_restructures = len(frappe.db.get_all( 'Loan Restructure',
                                         filters=filters,
                                         or_filters=or_filters,

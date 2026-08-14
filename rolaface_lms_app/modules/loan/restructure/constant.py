@@ -12,4 +12,4 @@ RETURN_GET_FIELD_BY_ID = list(ALLOWED_RESTRUCTURE_FIELD) + [
     "name","loan_restructure_charges","old_rate_of_interest", "old_loan_amount", "old_tenure"
 ]
 
-GET_FIELDS = ["name", "restructure_type", "reason_for_restructure", "restructure_date", "status"]
+GET_FIELDS = ["name", "restructure_type", "reason_for_restructure", "restructure_date", "status", "docstatus"]

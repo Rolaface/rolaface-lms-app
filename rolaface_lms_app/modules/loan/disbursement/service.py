@@ -13,7 +13,12 @@ def create_loan_disbursement(data: Dict[str, Any]) -> Dict[str, Any]:
     for field in ALLOWED_DISBURSEMENT_FIELDS:
         if field in data and data.get(field) is not None:
             loan_disbursement_doc.set(field, data.get(field))
-            
+
+    loan_disbursement_doc.set("custom_disbursement_metadata", [])
+    loan_disbursement_doc.append("custom_disbursement_metadata", {
+                                                                    "top_up": int(data.get("top_up") or 0),
+                                                                    "top_up_details": data.get("top_up_details"),
+                                                                })
     sync_loan_disbursement_charges(loan_disbursement_doc, data.get("loan_disbursement_charges"))
     loan_disbursement_doc.set_missing_values()    
     loan_disbursement_doc.insert(ignore_permissions=True)
@@ -43,6 +48,14 @@ def update_loan_disbursement(disbursement_id: str, data: Dict[str, Any]) -> Dict
         if sync_loan_disbursement_charges(loan_disbursement_doc, charges_payload):
             has_changes = True
 
+    if "top_up" in data or "top_up_details" in data:
+        loan_disbursement_doc.set("custom_disbursement_metadata", [])
+        loan_disbursement_doc.append("custom_disbursement_metadata", {
+            "top_up": int(data.get("top_up") or 0),
+            "top_up_details": data.get("top_up_details"),
+        })
+        has_changes = True
+
     if has_changes:
         loan_disbursement_doc.save(ignore_permissions=True)
 
@@ -57,9 +70,15 @@ def get_loan_disbursement_by_id(disbursement_id: str) -> Dict[str, Any]:
     result = {field: loan_disbursement_doc.get(field) for field in RETURN_FIELDS_GET_BY_ID}
     
     charges = []
-    
     disbursement_charges_table = loan_disbursement_doc.get("loan_disbursement_charges") or [] 
-    
+
+    top_up = 0
+    top_up_details = None
+    disbursement_metadata = loan_disbursement_doc.custom_disbursement_metadata[0] if loan_disbursement_doc.custom_disbursement_metadata else None 
+    if disbursement_metadata:
+        top_up = disbursement_metadata.get("top_up")
+        if top_up:
+            top_up_details = disbursement_metadata.get("top_up_details")
     for row in disbursement_charges_table:
         charges.append({
             "name": row.name,
@@ -70,7 +89,8 @@ def get_loan_disbursement_by_id(disbursement_id: str) -> Dict[str, Any]:
         })
         
     result["loan_disbursement_charges"] = charges
-    
+    result["top_up"] = top_up
+    result["top_up_details"] = top_up_details
     return result
 
 

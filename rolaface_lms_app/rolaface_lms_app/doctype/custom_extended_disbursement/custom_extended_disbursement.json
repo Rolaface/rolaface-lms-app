@@ -1,0 +1,48 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-08-13 16:47:10.699216",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "loan_top_up_details_details_section",
+  "top_up",
+  "top_up_details"
+ ],
+ "fields": [
+  {
+   "fieldname": "loan_top_up_details_details_section",
+   "fieldtype": "Section Break",
+   "label": "Loan Top Up details Details"
+  },
+  {
+   "default": "0",
+   "fieldname": "top_up",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Top Up"
+  },
+  {
+   "fieldname": "top_up_details",
+   "fieldtype": "JSON",
+   "in_list_view": 1,
+   "label": "Top Up Details"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-14 15:23:17.794528",
+ "modified_by": "Administrator",
+ "module": "Rolaface Lms App",
+ "name": "Custom Extended Disbursement",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

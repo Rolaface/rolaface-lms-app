@@ -229,11 +229,27 @@ def get_currencies():
 @frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loans():
     try:
+        filters = {}
+
+        status = frappe.form_dict.get("status")
+        if status:
+            if isinstance(status, str):
+                status = frappe.parse_json(status)
+
+            if isinstance(status, list) and status:
+                filters["status"] = ["in", status]
+
+        applicant = frappe.form_dict.get("applicant")
+        if applicant:
+            if isinstance(applicant, str):
+                applicant = frappe.parse_json(applicant)
+
+            if isinstance(applicant, list) and applicant:
+                filters["applicant"] = ["in", applicant]
+
         data = _fetch_paginated_autosuggest(
             doctype="Loan",
-            filters={
-                "status": ["!=", "Closed"]
-            },
+            filters=filters,
             search_fields=[
                 "name",
                 "applicant",
@@ -270,7 +286,11 @@ def get_loans():
         )
 
     except Exception:
-        frappe.log_error(frappe.get_traceback(), "Get Loans API Error")
+        frappe.log_error(
+            frappe.get_traceback(),
+            "Get Loans API Error"
+        )
+
         return send_response_list(
             status="fail",
             message="Internal Server Error",

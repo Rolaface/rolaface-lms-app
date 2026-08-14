@@ -149,7 +149,8 @@ def _get_native_statement_data(loan_doc: Any, from_date: str, to_date: str, view
         "loan": loan_doc.name,
         "from_date": from_date_resolved,
         "to_date": to_date_resolved,
-        "group_by": "Grouped" if view_type == "summary" else "Detailed",
+        # "group_by": "Grouped" if view_type == "summary" else "Detailed",
+        "group_by": "Detailed",
     })
     
     columns, data = get_loan_soa(filters)

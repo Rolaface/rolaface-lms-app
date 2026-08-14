@@ -25,7 +25,10 @@ def create_restructure(data: Dict[str, Any]):
                 if charge.get(key) is not None
             }
             restructure_doc.append("loan_restructure_charges", row)
-
+    frappe.log_error(
+                        title="Restructure Document Debug",
+                        message=frappe.as_json(restructure_doc.as_dict())
+                    )
     restructure_doc.insert(ignore_permissions=True)
     return restructure_doc.name
 

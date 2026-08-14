@@ -164,3 +164,45 @@ def convert_custom_loan_application_to_loan(id=None):
         )
     except Exception as e:
         return handle_api_error(e, "Convert Custom Loan Application To Loan API Error")
+
+@frappe.whitelist(allow_guest=True, methods=["PUT", "PATCH"])
+def update_custom_loan_application(id=None):
+    try:
+        data = parse_api_payload()
+        loan_application_id = id or frappe.request.args.get("id")
+
+        if not loan_application_id:
+            raise frappe.ValidationError("Custom Loan Application ID is required as a query parameter (?id=...).")
+
+        loan_application_data = service.update_custom_loan_application(loan_application_id, data)
+        frappe.db.commit()
+
+        return send_response(
+            status="success",
+            message="Custom Loan Application updated successfully.",
+            data=loan_application_data,
+            status_code=200,
+            http_status=200,
+        )
+    except Exception as e:
+        return handle_api_error(e, "Update Custom Loan Application API Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["DELETE"])
+def delete_custom_loan_application(id=None):
+    try:
+        loan_application_id = id or frappe.local.form_dict.get("id")
+        if not loan_application_id:
+            raise frappe.ValidationError("Custom Loan Application ID is required.")
+
+        service.delete_custom_loan_application(loan_application_id)
+        frappe.db.commit()
+
+        return send_response(
+            status="success",
+            message="Custom Loan Application deleted successfully.",
+            status_code=200,
+            http_status=200,
+        )
+    except Exception as e:
+        return handle_api_error(e, "Delete Custom Loan Application Error")

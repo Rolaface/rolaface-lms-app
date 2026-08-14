@@ -8,11 +8,12 @@ def get_loan_statement_dashboard():
         loan_id = frappe.request.args.get("loan_id")
         from_date = frappe.request.args.get("from_date")
         to_date = frappe.request.args.get("to_date")
+        view_type = frappe.request.args.get("view_type", "detailed")
 
         if not loan_id:
             raise frappe.ValidationError("Loan ID is a mandatory parameter.")
 
-        data = service.loan_statement_dashboard(loan_id, from_date, to_date)
+        data = service.loan_statement_dashboard(loan_id, from_date, to_date, view_type)
         
         return send_response(
             status="success", 
@@ -22,7 +23,6 @@ def get_loan_statement_dashboard():
         )
     except Exception as e:
         return handle_api_error(e, "Get Loan Statement Error")
-
 
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
@@ -35,6 +35,10 @@ def get_loan_statement(page=1, page_size=20):
         from_date = args.get("from_date")
         to_date = args.get("to_date")
         search = args.get("search")
+        view_type = args.get("view_type", "detailed")
+        transaction_type = args.get("transaction_type")
+        sort_by = args.get("sort_by", "date")
+        sort_order = args.get("sort_order", "asc")
 
         if not loan_id:
             raise frappe.ValidationError("Loan ID is required for the statement table.")
@@ -45,7 +49,11 @@ def get_loan_statement(page=1, page_size=20):
             to_date=to_date,
             page=page,
             page_size=page_size,
-            search_term=search
+            search_term=search,
+            view_type=view_type,
+            transaction_type=transaction_type,
+            sort_by=sort_by,
+            sort_order=sort_order
         )
 
         response_data = {
@@ -78,11 +86,12 @@ def export_loan_statement_pdf():
         loan_id = frappe.request.args.get("loan_id")
         from_date = frappe.request.args.get("from_date")
         to_date = frappe.request.args.get("to_date")
+        view_type = frappe.request.args.get("view_type", "detailed")
 
         if not loan_id:
             raise frappe.ValidationError("Loan ID is required for export.")
 
-        pdf_bytes = service.generate_statement_pdf(loan_id, from_date, to_date)
+        pdf_bytes = service.generate_statement_pdf(loan_id, from_date, to_date, view_type)
         
         frappe.local.response.filename = f"Loan_Statement_{loan_id}.pdf"
         frappe.local.response.filecontent = pdf_bytes
@@ -98,16 +107,15 @@ def export_loan_statement_excel():
         loan_id = frappe.request.args.get("loan_id")
         from_date = frappe.request.args.get("from_date")
         to_date = frappe.request.args.get("to_date")
+        view_type = frappe.request.args.get("view_type", "detailed")
 
         if not loan_id:
             raise frappe.ValidationError("Loan ID is required for export.")
 
-        xlsx_data = service.generate_statement_excel(loan_id, from_date, to_date)
+        xlsx_data = service.generate_statement_excel(loan_id, from_date, to_date, view_type)
         
         frappe.local.response.filename = f"Loan_Statement_{loan_id}.xlsx"
-        
         frappe.local.response.filecontent = xlsx_data.getvalue() if hasattr(xlsx_data, "getvalue") else xlsx_data
-        
         frappe.local.response.type = "binary"
         
     except Exception as e:

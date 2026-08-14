@@ -174,3 +174,35 @@ def convert_custom_loan_application_to_loan(loan_application_id: str, company: s
         loan_service.attach_loan_documents(loan_data["name"], documents_payload)
 
     return loan_data
+
+def update_custom_loan_application(loan_application_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    if not frappe.db.exists("Custom Loan Application", loan_application_id):
+        raise frappe.DoesNotExistError(f"Custom Loan Application '{loan_application_id}' does not exist.")
+
+    loan_application = frappe.get_doc("Custom Loan Application", loan_application_id)
+
+    validate_custom_loan_application_payload(data, is_update=True)
+
+    for field in ALLOWED_CUSTOM_LOAN_APPLICATION_FIELDS:
+        if field in data and data.get(field) is not None:
+            loan_application.set(field, data.get(field))
+
+    if "documents" in data:
+        sync_custom_loan_application_documents(loan_application, data.get("documents"))
+
+    if "directors" in data:
+        sync_custom_loan_application_directors(loan_application, data.get("directors"))
+
+    if "business_documents" in data:
+        sync_custom_loan_application_business_documents(loan_application, data.get("business_documents"))
+
+    loan_application.save(ignore_permissions=True)
+
+    return get_custom_loan_application_by_id(loan_application.name)
+
+
+def delete_custom_loan_application(loan_application_id: str):
+    if not frappe.db.exists("Custom Loan Application", loan_application_id):
+        raise frappe.DoesNotExistError(f"Custom Loan Application '{loan_application_id}' does not exist.")
+
+    frappe.delete_doc("Custom Loan Application", loan_application_id, ignore_permissions=True)

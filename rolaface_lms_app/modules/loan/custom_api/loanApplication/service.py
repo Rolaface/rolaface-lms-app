@@ -115,7 +115,8 @@ def get_custom_loan_applications(args: Dict[str, Any], page: int, page_size: int
 
     return loan_applications, total, total_pages
 
-def convert_custom_loan_application_to_loan(loan_application_id: str, company: str) -> Dict[str, Any]:
+# def convert_custom_loan_application_to_loan(loan_application_id: str, company: str) -> Dict[str, Any]:
+def convert_custom_loan_application_to_loan(loan_application_id: str, loan_product: str, company: str) -> Dict[str, Any]:
     if not frappe.db.exists("Custom Loan Application", loan_application_id):
         raise frappe.DoesNotExistError(f"Custom Loan Application '{loan_application_id}' does not exist.")
 
@@ -127,18 +128,13 @@ def convert_custom_loan_application_to_loan(loan_application_id: str, company: s
             f"Current status: '{application.status}'."
         )
 
-    # if frappe.db.exists("Loan", {"loan_application": loan_application_id}):
-    #     raise frappe.ValidationError(
-    #         f"Custom Loan Application '{loan_application_id}' has already been converted to a Loan."
-    #     )
-
     applicant = application.customer
     if not applicant:
         applicant = create_customer_from_application(application)
         frappe.db.set_value("Custom Loan Application", application.name, "customer", applicant)
-    loan_product = frappe.db.get_value("Loan Product", {}, "name")
-    if not loan_product:
-        raise frappe.ValidationError("No Loan Product exists in the system to use for conversion.")
+    # loan_product = frappe.db.get_value("Loan Product", {}, "name")
+    # if not loan_product:
+    #     raise frappe.ValidationError("No Loan Product exists in the system to use for conversion.")
 
     loan_payload = {
         "applicant_type": "Customer",

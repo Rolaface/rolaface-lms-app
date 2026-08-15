@@ -70,3 +70,64 @@ def _parse_version_data(data_json: str) -> str:
         return ", ".join(changes) if changes else "Document Updated"
     except Exception:
         return "System record updated"
+
+
+def calculate_timeline_statuses(schedule_rows: List[Dict[str, Any]], repayments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Enriches the raw schedule rows with 'ui_status' and 'penalty' by 
+    chronologically consuming actual repayment records.
+    """
+    today = frappe.utils.getdate(frappe.utils.nowdate())
+    
+    # Sort repayments chronologically to simulate the real payment timeline
+    sorted_reps = sorted(repayments, key=lambda x: frappe.utils.getdate(x.get("payment_date")))
+    
+    # Track available unallocated funds from payments
+    unallocated_funds = 0.0
+    current_rep_idx = 0
+    total_reps = len(sorted_reps)
+    
+    for row in schedule_rows:
+        due_date = frappe.utils.getdate(row.get("payment_date"))
+        amount_needed = frappe.utils.flt(row.get("total_payment"))
+        
+        # Track the date when this specific installment was fully satisfied
+        date_satisfied = None
+        
+        # Consume unallocated funds or pull from next repayments until this installment is paid
+        while amount_needed > 0 and current_rep_idx < total_reps:
+            if unallocated_funds == 0:
+                rep = sorted_reps[current_rep_idx]
+                # Assuming 'principal' + 'interest' covers the schedule total_payment. 
+                # (Adjust if your Frappe setup allocates amounts differently)
+                unallocated_funds = frappe.utils.flt(rep.get("principal", 0)) + frappe.utils.flt(rep.get("interest", 0))
+                current_rep_idx += 1
+            
+            if unallocated_funds >= amount_needed:
+                # Installment is fully covered
+                date_satisfied = frappe.utils.getdate(rep.get("payment_date"))
+                unallocated_funds -= amount_needed
+                amount_needed = 0
+            else:
+                # Partially covered, consume all available funds and grab the next repayment
+                amount_needed -= unallocated_funds
+                unallocated_funds = 0
+                
+        # Determine the UI Status
+        if amount_needed <= 0.01: # Account for minor floating point discrepancies
+            if date_satisfied and date_satisfied > due_date:
+                row["ui_status"] = "Paid late"
+            else:
+                row["ui_status"] = "Paid on time"
+        else:
+            if due_date < today:
+                row["ui_status"] = "Overdue"
+            else:
+                row["ui_status"] = "Upcoming"
+                
+        # The UI requires a penalty field per installment. 
+        # Since standard schedule lacks this, initialize it to 0. 
+        # (You can enhance this later to query Penalty Demands if used).
+        row["penalty"] = 0.0
+
+    return schedule_rows

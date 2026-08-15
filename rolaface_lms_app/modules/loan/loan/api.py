@@ -90,7 +90,7 @@ def get_loans(page=1, page_size=20):
         args = frappe.local.form_dict
         page, page_size = int(page), int(page_size)
 
-        sort_by = args.get("sort_by", "creation")
+        sort_by = args.get("sort_by", "name")
         sort_order = args.get("sort_order", "desc")
 
         loans, total_loans, total_pages = service.get_loans(

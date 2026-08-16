@@ -2,6 +2,7 @@ import frappe
 from typing import Tuple, Dict, Any
 from .utils import build_loan_disbursement_filters, validate_loan_disbursement_payload, sync_loan_disbursement_charges
 from .constant import ALLOWED_DISBURSEMENT_FIELDS, RETURN_FIELDS_GET_ALL, RETURN_FIELDS_GET_BY_ID, ALLOWED_SORT_FIELDS
+from frappe.utils import flt
 
 def create_loan_disbursement(data: Dict[str, Any]) -> Dict[str, Any]:
     if not data.get("company"):
@@ -13,12 +14,29 @@ def create_loan_disbursement(data: Dict[str, Any]) -> Dict[str, Any]:
     for field in ALLOWED_DISBURSEMENT_FIELDS:
         if field in data and data.get(field) is not None:
             loan_disbursement_doc.set(field, data.get(field))
+    if int(data.get("top_up")) == 1:
 
-    loan_disbursement_doc.set("custom_disbursement_metadata", [])
-    loan_disbursement_doc.append("custom_disbursement_metadata", {
-                                                                    "top_up": int(data.get("top_up") or 0),
-                                                                    "top_up_details": data.get("top_up_details"),
-                                                                })
+        loan_name = loan_disbursement_doc.against_loan
+        loan_doc = frappe.get_doc("Loan", loan_name)
+        top_up_details = data.get("top_up_details") or {}
+        if (loan_doc.loan_amount - loan_doc.disbursed_amount) > data.get("disbursed_amount",0):
+            frappe.throw(
+                          "Top-Up is not allowed because the loan has sufficient amount available for disbursement."
+                        )
+
+        loan_disbursement_doc.set("custom_disbursement_metadata", [])
+        loan_disbursement_doc.append("custom_disbursement_metadata", {
+                                                                        "top_up": int(data.get("top_up") or 0),
+                                                                        "top_up_details": top_up_details,
+                                                                        "initial_sanctioned_amount": loan_doc.loan_amount
+                                                                    })
+
+        top_up_amount = flt(top_up_details.get("top_up_amount") or 0)
+
+        new_amount = flt(loan_doc.loan_amount) + top_up_amount
+        frappe.db.sql("UPDATE `tabLoan` SET loan_amount = %s WHERE name = %s", (new_amount, loan_name))
+        frappe.db.commit()
+
     sync_loan_disbursement_charges(loan_disbursement_doc, data.get("loan_disbursement_charges"))
     loan_disbursement_doc.set_missing_values()    
     loan_disbursement_doc.insert(ignore_permissions=True)
@@ -49,12 +67,48 @@ def update_loan_disbursement(disbursement_id: str, data: Dict[str, Any]) -> Dict
             has_changes = True
 
     if "top_up" in data or "top_up_details" in data:
-        loan_disbursement_doc.set("custom_disbursement_metadata", [])
-        loan_disbursement_doc.append("custom_disbursement_metadata", {
-            "top_up": int(data.get("top_up") or 0),
-            "top_up_details": data.get("top_up_details"),
-        })
-        has_changes = True
+        existing_metadata = (loan_disbursement_doc.custom_disbursement_metadata or [None])[0]
+        was_top_up = bool(existing_metadata and existing_metadata.top_up)
+        is_top_up_now = int(data.get("top_up") or 0) == 1
+        loan_name = loan_disbursement_doc.against_loan
+        loan_doc = frappe.get_doc("Loan", loan_name) if loan_name else None
+        if was_top_up and not is_top_up_now:
+            # rolling back: restore the amount stored at the time of the original top-up
+            if loan_doc and existing_metadata and existing_metadata.initial_sanctioned_amount is not None:
+                frappe.db.sql(
+                    "UPDATE `tabLoan` SET loan_amount = %s WHERE name = %s",
+                    (flt(existing_metadata.initial_sanctioned_amount), loan_name),
+                )
+                frappe.db.commit()
+
+        elif is_top_up_now:
+            top_up_details = data.get("top_up_details")
+
+            # preserve the ORIGINAL initial_sanctioned_amount if this was already a top-up
+            # (don't overwrite it with the current, possibly already-topped-up loan_amount)
+            initial_sanctioned_amount = (
+                existing_metadata.initial_sanctioned_amount
+                if was_top_up and existing_metadata and existing_metadata.initial_sanctioned_amount is not None
+                else (loan_doc.loan_amount if loan_doc else None)
+            )
+
+            if loan_doc and top_up_details.get("top_up_amount") is not None and initial_sanctioned_amount is not None:
+                top_up_amount = flt(top_up_details.get("top_up_amount") or 0)
+                new_amount = flt(initial_sanctioned_amount) + top_up_amount
+
+                frappe.db.sql(
+                    "UPDATE `tabLoan` SET loan_amount = %s WHERE name = %s",
+                    (new_amount, loan_name),
+                )
+                frappe.db.commit()
+
+            loan_disbursement_doc.set("custom_disbursement_metadata", [])
+            loan_disbursement_doc.append("custom_disbursement_metadata", {
+                "top_up": 1,
+                "top_up_details": top_up_details,
+                "initial_sanctioned_amount": initial_sanctioned_amount,
+            })
+            has_changes = True
 
     if has_changes:
         loan_disbursement_doc.save(ignore_permissions=True)

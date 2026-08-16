@@ -15,16 +15,58 @@ def get_loan_overview(id=None):
         return handle_api_error(e, "Get Loan Overview Error")
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
-def get_repayment_schedule_summary(id=None):
+def get_installment_detail(id=None, idx=None):
+    try:
+        loan_id = id or frappe.request.args.get("id")
+        installment_idx = idx or frappe.request.args.get("idx")
+        
+        if not loan_id or not installment_idx:
+            raise frappe.ValidationError("Loan ID and Installment IDX are required.")
+            
+        data = service.get_installment_detail(loan_id, int(installment_idx))
+        return send_response(status="success", message="Installment detail retrieved", data=data, status_code=200)
+    except Exception as e:
+        return handle_api_error(e, "Get Installment Detail Error")
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_repayment_schedule_timeline(id=None):
     try:
         loan_id = id or frappe.request.args.get("id")
         if not loan_id:
             raise frappe.ValidationError("Loan ID is required.")
             
-        data = service.get_repayment_schedule_summary(loan_id)
-        return send_response(status="success", message="Schedule retrieved", data=data, status_code=200)
+        data = service.get_repayment_schedule_timeline(loan_id)
+        return send_response(status="success", message="Timeline retrieved", data=data, status_code=200)
     except Exception as e:
         return handle_api_error(e, "Get Repayment Schedule Timeline Error")
+    
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_repayment_schedule_versions(id=None):
+    try:
+        loan_id = id or frappe.request.args.get("id")
+        if not loan_id:
+            raise frappe.ValidationError("Loan ID is required.")
+            
+        data = service.get_repayment_schedule_versions(loan_id)
+        return send_response(status="success", message="Schedule versions retrieved", data=data, status_code=200)
+    except Exception as e:
+        return handle_api_error(e, "Get Repayment Schedule Versions Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_repayment_schedule_summary(id=None, schedule_id=None):
+    try:
+        loan_id = id or frappe.request.args.get("id")
+        sch_id = schedule_id or frappe.request.args.get("schedule_id")
+        
+        if not loan_id:
+            raise frappe.ValidationError("Loan ID is required.")
+            
+        # Passing sch_id down; if it's None, the service will fetch the latest active one
+        data = service.get_repayment_schedule_summary(loan_id, sch_id)
+        return send_response(status="success", message="Schedule retrieved", data=data, status_code=200)
+    except Exception as e:
+        return handle_api_error(e, "Get Repayment Schedule Summary Error")
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_repayment_history(id=None):

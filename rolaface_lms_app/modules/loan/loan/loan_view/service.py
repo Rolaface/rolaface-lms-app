@@ -4,6 +4,7 @@ from frappe.query_builder import DocType, Order
 from frappe.query_builder import functions as fn
 
 from .utils import format_audit_timeline, calculate_timeline_statuses
+from lending.loan_management.report.loan_statement_of_account.loan_statement_of_account import execute as get_loan_soa
 
 def get_loan_overview(loan_id: str) -> Dict[str, Any]:
     try:
@@ -525,60 +526,68 @@ def get_installment_detail(loan_id: str, installment_idx: int) -> Dict[str, Any]
         raise frappe.ValidationError(
             f"Failed to fetch installment {installment_idx}: {str(e)}"
         )
-
-
-def get_loan_accounting_ledger(
-    loan_id: str, page: int = 1, page_size: int = 20, search: str = None
-) -> Tuple[list, int, int]:
+def get_loan_accounting_ledger(loan_id: str, page: int = 1, page_size: int = 20, search: str = None) -> Tuple[list, int, int]:
     try:
-        ld = DocType("Loan Disbursement")
-        lr = DocType("Loan Repayment")
+        if not frappe.db.exists("Loan", loan_id):
+            raise frappe.DoesNotExistError(f"Loan '{loan_id}' does not exist.")
 
-        disbursements = (
-            frappe.qb.from_(ld)
-            .select(ld.name)
-            .where((ld.against_loan == loan_id) & (ld.docstatus == 1))
-            .run(pluck=True)
-        )
-        repayments = (
-            frappe.qb.from_(lr)
-            .select(lr.name)
-            .where((lr.against_loan == loan_id) & (lr.docstatus == 1))
-            .run(pluck=True)
-        )
-
-        vouchers = disbursements + repayments
-
-        if not vouchers:
-            return [], 0, 0
-
-        gl = DocType("GL Entry")
-        query = (
-            frappe.qb.from_(gl)
-            .select(
-                gl.posting_date,
-                gl.voucher_type,
-                gl.voucher_no.as_("description"),
-                gl.debit,
-                gl.credit,
-                gl.account,
-            )
-            .where((gl.voucher_no.isin(vouchers)) & (gl.is_cancelled == 0))
-            .orderby(gl.posting_date, order=Order.desc)
-            .orderby(gl.creation, order=Order.desc)
-        )
-
-        records = query.run(as_dict=True)
+        loan_doc = frappe.get_doc("Loan", loan_id)
+        
+        from_date = loan_doc.posting_date or loan_doc.repayment_start_date or loan_doc.creation.split()[0]
+        to_date = frappe.utils.nowdate()
+        
+        filters = frappe._dict({
+            "company": loan_doc.company,
+            "applicant_type": loan_doc.applicant_type,
+            "applicant": loan_doc.applicant,
+            "loan": loan_doc.name,
+            "from_date": from_date,
+            "to_date": to_date,
+            "group_by": "Detailed",
+        })
+        
+        columns, data = get_loan_soa(filters)
+        
+        records = []
+        
+        for row in data:
+            if isinstance(row, dict):
+                date_raw = row.get("posting_date") or row.get("date")
+                t_type = row.get("transaction_type", "")
+                
+                records.append({
+                    "posting_date": frappe.utils.getdate(date_raw) if date_raw else None,
+                    "description": row.get("transaction_name", "-"),
+                    "voucher_type": t_type,
+                    "debit": frappe.utils.flt(row.get("debit", 0.0), 2),
+                    "credit": frappe.utils.flt(row.get("credit", 0.0), 2),
+                    "balance": frappe.utils.flt(row.get("balance", 0.0), 2),
+                    "account": row.get("account", "")
+                })
+            else:
+                date_raw = row[0] if len(row) > 0 else None
+                t_type = row[1] if len(row) > 1 else ""
+                
+                records.append({
+                    "posting_date": frappe.utils.getdate(date_raw) if date_raw else None,
+                    "description": row[2] if len(row) > 2 else "-",
+                    "voucher_type": t_type,
+                    "debit": frappe.utils.flt(row[4], 2) if len(row) > 4 else 0.0,
+                    "credit": frappe.utils.flt(row[5], 2) if len(row) > 5 else 0.0,
+                    "balance": frappe.utils.flt(row[6], 2) if len(row) > 6 else 0.0,
+                    "account": ""
+                })
 
         if search:
             search_term = search.lower()
             records = [
-                r
-                for r in records
+                r for r in records
                 if search_term in str(r.get("description", "")).lower()
-                or search_term in str(r.get("account", "")).lower()
                 or search_term in str(r.get("voucher_type", "")).lower()
+                or search_term in str(r.get("account", "")).lower()
             ]
+            
+        records.sort(key=lambda x: (x["posting_date"] or frappe.utils.getdate('1900-01-01')), reverse=True)
 
         total_records = len(records)
         total_pages = (total_records + page_size - 1) // page_size
@@ -588,6 +597,8 @@ def get_loan_accounting_ledger(
 
         return paginated_records, total_records, total_pages
 
+    except frappe.DoesNotExistError:
+        raise
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Loan View: Accounting Ledger Error")
         raise frappe.ValidationError(f"Failed to fetch accounting ledger: {str(e)}")

@@ -276,7 +276,8 @@ fixtures = [
                 "Custom Loan Application",
                 "Custom Loan Application Director Details",
                 "Custom Loan Application Document",
-                "Loan Disbursement"
+                "Loan Disbursement",
+                "Loan"
             ]],
             ["is_system_generated", "=", 0]
         ]

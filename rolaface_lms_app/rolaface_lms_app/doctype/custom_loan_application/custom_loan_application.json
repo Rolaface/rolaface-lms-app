@@ -13,6 +13,7 @@
   "column_break_vheb",
   "customer",
   "naming_series",
+  "loan_application_status",
   "column_break_uafc",
   "amount",
   "tenure",
@@ -460,12 +461,19 @@
    "fieldname": "total_amount",
    "fieldtype": "Float",
    "label": "Total Amount"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "loan_application_status",
+   "fieldtype": "Select",
+   "label": "Loan Application Status",
+   "options": "Pending\nApproved\nCreated\nRejected"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-12 14:05:05.868009",
+ "modified": "2026-08-17 20:30:21.070115",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom Loan Application",

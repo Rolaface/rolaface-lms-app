@@ -115,11 +115,8 @@ def get_custom_loan_applications(args: Dict[str, Any], page: int, page_size: int
 
     return loan_applications, total, total_pages
 
-# def convert_custom_loan_application_to_loan(loan_application_id: str, loan_product: str, company: str) -> Dict[str, Any]:
 def convert_custom_loan_application_to_loan(loan_application_id: str, loan_product: str) -> Dict[str, Any]:
     company = frappe.defaults.get_user_default("Company")
-    # if not company:
-    #     company = frappe.defaults.get_user_default("Company")
     if not frappe.db.exists("Custom Loan Application", loan_application_id):
         raise frappe.DoesNotExistError(f"Custom Loan Application '{loan_application_id}' does not exist.")
 
@@ -135,9 +132,6 @@ def convert_custom_loan_application_to_loan(loan_application_id: str, loan_produ
     if not applicant:
         applicant = create_customer_from_application(application)
         frappe.db.set_value("Custom Loan Application", application.name, "customer", applicant)
-    # loan_product = frappe.db.get_value("Loan Product", {}, "name")
-    # if not loan_product:
-    #     raise frappe.ValidationError("No Loan Product exists in the system to use for conversion.")
 
     loan_payload = {
         "applicant_type": "Customer",
@@ -146,7 +140,6 @@ def convert_custom_loan_application_to_loan(loan_application_id: str, loan_produ
         "company": company,
         "loan_amount": application.amount,
         "posting_date": frappe.utils.nowdate(),
-        # "loan_application": application.name,
     }
 
     if application.tenure:
@@ -154,6 +147,12 @@ def convert_custom_loan_application_to_loan(loan_application_id: str, loan_produ
         loan_payload["repayment_method"] = "Repay Over Number of Periods"
 
     loan_data = loan_service.create_loan(loan_payload)
+
+    loan_doc = frappe.get_doc("Loan", loan_data["name"])
+    loan_doc.append("custom_loan_details", {
+        "loan_application_number": application.name,
+    })
+    loan_doc.save(ignore_permissions=True)
 
     documents_payload = []
     for row in application.get("documents", []) or []:
@@ -172,7 +171,7 @@ def convert_custom_loan_application_to_loan(loan_application_id: str, loan_produ
     if documents_payload:
         loan_service.attach_loan_documents(loan_data["name"], documents_payload)
 
-    return loan_data
+    return loan_service.get_loan_by_id(loan_data["name"])
 
 def update_custom_loan_application(loan_application_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
     if not frappe.db.exists("Custom Loan Application", loan_application_id):

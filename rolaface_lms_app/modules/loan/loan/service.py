@@ -235,6 +235,10 @@ def get_loan_by_id(loan_id: str) -> Dict[str, Any]:
 
     doc = frappe.get_doc("Loan", loan_id)
     result = {field: doc.get(field) for field in RETURN_FIELDS_GET_BY_ID}
+    result["loan_application_number"] = None
+    custom_details = doc.get("custom_loan_details", [])
+    if custom_details:
+        result["loan_application_number"] = custom_details[0].get("loan_application_number")
 
     charges = []
     for row in doc.get("loan_charges", []):

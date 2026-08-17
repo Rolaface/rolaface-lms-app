@@ -1,6 +1,7 @@
 import frappe
 from frappe.utils import flt
 from typing import Dict, Any
+import json
 
 def validate_loan_disbursement_payload(data: Dict[str, Any], is_update=False):
     if not is_update:
@@ -78,13 +79,30 @@ def build_loan_disbursement_filters(args: Dict[str, Any]) -> Dict[str, Any]:
         frappe_filters["company"] = args["company"]
         
     if args.get("status"):
-        frappe_filters["status"] = ["in", args["status"]] if isinstance(args["status"], list) else args["status"]
+        status = args.get("status")
+        if isinstance(status, str):
+            try:
+                status = json.loads(status)
+            except json.JSONDecodeError:
+                status = [status]
+        
+        frappe_filters["status"] = ["in",status]
 
     if args.get("against_loan"):
         frappe_filters["against_loan"] = args["against_loan"]
         
     if args.get("applicant"):
         frappe_filters["applicant"] = args["applicant"]
+
+    if args.get("applicant_type"):
+        applicant_type = args.get("applicant_type")
+        if isinstance(applicant_type, str):
+            try:
+                applicant_type = json.loads(applicant_type)
+            except json.JSONDecodeError:
+                applicant_type = [applicant_type]
+                
+        frappe_filters["applicant_type"] = ["in",applicant_type]
 
     minAmount = args.get("minAmount")
     maxAmount = args.get("maxAmount")

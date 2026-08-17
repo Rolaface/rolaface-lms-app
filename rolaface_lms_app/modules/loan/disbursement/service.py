@@ -176,7 +176,7 @@ def get_loan_disbursements(args: Dict[str, Any], page: int, page_size: int, sort
         "Loan Disbursement",
         filters=safe_filters,
         or_filters=or_filters if search else None,
-        fields=RETURN_FIELDS_GET_ALL,
+        fields=RETURN_FIELDS_GET_ALL + ["custom_disbursement_metadata.top_up as top_up"],
         limit_start=start,
         limit_page_length=page_size,
         order_by=order_by_string,

@@ -147,11 +147,11 @@ def convert_custom_loan_application_to_loan(id=None):
         if not loan_product:
             raise frappe.ValidationError("'loan_product' is required to convert this application into a Loan.")
 
-        company = data.get("company")
-        if not company:
-            raise frappe.ValidationError("'company' is required to convert this application into a Loan.")
+        # company = data.get("company")
+        # if not company:
+        #     raise frappe.ValidationError("'company' is required to convert this application into a Loan.")
 
-        loan_data = service.convert_custom_loan_application_to_loan(loan_application_id, loan_product, company)
+        loan_data = service.convert_custom_loan_application_to_loan(loan_application_id, loan_product)
         frappe.db.commit()
 
         return send_response(

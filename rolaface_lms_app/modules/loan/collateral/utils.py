@@ -1,6 +1,6 @@
 import frappe
 from typing import Tuple, Dict, Any
-
+import json
 
 def _validate_loan_security_payload(data: Dict[str, Any], is_update: bool = False):
     if not is_update:
@@ -34,9 +34,16 @@ def _build_loan_security_filters(args: Dict[str, Any]) -> Dict[str, Any]:
     filters = {}
 
     if args.get("disabled") is not None:
-        filters["disabled"] = args.get("disabled")
+        filters["disabled"] = int(args.get("disabled"))
 
     if args.get("loan_security_type"):
-        filters["loan_security_type"] = args.get("loan_security_type")
+        loan_security_type = args.get("loan_security_type")
+        if isinstance(loan_security_type, str):
+            try:
+                loan_security_type = json.loads(loan_security_type)
+            except json.JSONDecodeError:
+                loan_security_type = [loan_security_type]
+        
+        filters["loan_security_type"] = ["in",loan_security_type]
 
     return filters

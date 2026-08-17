@@ -438,7 +438,7 @@ def get_installment_detail(loan_id: str, installment_idx: int) -> Dict[str, Any]
         parent_name = (
             frappe.qb.from_(lrs)
             .select(lrs.name)
-            .where((lrs.loan == loan_id) & (lrs.docstatus == 1))
+            .where((lrs.loan == loan_id) & (lrs.docstatus == 1) & (lrs.status == "Active"))
             .orderby(lrs.creation, order=Order.desc)
             .limit(1)
             .run(pluck=True)

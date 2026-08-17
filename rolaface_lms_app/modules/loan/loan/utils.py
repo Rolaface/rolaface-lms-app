@@ -200,7 +200,6 @@ def sync_loan_documents(loan_id: str, documents_payload: list):
 
         file_name = doc.get("file_name") or file_url.split("/")[-1]
 
-        # Only reuse if this exact file is ALREADY attached to THIS loan
         existing_file = frappe.db.get_value(
             "File",
             {
@@ -230,7 +229,12 @@ def sync_loan_documents(loan_id: str, documents_payload: list):
             )
             attached.append(loose_file)
         else:
-            # file_url belongs to another document (or nothing found) -> make a new File row for this loan
+            source_is_private = frappe.db.get_value(
+                "File", {"file_url": file_url}, "is_private"
+            )
+            if source_is_private is None:
+                source_is_private = doc.get("is_private", 1)
+
             new_file = frappe.get_doc(
                 {
                     "doctype": "File",
@@ -238,7 +242,7 @@ def sync_loan_documents(loan_id: str, documents_payload: list):
                     "file_url": file_url,
                     "attached_to_doctype": "Loan",
                     "attached_to_name": loan_id,
-                    "is_private": doc.get("is_private", 1),
+                    "is_private": source_is_private,
                 }
             )
             new_file.insert(ignore_permissions=True)

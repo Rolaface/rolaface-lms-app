@@ -14,7 +14,7 @@ def create_loan_disbursement(data: Dict[str, Any]) -> Dict[str, Any]:
     for field in ALLOWED_DISBURSEMENT_FIELDS:
         if field in data and data.get(field) is not None:
             loan_disbursement_doc.set(field, data.get(field))
-    if int(data.get("top_up")) == 1:
+    if int(data.get("top_up", 0)) == 1:
 
         loan_name = loan_disbursement_doc.against_loan
         loan_doc = frappe.get_doc("Loan", loan_name)

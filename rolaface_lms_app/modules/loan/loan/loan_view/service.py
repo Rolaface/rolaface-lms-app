@@ -265,8 +265,7 @@ def get_disbursement_history(
         )
         raise frappe.ValidationError(f"Failed to fetch disbursement history: {str(e)}")
 
-
-def get_repayment_schedule_summary(
+def get_repayment_schedule(
     loan_id: str, schedule_id: str = None
 ) -> Dict[str, Any]:
     try:
@@ -278,6 +277,7 @@ def get_repayment_schedule_summary(
             frappe.qb.from_(lrs)
             .select(
                 lrs.name,
+                lrs.rate_of_interest,
                 lrs.repayment_start_date,
                 lrs.maturity_date,
                 lrs.monthly_repayment_amount,
@@ -286,7 +286,7 @@ def get_repayment_schedule_summary(
                 lrs.total_installments_overdue,
                 lrs.current_principal_amount,
             )
-            .where((lrs.loan == loan_id) & (lrs.docstatus == 1))
+            .where((lrs.loan == loan_id) & (lrs.docstatus == 1) & (lrs.status == "Active"))
         )
 
         if schedule_id:
@@ -322,7 +322,26 @@ def get_repayment_schedule_summary(
             .orderby(rs.idx, order=Order.asc)
         )
 
-        schedule_summary["repayment_schedule"] = child_query.run(as_dict=True)
+        raw_schedule = child_query.run(as_dict=True)
+
+        lr = DocType("Loan Repayment")
+        actual_repayments = (
+            frappe.qb.from_(lr)
+            .select(
+                lr.posting_date.as_("payment_date"), 
+                lr.principal_amount_paid.as_("principal"), 
+                lr.total_interest_paid.as_("interest")
+            )
+            .where((lr.against_loan == loan_id) & (lr.docstatus == 1))
+            .orderby(lr.posting_date, order=Order.asc)
+            .run(as_dict=True)
+        )
+
+        schedule_summary["repayment_schedule"] = calculate_timeline_statuses(
+            raw_schedule, 
+            actual_repayments
+        )
+        
         return schedule_summary
 
     except frappe.DoesNotExistError:

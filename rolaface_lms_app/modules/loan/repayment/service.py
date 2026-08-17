@@ -12,7 +12,7 @@ def create_payment(data: Dict[str, Any]):
     payment_doc.insert(ignore_permissions=True)
 
 
-def get_loan_repayment_account(search_term: str = "", limit: int = 20) -> List[Dict[str, Any]]:
+def get_loan_repayment_account(search_term: str = "", limit: int = 20, initiated_restructure: bool = False) -> List[Dict[str, Any]]:
 
     search_term = (search_term or "").strip()
     if not search_term:
@@ -32,8 +32,13 @@ def get_loan_repayment_account(search_term: str = "", limit: int = 20) -> List[D
         ["Loan", "name", "like", like_term],
         ["Loan", "applicant", "like", like_term],
     ]
-
+    filters = []
     loan_meta = frappe.get_meta("Loan")
+
+    if initiated_restructure:
+        initiated_loans = frappe.get_all("Loan Restructure", filters={"status": "Initiated"}, fields=["loan"])
+        initiated_loan_names = [d.loan for d in initiated_loans]
+        filters.append(["name", "not in", initiated_loan_names])
 
     if loan_meta.has_field("applicant_name"):
         or_filters.append(["Loan", "applicant_name", "like", like_term])
@@ -71,6 +76,7 @@ def get_loan_repayment_account(search_term: str = "", limit: int = 20) -> List[D
     loans = frappe.get_list(
         "Loan",
         or_filters=or_filters,
+        filters = filters,
         fields=fields,
         limit_page_length=limit,
         order_by="modified desc",

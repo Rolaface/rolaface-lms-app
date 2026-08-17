@@ -54,7 +54,7 @@ def get_repayment_schedule_versions(id=None):
 
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
-def get_repayment_schedule_summary(id=None, schedule_id=None):
+def get_repayment_schedule(id=None, schedule_id=None):
     try:
         loan_id = id or frappe.request.args.get("id")
         sch_id = schedule_id or frappe.request.args.get("schedule_id")
@@ -62,10 +62,10 @@ def get_repayment_schedule_summary(id=None, schedule_id=None):
         if not loan_id:
             raise frappe.ValidationError("Loan ID is required.")
             
-        data = service.get_repayment_schedule_summary(loan_id, sch_id)
+        data = service.get_repayment_schedule(loan_id, sch_id)
         return send_response(status="success", message="Schedule retrieved", data=data, status_code=200)
     except Exception as e:
-        return handle_api_error(e, "Get Repayment Schedule Summary Error")
+        return handle_api_error(e, "Get Repayment Schedule Error")
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_repayment_history(id=None, page=1, page_size=20, search=None):

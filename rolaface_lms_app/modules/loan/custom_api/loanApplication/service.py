@@ -115,8 +115,11 @@ def get_custom_loan_applications(args: Dict[str, Any], page: int, page_size: int
 
     return loan_applications, total, total_pages
 
-# def convert_custom_loan_application_to_loan(loan_application_id: str, company: str) -> Dict[str, Any]:
-def convert_custom_loan_application_to_loan(loan_application_id: str, loan_product: str, company: str) -> Dict[str, Any]:
+# def convert_custom_loan_application_to_loan(loan_application_id: str, loan_product: str, company: str) -> Dict[str, Any]:
+def convert_custom_loan_application_to_loan(loan_application_id: str, loan_product: str) -> Dict[str, Any]:
+    company = frappe.defaults.get_user_default("Company")
+    # if not company:
+    #     company = frappe.defaults.get_user_default("Company")
     if not frappe.db.exists("Custom Loan Application", loan_application_id):
         raise frappe.DoesNotExistError(f"Custom Loan Application '{loan_application_id}' does not exist.")
 

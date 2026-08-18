@@ -111,6 +111,15 @@ def create_loan(data: Dict[str, Any]) -> Dict[str, Any]:
             loan.is_secured_loan = 1
 
         sync_loan_charges(loan, data.get("loan_charges"))
+
+        if any(data.get(f) is not None for f in ("transaction_date", "reference_number", "migration_date", "grace_period")):
+            loan.append("custom_loan_details", {
+                "transaction_date": data.get("transaction_date"),
+                "reference_number": data.get("reference_number"),
+                "migration_date": data.get("migration_date"),
+                "grace_period": data.get("grace_period"),
+            })
+
         loan.insert(ignore_permissions=True)
 
         collaterals = data.get("collaterals")
@@ -155,6 +164,13 @@ def update_loan(loan_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         if "loan_charges" in data:
             if sync_loan_charges(loan, data.get("loan_charges")):
                 has_changes = True
+
+        if any(f in data for f in ("transaction_date", "reference_number", "migration_date", "grace_period")):
+            row = loan.custom_loan_details[0] if loan.custom_loan_details else loan.append("custom_loan_details", {})
+            for f in ("transaction_date", "reference_number", "migration_date", "grace_period"):
+                if f in data and data.get(f) is not None:
+                    row.set(f, data.get(f))
+            has_changes = True
 
         if has_changes:
             loan.save(ignore_permissions=True)
@@ -236,9 +252,17 @@ def get_loan_by_id(loan_id: str) -> Dict[str, Any]:
     doc = frappe.get_doc("Loan", loan_id)
     result = {field: doc.get(field) for field in RETURN_FIELDS_GET_BY_ID}
     result["loan_application_number"] = None
+    result["transaction_date"] = None
+    result["reference_number"] = None
+    result["migration_date"] = None
+    result["grace_period"] = None
     custom_details = doc.get("custom_loan_details", [])
     if custom_details:
         result["loan_application_number"] = custom_details[0].get("loan_application_number")
+        result["transaction_date"] = custom_details[0].get("transaction_date")
+        result["reference_number"] = custom_details[0].get("reference_number")
+        result["migration_date"] = custom_details[0].get("migration_date")
+        result["grace_period"] = custom_details[0].get("grace_period")
 
     charges = []
     for row in doc.get("loan_charges", []):

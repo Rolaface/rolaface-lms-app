@@ -3,6 +3,7 @@ import frappe
 from typing import Tuple, Dict,List, Any
 from .constant import ALLOWED_PAYMENT_FIELD, RETURN_FIELDS_GET_ALL, RETURN_FIELDS_GET_BY_ID, ALLOWED_SORT_FIELDS 
 from frappe.utils import add_months, getdate
+import json
 
 def create_payment(data: Dict[str, Any]):
     payment_doc = frappe.new_doc("Loan Repayment")
@@ -148,7 +149,14 @@ def get_loan_repayments(args: Dict[str, Any], page: int, page_size: int, sort_by
     # if args.get("status"):
         # safe_filters["status"] = args.get("status")
     if args.get("repayment_type"):
-        safe_filters["repayment_type"] = args.get("repayment_type")
+        repayment_type = args.get("repayment_type")
+        if isinstance(repayment_type, str):
+            try:
+                repayment_type = json.loads(repayment_type)
+            except json.JSONDecodeError:
+                repayment_type = [repayment_type]
+        
+        safe_filters["loan_product"] = ["in",repayment_type]
 
     if sort_by not in ALLOWED_SORT_FIELDS:
         raise frappe.ValidationError(f"Invalid sort_by field: {sort_by}")

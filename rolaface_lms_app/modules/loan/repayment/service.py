@@ -146,8 +146,27 @@ def get_loan_repayments(args: Dict[str, Any], page: int, page_size: int, sort_by
         safe_filters["applicant"] = args.get("applicant")
     if args.get("against_loan"):
         safe_filters["against_loan"] = args.get("against_loan")
-    # if args.get("status"):
-        # safe_filters["status"] = args.get("status")
+    if args.get("status"):
+        status = args.get("status")
+        if isinstance(status, str):
+            try:
+                status = json.loads(status)
+            except json.JSONDecodeError:
+                status = [status]
+        LABEL_TO_DOCSTATUS = {v.lower(): k for k, v in DOCSTATUS_LABELS.items()}
+
+        normalized_status = []
+        for s in status:
+            if isinstance(s, str) and not s.isdigit():
+                mapped = LABEL_TO_DOCSTATUS.get(s.strip().lower())
+                if mapped is None:
+                    frappe.throw(f"Invalid status value: '{s}'")
+                normalized_status.append(mapped)
+            else:
+                normalized_status.append(int(s))
+
+        safe_filters["docstatus"] = ["in", normalized_status]
+    
     if args.get("repayment_type"):
         repayment_type = args.get("repayment_type")
         if isinstance(repayment_type, str):

@@ -30,7 +30,7 @@ def _parse_arrear_filters(args):
         "company": args.get("company") or frappe.defaults.get_user_default("Company"),
         "as_on_date": getdate(args.get("as_on_date")) if args.get("as_on_date") else getdate(nowdate()),
         "loan_account": args.get("loan_account"),
-        "branch": args.get("branch"),
+        # "branch": args.get("branch"),
         "loan_product": args.get("loan_product"),
         "customer": args.get("customer"),
         "arrear_bucket": args.get("arrear_bucket"),
@@ -51,7 +51,7 @@ def _get_loan_arrear_data(filters, dynamic_buckets):
             loan.applicant_name.as_("customer_name"),
             loan.applicant.as_("customer"),
             loan.loan_product,
-            loan.branch,
+            # loan.branch,
             loan.company,
             loan.status,
             loan.monthly_repayment_amount.as_("monthly_emi"),
@@ -65,7 +65,7 @@ def _get_loan_arrear_data(filters, dynamic_buckets):
     
     if filters.get("company"): base_query = base_query.where(loan.company == filters["company"])
     if filters.get("loan_account"): base_query = base_query.where(loan.name == filters["loan_account"])
-    if filters.get("branch"): base_query = base_query.where(loan.branch == filters["branch"])
+    # if filters.get("branch"): base_query = base_query.where(loan.branch == filters["branch"])
     if filters.get("loan_product"): base_query = base_query.where(loan.loan_product == filters["loan_product"])
     if filters.get("customer"): base_query = base_query.where(loan.applicant == filters["customer"])
     if not filters.get("include_written_off"): base_query = base_query.where(loan.status != "Written Off")
@@ -92,7 +92,7 @@ def _get_loan_arrear_data(filters, dynamic_buckets):
 
     if filters.get("company"): demand_query = demand_query.where(loan.company == filters["company"])
     if filters.get("loan_account"): demand_query = demand_query.where(loan.name == filters["loan_account"])
-    if filters.get("branch"): demand_query = demand_query.where(loan.branch == filters["branch"])
+    # if filters.get("branch"): demand_query = demand_query.where(loan.branch == filters["branch"])
     if filters.get("loan_product"): demand_query = demand_query.where(loan.loan_product == filters["loan_product"])
     if filters.get("customer"): demand_query = demand_query.where(loan.applicant == filters["customer"])
     if not filters.get("include_written_off"): demand_query = demand_query.where(loan.status != "Written Off")
@@ -135,7 +135,7 @@ def _get_loan_arrear_data(filters, dynamic_buckets):
         enriched_loans.append({
             "loan_account": acc,
             "customer_name": l["customer_name"] or l["customer"],
-            "branch": l["branch"],
+            # "branch": l["branch"],
             "loan_product": l["loan_product"],
             "days_past_due": calc_dpd,
             "arrear_bucket": bucket_label,
@@ -274,13 +274,14 @@ def export_arrear_report(args):
     rows, _ = get_top_overdue_accounts(args, page=1, page_size=100000)
     
     data = []
-    data.append(["Loan Account", "Customer Name", "Branch", "Days Past Due", "Arrear Bucket", "Overdue EMI", "Total Overdue"])
+    # data.append(["Loan Account", "Customer Name", "Branch", "Days Past Due", "Arrear Bucket", "Overdue EMI", "Total Overdue"])
+    data.append(["Loan Account", "Customer Name", "Days Past Due", "Arrear Bucket", "Overdue EMI", "Total Overdue"])
     
     for r in rows:
         data.append([
             r.get("loan_account"),
             r.get("customer_name"),
-            r.get("branch"),
+            # r.get("branch"),
             r.get("days_past_due"),
             r.get("arrear_bucket"),
             flt(r.get("overdue_emi"), 2),
@@ -321,7 +322,7 @@ def _build_overdue_trend(filters, dynamic_buckets):
     
     if filters.get("company"): query = query.where(loan.company == filters["company"])
     if filters.get("loan_account"): query = query.where(loan.name == filters["loan_account"])
-    if filters.get("branch"): query = query.where(loan.branch == filters["branch"])
+    # if filters.get("branch"): query = query.where(loan.branch == filters["branch"])
     if filters.get("loan_product"): query = query.where(loan.loan_product == filters["loan_product"])
     if filters.get("customer"): query = query.where(loan.applicant == filters["customer"])
     if not filters.get("include_written_off"): query = query.where(loan.status != "Written Off")

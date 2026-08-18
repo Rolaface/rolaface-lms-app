@@ -6,7 +6,11 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "loan_application_number"
+  "loan_application_number",
+  "transaction_date",
+  "reference_number",
+  "migration_date",
+  "grace_period"
  ],
  "fields": [
   {
@@ -14,13 +18,33 @@
    "fieldtype": "Link",
    "label": "Loan Application Number",
    "options": "Custom Loan Application"
+  },
+  {
+   "fieldname": "transaction_date",
+   "fieldtype": "Date",
+   "label": "Transaction Date"
+  },
+  {
+   "fieldname": "reference_number",
+   "fieldtype": "Data",
+   "label": "Reference Number"
+  },
+  {
+   "fieldname": "migration_date",
+   "fieldtype": "Date",
+   "label": "Migration Date"
+  },
+  {
+   "fieldname": "grace_period",
+   "fieldtype": "Data",
+   "label": "Grace Period"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-08-17 22:16:12.059419",
+ "modified": "2026-08-18 17:18:35.111043",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom Loan Extended Details",

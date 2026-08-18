@@ -7,6 +7,7 @@ def validate_payload(payload):
     value_date=payload.get("value_date")
 
     amounts = calculate_amounts(against_loan=against_loan, payment_type=payment_type, posting_date=value_date)
+    frappe.log_error(f"Amounts --> {amounts}")
     if payload.get("repayment_type") == "Normal Repayment" and float(payload.get("amount_paid")) > float(amounts.get("payable_amount")):
         frappe.throw(
                         "The amount paid exceeds the outstanding due amount. "

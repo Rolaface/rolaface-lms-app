@@ -1,5 +1,5 @@
 import frappe
-from apps.lending.lending.loan_management.doctype.loan_repayment.loan_repayment import calculate_amounts
+from lending.loan_management.doctype.loan_repayment.loan_repayment import calculate_amounts
 
 def validate_payload(payload):
     against_loan = payload.get("against_loan")

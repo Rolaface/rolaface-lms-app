@@ -175,7 +175,7 @@ def get_loan_repayments(args: Dict[str, Any], page: int, page_size: int, sort_by
             except json.JSONDecodeError:
                 repayment_type = [repayment_type]
         
-        safe_filters["loan_product"] = ["in",repayment_type]
+        safe_filters["repayment_type"] = ["in",repayment_type]
 
     if sort_by not in ALLOWED_SORT_FIELDS:
         raise frappe.ValidationError(f"Invalid sort_by field: {sort_by}")

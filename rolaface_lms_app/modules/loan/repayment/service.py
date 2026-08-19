@@ -10,6 +10,7 @@ def create_payment(data: Dict[str, Any]):
     for field in ALLOWED_PAYMENT_FIELD:
         if field in data and data.get(field) is not None:
             payment_doc.set(field, data.get(field))
+    frappe.error_log(f"Payment Doc --> {payment_doc}")
     payment_doc.insert(ignore_permissions=True)
 
 

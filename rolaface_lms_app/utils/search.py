@@ -300,6 +300,24 @@ def get_loans():
         )
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_loan_classification():
+    try:
+        data = _fetch_paginated_autosuggest(
+            doctype="Loan Classification",
+            filters=frappe._dict({}),
+            search_fields=["classification_code", "classification_name"],
+            field_map={
+                "value": "classification_code",
+                "label": "classification_name",
+                "description": "classification_name",
+            },
+        )
+        return send_response_list("success", "Loan Classification fetched successfully.", data)
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Get Loan Classification API Error")
+        return send_response("fail", str(e), None, 500, 500)
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loan_security_types():
     try:
         data = _fetch_paginated_autosuggest(

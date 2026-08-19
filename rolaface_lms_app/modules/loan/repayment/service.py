@@ -13,7 +13,10 @@ def create_payment(data: Dict[str, Any]):
     if data.get("value_date") and not payment_doc.get("posting_date"):
         payment_doc.posting_date = data.get("value_date")
 
-    frappe.error_log(f"Payment Doc --> {payment_doc}")
+    frappe.log_error(
+                        title="Loan Repayment Debug",
+                        message=frappe.as_json(payment_doc.as_dict())
+                    )
     payment_doc.insert(ignore_permissions=True)
 
 

@@ -5,7 +5,7 @@ def validate_payload(payload):
     against_loan = payload.get("against_loan")
     payment_type=payload.get("repayment_type")
     value_date=payload.get("value_date")
-    frappe.debug(f"against_loan --> {against_loan}, payment_type --> {payment_type}, value_date --> {value_date}")
+    frappe.log_error(f"against_loan --> {against_loan}, payment_type --> {payment_type}, value_date --> {value_date}")
 
     amounts = calculate_amounts(against_loan=against_loan, payment_type=payment_type, posting_date=value_date)
     frappe.log_error(f"Amounts --> {amounts}")

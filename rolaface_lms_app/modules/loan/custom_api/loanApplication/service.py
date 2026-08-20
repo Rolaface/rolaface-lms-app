@@ -224,3 +224,23 @@ def get_custom_loan_applications_by_nrc(national_registration_card: str) -> list
         )
 
     return [get_custom_loan_application_by_id(name) for name in matching_names]
+
+def get_custom_loan_applications_by_email(email: str) -> list:
+    if not email:
+        raise frappe.ValidationError("Email is required.")
+
+    matching_names = frappe.get_all(
+        "Custom Loan Application",
+        or_filters=[
+            ["email", "=", email],
+            ["applicant_email", "=", email],
+        ],
+        pluck="name",
+    )
+
+    if not matching_names:
+        raise frappe.DoesNotExistError(
+            f"No Custom Loan Application found for email '{email}'."
+        )
+
+    return [get_custom_loan_application_by_id(name) for name in matching_names]

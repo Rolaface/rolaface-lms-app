@@ -238,3 +238,36 @@ def get_custom_loan_application_by_nrc(national_registration_card=None):
         )
     except Exception as e:
         return handle_api_error(e, "Get Custom Loan Application By NRC Error")
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_custom_loan_application_by_email(email=None):
+    """
+    Get Custom Loan Application By Email
+    ---
+    tags:
+      - Custom Loan Application
+    summary: Fetch full details of Custom Loan Application(s) by email.
+    parameters:
+      - in: query
+        name: email
+        schema:
+          type: string
+        required: true
+    """
+    try:
+        email_id = email or frappe.request.args.get("email")
+
+        if not email_id:
+            raise frappe.ValidationError("Email is required.")
+
+        data = service.get_custom_loan_applications_by_email(email_id)
+
+        return send_response(
+            status="success",
+            message="Custom Loan Application(s) retrieved successfully.",
+            data=data,
+            status_code=200,
+            http_status=200,
+        )
+    except Exception as e:
+        return handle_api_error(e, "Get Custom Loan Application By Email Error")

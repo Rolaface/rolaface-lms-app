@@ -253,7 +253,7 @@
    "fieldtype": "Select",
    "label": "Relationship",
    "mandatory_depends_on": "eval:doc.application_type == \"Personal Loan\"",
-   "options": "Spouse\nParent\nChild\nSibling\nOther"
+   "options": "Parent\nSibling\nSpouse\nChild\nGrandparent\nGrandchild\nUncle/Aunt\nNephew/Niece\nCousin\nGuardian\nFriend\nOther"
   },
   {
    "depends_on": "eval:doc.application_type == \"Personal Loan\"",
@@ -473,7 +473,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-17 20:30:21.070115",
+ "modified": "2026-08-20 13:17:54.023526",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom Loan Application",

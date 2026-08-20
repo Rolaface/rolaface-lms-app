@@ -205,3 +205,36 @@ def delete_custom_loan_application(id=None):
         )
     except Exception as e:
         return handle_api_error(e, "Delete Custom Loan Application Error")
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_custom_loan_application_by_nrc(national_registration_card=None):
+    """
+    Get Custom Loan Application By NRC
+    ---
+    tags:
+      - Custom Loan Application
+    summary: Fetch full details of Custom Loan Application(s) by National Registration Card.
+    parameters:
+      - in: query
+        name: national_registration_card
+        schema:
+          type: string
+        required: true
+    """
+    try:
+        nrc = national_registration_card or frappe.request.args.get("national_registration_card")
+
+        if not nrc:
+            raise frappe.ValidationError("National Registration Card is required.")
+
+        data = service.get_custom_loan_applications_by_nrc(nrc)
+
+        return send_response(
+            status="success",
+            message="Custom Loan Application(s) retrieved successfully.",
+            data=data,
+            status_code=200,
+            http_status=200,
+        )
+    except Exception as e:
+        return handle_api_error(e, "Get Custom Loan Application By NRC Error")

@@ -89,7 +89,14 @@ def build_loan_product_filters(args: Dict[str, Any]) -> Dict[str, Any]:
         frappe_filters["disabled"] = cint(args["disabled"])
 
     if args.get("loan_category"):
-        frappe_filters["loan_category"] = ["in", args["loan_category"]] if isinstance(args["loan_category"], list) else args["loan_category"]
+        loan_category = args.get("loan_category")
+        if isinstance(loan_category, str):
+            try:
+                loan_category = json.loads(loan_category)
+            except json.JSONDecodeError:
+                loan_category = [loan_category]
+                
+        frappe_filters["loan_category"] = ["in",loan_category]
 
     if args.get("is_term_loan") is not None:
         frappe_filters["is_term_loan"] = cint(args["is_term_loan"])

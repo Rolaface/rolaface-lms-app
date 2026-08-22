@@ -204,3 +204,43 @@ def delete_custom_loan_application(loan_application_id: str):
         raise frappe.DoesNotExistError(f"Custom Loan Application '{loan_application_id}' does not exist.")
 
     frappe.delete_doc("Custom Loan Application", loan_application_id, ignore_permissions=True)
+
+def get_custom_loan_applications_by_nrc(national_registration_card: str) -> list:
+    if not national_registration_card:
+        raise frappe.ValidationError("National Registration Card is required.")
+
+    matching_names = frappe.get_all(
+        "Custom Loan Application",
+        or_filters=[
+            ["national_registration_card", "=", national_registration_card],
+            ["applicant_national_registration_card", "=", national_registration_card],
+        ],
+        pluck="name",
+    )
+
+    if not matching_names:
+        raise frappe.DoesNotExistError(
+            f"No Custom Loan Application found for National Registration Card '{national_registration_card}'."
+        )
+
+    return [get_custom_loan_application_by_id(name) for name in matching_names]
+
+def get_custom_loan_applications_by_email(email: str) -> list:
+    if not email:
+        raise frappe.ValidationError("Email is required.")
+
+    matching_names = frappe.get_all(
+        "Custom Loan Application",
+        or_filters=[
+            ["email", "=", email],
+            ["applicant_email", "=", email],
+        ],
+        pluck="name",
+    )
+
+    if not matching_names:
+        raise frappe.DoesNotExistError(
+            f"No Custom Loan Application found for email '{email}'."
+        )
+
+    return [get_custom_loan_application_by_id(name) for name in matching_names]

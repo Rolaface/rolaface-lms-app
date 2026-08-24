@@ -2,6 +2,7 @@ from rolaface_lms_app.utils.decorators import validate_payload
 import frappe
 from . import service
 from rolaface_lms_app.utils.api_response import send_response
+import json
 
 @frappe.whitelist(allow_guest = False, methods=["POST"])
 @validate_payload("validate_payload") 
@@ -180,7 +181,8 @@ REQUEST DATA: {frappe.request.get_data(as_text=True)}
 """,
             "UPDATE STATUS DEBUG"
         )
-        args = frappe.request.get_data(as_text=True)
+        args = json.loads(frappe.request.get_data(as_text=True))
+
         repayment_id = args.get("id")
         action = args.get("action")
 

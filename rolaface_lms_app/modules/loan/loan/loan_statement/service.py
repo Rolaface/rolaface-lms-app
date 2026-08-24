@@ -1,4 +1,5 @@
 import frappe
+import os
 from frappe.query_builder import DocType, Order
 from frappe.query_builder.functions import Sum, Max
 from frappe.utils import getdate, flt, nowdate, formatdate
@@ -88,54 +89,32 @@ def generate_statement_excel(loan_id: str, from_date: str = None, to_date: str =
 def generate_statement_pdf(loan_id: str, from_date: str = None, to_date: str = None, view_type: str = "detailed") -> bytes:
     loan_doc = frappe.get_doc("Loan", loan_id)
     statement_lines = _get_native_statement_data(loan_doc, from_date, to_date, view_type)
+    processed_data = _process_native_data(statement_lines)
+    summary = processed_data.get("summary", {})
     
-    html = f"""
-    <style>
-        body {{ font-family: Helvetica, Arial, sans-serif; font-size: 10px; }}
-        h2, h4 {{ text-align: center; margin: 5px 0; }}
-        table {{ width: 100%; border-collapse: collapse; margin-top: 15px; }}
-        th, td {{ border: 1px solid #d1d8dd; padding: 6px; text-align: left; }}
-        th {{ background-color: #f3f3f3; }}
-        .text-right {{ text-align: right; }}
-    </style>
-    <h2>Loan Statement</h2>
-    <h4>Account: {loan_doc.name} | Product: {loan_doc.loan_product}</h4>
-    <h4>Period: {formatdate(statement_lines[0]['date']) if statement_lines and statement_lines[0].get('date') else '-'} to {formatdate(statement_lines[-1]['date']) if statement_lines and statement_lines[-1].get('date') else '-'}</h4>
-    
-    <table>
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Transaction Type</th>
-                <th>Transaction</th>
-                <th>Loan</th>
-                <th class="text-right">Debit</th>
-                <th class="text-right">Credit</th>
-                <th class="text-right">Balance</th>
-            </tr>
-        </thead>
-        <tbody>
-    """
-    
-    for line in statement_lines:
-        html += f"""
-            <tr>
-                <td>{formatdate(line['date']) if line.get('date') else ''}</td>
-                <td>{line.get('transaction_type', '')}</td>
-                <td>{line.get('reference_no', '')}</td>
-                <td>{loan_id}</td>
-                <td class="text-right">{'{:,.2f}'.format(flt(line.get('debit', 0), 2))}</td>
-                <td class="text-right">{'{:,.2f}'.format(flt(line.get('credit', 0), 2))}</td>
-                <td class="text-right">{'{:,.2f}'.format(flt(line.get('balance', 0), 2))}</td>
-            </tr>
-        """
+    try:
+        applicant = frappe.get_doc(loan_doc.applicant_type, loan_doc.applicant)
+    except Exception:
+        applicant = frappe._dict(name=loan_doc.applicant)
         
-    html += """
-        </tbody>
-    </table>
-    """
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    template_path = os.path.join(current_dir, "loan_statement_template.html")
     
-    return get_pdf(html)
+    with open(template_path, "r", encoding="utf-8") as f:
+        html_template = f.read()
+
+    context = {
+        "loan_doc": loan_doc,
+        "statement_lines": statement_lines,
+        "summary": summary,
+        "applicant": applicant,
+        "from_date": from_date,
+        "to_date": to_date
+    }
+    
+    # Render and return PDF
+    rendered_html = frappe.render_template(html_template, context)
+    return get_pdf(rendered_html)
 
 
 def _get_native_statement_data(loan_doc: Any, from_date: str, to_date: str, view_type: str) -> List[Dict[str, Any]]:

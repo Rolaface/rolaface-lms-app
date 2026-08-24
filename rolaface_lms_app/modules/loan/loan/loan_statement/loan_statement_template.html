@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+body{
+    font-family:Arial,Helvetica,sans-serif;
+    font-size:11px;
+    color:#334155;
+    padding:0; 
+    margin:0;
+    line-height:1.5;
+    background:#ffffff;
+}
+.text-right{ text-align:right !important; }
+.text-center{ text-align:center !important; }
+.header{
+    width:100%;
+    margin-bottom:20px;
+    border-bottom:2px solid #e2e8f0;
+    padding-bottom:16px;
+}
+.header-table{ width:100%; border-collapse:collapse; table-layout: fixed; }
+.document-title-block {
+    text-align: center;
+    margin-bottom: 24px;
+}
+.company-logo {
+    max-height: 45px;
+    max-width: 150px;
+    object-fit: contain;
+    display: inline-block;
+    border-radius: 4px;
+}
+.company-name{
+    font-size:20px;
+    font-weight:700;
+    color:#0f172a;
+    margin-bottom:6px;
+    line-height: 1.2;
+    word-wrap: break-word;
+}
+.company-meta{
+    color:#64748b;
+    font-size:11px;
+    line-height: 1.6;
+}
+.statement-title{
+    font-size:22px;
+    font-weight:700;
+    color:#0f172a;
+    text-transform:uppercase;
+    letter-spacing:1px;
+    line-height: 1.2;
+}
+.statement-date{
+    color:#64748b;
+    margin-top:4px;
+    font-size: 10px;
+}
+.customer-card{
+    width:100%;
+    border:1px solid #e2e8f0;
+    background:#f8fafc;
+    border-radius:8px;
+    padding:14px 16px;
+    margin-bottom:20px;
+}
+.customer-table{ width:100%; border-collapse:collapse; }
+.label{ font-size:9px; color:#94a3b8; font-weight:700; text-transform:uppercase; }
+.value{ font-size:13px; color:#0f172a; font-weight:700; margin-top:4px; }
+.customer-detail { font-size:11px; color:#334155; margin-top:2px; font-weight:normal; line-height:1.4; }
+.muted{ color:#64748b; font-size:10px; margin-top: 4px; }
+.metrics{ width:100%; border-collapse:collapse; table-layout:fixed; margin-bottom:24px; }
+.metrics td { padding: 0 4px; }
+.metrics td:first-child { padding-left: 0; }
+.metrics td:last-child { padding-right: 0; }
+.metric{
+    border:1px solid #e2e8f0;
+    border-radius:8px;
+    padding:12px 8px;
+    background:#ffffff;
+    height: 100%;
+    word-wrap: break-word;
+}
+.metric.invoiced{ background:#f8fafc; }
+.metric.collected{ background:#f0fdf4; }
+.metric.outstanding{ background:#eff6ff; }
+.metric.overdue{ background:#fef2f2; }
+.metric-label{ font-size:10px; text-transform:uppercase; color:#64748b; font-weight:700; }
+.metric-value{ margin-top:6px; font-size:13px; font-weight:700; color:#0f172a; overflow-wrap: break-word; word-break: break-word; }
+.section-title{ font-size:14px; font-weight:700; color:#0f172a; margin-bottom:10px; }
+.ledger{ width:100%; border-collapse:collapse; table-layout:fixed; }
+.ledger thead{ display:table-header-group; }
+.ledger th{
+    background:#f8fafc;
+    color:#475569;
+    text-transform:uppercase;
+    font-size:9px;
+    padding:8px 2px;
+    border-bottom:2px solid #cbd5e1;
+    text-align:left;
+}
+.ledger td{ padding:8px 2px; border-bottom:1px solid #e2e8f0; vertical-align:middle; word-wrap:break-word; font-size:9px; }
+.ledger th.text-right,
+.ledger td.text-right{ text-align:right !important; }
+.ledger tbody tr:nth-child(even){ background:#fafafa; }
+.debit{ color:#dc2626; font-size:7px; letter-spacing:-0.2px; white-space:nowrap; font-variant-numeric: tabular-nums; }
+.credit{ color:#16a34a; font-size:7px; letter-spacing:-0.2px; white-space:nowrap; font-variant-numeric: tabular-nums; }
+.balance{ color:#0f172a; font-size:7px; letter-spacing:-0.2px; white-space:nowrap; font-variant-numeric: tabular-nums; }
+.badge{ padding:3px 6px; border-radius:12px; font-size:8px; font-weight:700; white-space:nowrap; }
+
+.invoice{ background:#dbeafe; color:#1d4ed8; }
+.payment{ background:#dcfce7; color:#15803d; }
+.credit-note{ background:#fef3c7; color:#b45309; }
+.journal{ background:#ede9fe; color:#6d28d9; }
+
+.statement-footer-section { page-break-inside: avoid; margin-top: 20px; }
+.discrepancy-clause { padding: 10px 14px; background-color: #f8fafc; border-left: 4px solid #94a3b8; border-radius: 4px; font-size: 10px; color: #475569; }
+.footer{ margin-top:12px; padding-top:12px; border-top:1px solid #e2e8f0; text-align:center; color:#94a3b8; font-size:9px; }
+.nowrap { white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="header">
+    <div class="document-title-block">
+        <div class="statement-title">
+            Loan Statement
+        </div>
+        <div class="statement-date">
+            Generated on {{ frappe.utils.formatdate(frappe.utils.nowdate()) }}
+        </div>
+    </div>
+
+    <table class="header-table">
+        <tr>
+            {% set company = frappe.get_doc("Company", loan_doc.company) %}
+            
+            <td style="width:50%; vertical-align: top; padding-right: 10px;">
+                <div class="company-name">
+                    {{ company.company_name }}
+                </div>
+                <div class="company-meta">
+                    {% if company.tax_id %} Tax ID: {{ company.tax_id }}<br> {% endif %}
+                    {% if company.email %} {{ company.email }}<br> {% endif %}
+                    {% if company.phone_no %} {{ company.phone_no }}<br> {% endif %}
+                    {% if company.company_address %} {{ company.company_address }} {% endif %}
+                </div>
+            </td>
+            
+            <td style="width:50%; vertical-align: top;" class="text-right">
+                {% if company.company_logo %}
+                    <img src="{{ company.company_logo }}" class="company-logo" alt="Company Logo">
+                {% endif %}
+            </td>
+            
+        </tr>
+    </table>
+</div>
+
+<div class="customer-card">
+    <table class="customer-table">
+        <tr>
+            <td width="50%">
+                <div class="label">Applicant Details</div>
+                <div class="value">{{ applicant.customer_name or applicant.employee_name or applicant.member_name or applicant.name }}</div>
+                {% if applicant.email_id or applicant.company_email %}
+                    <div class="customer-detail">{{ applicant.email_id or applicant.company_email }}</div>
+                {% endif %}
+                {% if applicant.mobile_no or applicant.cell_number %}
+                    <div class="customer-detail">{{ applicant.mobile_no or applicant.cell_number }}</div>
+                {% endif %}
+            </td>
+            <td width="50%" align="right" style="vertical-align: top;">
+                <div class="label">Loan Details</div>
+                <div class="value">{{ loan_doc.name }}</div>
+                <div class="customer-detail">Product: {{ loan_doc.loan_product }}</div>
+                <div class="customer-detail">Loan Amount: {{ frappe.format_value(loan_doc.loan_amount, {"fieldtype":"Currency"}) }}</div>
+                <div class="customer-detail">
+                    Period: 
+                    {% if from_date and to_date %}
+                        {{ frappe.utils.formatdate(from_date) }} to {{ frappe.utils.formatdate(to_date) }}
+                    {% elif from_date %}
+                        From {{ frappe.utils.formatdate(from_date) }}
+                    {% elif to_date %}
+                        Up to {{ frappe.utils.formatdate(to_date) }}
+                    {% else %}
+                        {{ frappe.utils.formatdate(loan_doc.repayment_start_date) }} to {{ frappe.utils.formatdate(frappe.utils.nowdate()) }}
+                    {% endif %}
+                </div>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<table class="metrics">
+    <tr>
+        <td>
+            <div class="metric invoiced">
+                <div class="metric-label">Total Disbursed</div>
+                <div class="metric-value">{{ frappe.format_value(summary.total_disbursed, {"fieldtype":"Currency"}) }}</div>
+            </div>
+        </td>
+        <td>
+            <div class="metric collected">
+                <div class="metric-label">Total Repayments</div>
+                <div class="metric-value">{{ frappe.format_value(summary.total_repayments, {"fieldtype":"Currency"}) }}</div>
+            </div>
+        </td>
+        <td>
+            <div class="metric overdue">
+                <div class="metric-label">Total Charges</div>
+                <div class="metric-value">{{ frappe.format_value(summary.total_charges, {"fieldtype":"Currency"}) }}</div>
+            </div>
+        </td>
+        <td>
+            <div class="metric outstanding">
+                <div class="metric-label">Closing Balance</div>
+                <div class="metric-value">{{ frappe.format_value(summary.closing_balance, {"fieldtype":"Currency"}) }}</div>
+            </div>
+        </td>
+    </tr>
+</table>
+
+<div class="section-title">
+    Transaction History
+</div>
+
+<table class="ledger">
+    <thead>
+        <tr>
+            <th style="width:12%">Date</th>
+            <th style="width:18%">Type</th>
+            <th style="width:15%">Reference</th>
+            <th style="width:15%" class="text-right">Debit</th>
+            <th style="width:15%" class="text-right">Credit</th>
+            <th style="width:15%" class="text-right">Balance</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for row in statement_lines %}
+        <tr>
+            <td class="nowrap">{{ frappe.utils.formatdate(row.date) if row.date else '-' }}</td>
+            <td>
+                {% if 'Disbursement' in row.transaction_type %}
+                    <span class="badge invoice">Disbursement</span>
+                {% elif 'Repayment' in row.transaction_type %}
+                    <span class="badge payment">Repayment</span>
+                {% elif 'Interest' in row.transaction_type or 'Charge' in row.transaction_type or 'Penalty' in row.transaction_type %}
+                    <span class="badge credit-note">Charge/Interest</span>
+                {% else %}
+                    <span class="badge journal">{{ row.transaction_type or '-' }}</span>
+                {% endif %}
+            </td>
+            <td class="nowrap">{{ row.reference_no or '-' }}</td>
+            <td class="text-right {% if row.debit %}debit{% endif %}">
+                {{ frappe.format_value(row.debit, {"fieldtype":"Currency"}) if row.debit else '-' }}
+            </td>
+            <td class="text-right {% if row.credit %}credit{% endif %}">
+                {{ frappe.format_value(row.credit, {"fieldtype":"Currency"}) if row.credit else '-' }}
+            </td>
+            <td class="text-right balance nowrap">
+                {{ frappe.format_value(row.balance, {"fieldtype":"Currency"}) }}
+            </td>
+        </tr>
+    {% else %}
+        <tr>
+            <td colspan="6" style="text-align: center; padding: 30px; color: #94a3b8;">
+                No transactions found for this period.
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<!-- <div class="statement-footer-section">
+    <div class="discrepancy-clause">
+        <strong>Discrepancy Note:</strong> Kindly notify us of any discrepancies in this statement within 15 days of receipt. If no discrepancies are reported within this period, the statement will be considered accurate and accepted.
+    </div>
+    <div class="footer">
+        This is a system generated loan statement and does not require a signature.
+    </div>
+</div> -->
+</body>
+</html>

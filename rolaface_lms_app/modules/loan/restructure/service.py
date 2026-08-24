@@ -1,9 +1,11 @@
+from apps.rolaface_lms_app.rolaface_lms_app.modules.loan.repayment.service import DOCSTATUS_LABELS
 from rolaface_lms_app.modules.loan.restructure.utils import _add_periods, create_search_filters
 import frappe
 from typing import Dict, Any
 from .constant import ALLOWED_RESTRUCTURE_FIELD, ALLOWED_CHARGE_FIELDS, RETURN_GET_FIELD_BY_ID, GET_FIELDS
 from frappe.client import delete_doc
 from frappe.utils import add_months, getdate, add_days
+import json
 
 def create_restructure(data: Dict[str, Any]):
     restructure_doc = frappe.new_doc("Loan Restructure")
@@ -80,11 +82,30 @@ def get_by_name(name):
                                                 )
     return result
 
-def get_restructures(search, order_by, page, page_size):
+def get_restructures(search, order_by, status, page, page_size):
 
     or_filters = None
     filters = {}
     response = {}
+    if status:
+            if isinstance(status, str):
+                try:
+                    status = json.loads(status)
+                except json.JSONDecodeError:
+                    status = [status]
+            LABEL_TO_DOCSTATUS = {v.lower(): k for k, v in DOCSTATUS_LABELS.items()}
+    
+            normalized_status = []
+            for s in status:
+                if isinstance(s, str) and not s.isdigit():
+                    mapped = LABEL_TO_DOCSTATUS.get(s.strip().lower())
+                    if mapped is None:
+                        frappe.throw(f"Invalid status value: '{s}'")
+                    normalized_status.append(mapped)
+                else:
+                    normalized_status.append(int(s))
+    
+            filters["docstatus"] = ["in", normalized_status]
 
     if search:
            or_filters = create_search_filters(search)

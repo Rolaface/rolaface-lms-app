@@ -82,9 +82,9 @@ def get(name):
         )
 
 @frappe.whitelist(allow_guest=False, methods=["GET"])
-def get_all(search=None, order_by="creation desc", page=1, page_size=10):
+def get_all(search=None, order_by="creation desc", status=None, page=1, page_size=10):
     try:
-        result = service.get_restructures(search, order_by, page, page_size)
+        result = service.get_restructures(search, order_by, status, page, page_size)
         return send_response(
             status="success",
             message="Loan Restructure fetched successfully",

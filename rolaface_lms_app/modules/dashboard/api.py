@@ -33,7 +33,7 @@ def get_quick_insights(from_date=None, to_date=None, **kwargs):
         return handle_api_error(e, "Error")
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
-def get_pending_approvals(from_date=None, to_date=None, page=1, page_size=20, **kwargs):
+def get_pending_approvals(from_date=None, to_date=None, page=1, page_size=5, **kwargs):
     try:
         args = frappe.local.form_dict
         args.update({"from_date": from_date, "to_date": to_date})
@@ -58,7 +58,7 @@ def get_pending_approvals(from_date=None, to_date=None, page=1, page_size=20, **
         return handle_api_error(e, "Error")
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
-def get_overdue_tasks(from_date=None, to_date=None, page=1, page_size=20, **kwargs):
+def get_overdue_tasks(from_date=None, to_date=None, page=1, page_size=5, **kwargs):
     try:
         args = frappe.local.form_dict
         args.update({"from_date": from_date, "to_date": to_date})

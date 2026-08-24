@@ -171,11 +171,29 @@ def delete():
 
 @frappe.whitelist(allow_guest=False, methods=["POST"])
 def update_status():
-    repayment_id = frappe.local.form_dict.get("id")
-    action = frappe.local.form_dict.get("action")
-    frappe.log_error(f"Repayment_ID --> {repayment_id}")
     try:
-        result = service.update_loan_repayment_status(repayment_id, action)
+        frappe.log_error(
+            f"""
+CONTENT TYPE: {frappe.request.content_type}
+FORM DICT: {frappe.local.form_dict}
+REQUEST DATA: {frappe.request.get_data(as_text=True)}
+""",
+            "UPDATE STATUS DEBUG"
+        )
+
+        repayment_id = frappe.local.form_dict.get("id")
+        action = frappe.local.form_dict.get("action")
+
+        frappe.log_error(
+            f"repayment_id={repr(repayment_id)}, action={repr(action)}",
+            "UPDATE STATUS VALUES"
+        )
+
+        result = service.update_loan_repayment_status(
+            repayment_id,
+            action
+        )
+
         return send_response(
             status="success",
             message=f"Loan repayment status updated to '{action}'",
@@ -183,13 +201,10 @@ def update_status():
             status_code=200,
             http_status=200,
         )
+
     except Exception as e:
         frappe.log_error(str(e), "Update Loan Repayment Status API Error")
-
-        if db := getattr(frappe.local, "db", None):
-            db.rollback(chain=True)
-        else:
-            frappe.db.rollback()
+        frappe.db.rollback()
 
         return send_response(
             status="fail",

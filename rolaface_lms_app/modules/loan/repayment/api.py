@@ -58,7 +58,7 @@ def get_loan_repayment_account(initiated_restructure=False):
 
 @frappe.whitelist(allow_guest=False, methods=["GET"])
 def get_by_id():
-    repayment_id = frappe.local.form_dict.get("id")
+    repayment_id = frappe.request.args.get("id") 
     try:
         result = service.get_loan_repayment_by_id(repayment_id)
         return send_response(

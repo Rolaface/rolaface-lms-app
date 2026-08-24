@@ -171,6 +171,10 @@ def delete():
 
 @frappe.whitelist(allow_guest=False, methods=["POST"])
 def update_status():
+    frappe.log_error(
+            title="Update Loan Repayment - Request Payload",
+            message=frappe.as_json(frappe.local.form_dict)
+        )
     repayment_id = frappe.local.form_dict.get("id")
     action = frappe.local.form_dict.get("action")
     frappe.log_error(f"Repayment_ID --> {repayment_id}")

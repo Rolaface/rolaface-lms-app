@@ -180,9 +180,9 @@ REQUEST DATA: {frappe.request.get_data(as_text=True)}
 """,
             "UPDATE STATUS DEBUG"
         )
-
-        repayment_id = frappe.local.form_dict.get("id")
-        action = frappe.local.form_dict.get("action")
+        args = frappe.request.get_data(as_text=True)
+        repayment_id = args.get("id")
+        action = args.get("action")
 
         frappe.log_error(
             f"repayment_id={repr(repayment_id)}, action={repr(action)}",

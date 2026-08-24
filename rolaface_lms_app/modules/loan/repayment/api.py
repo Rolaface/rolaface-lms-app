@@ -173,7 +173,7 @@ def delete():
 def update_status():
     repayment_id = frappe.local.form_dict.get("id")
     action = frappe.local.form_dict.get("action")
-    frappe.error_log(f"Repayment_ID --> {repayment_id}")
+    frappe.log_error(f"Repayment_ID --> {repayment_id}")
     try:
         result = service.update_loan_repayment_status(repayment_id, action)
         return send_response(

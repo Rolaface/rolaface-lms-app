@@ -10,6 +10,7 @@ from .utils import (
 )
 from .constants import ALLOWED_CUSTOM_LOAN_APPLICATION_FIELDS, RETURN_FIELDS_GET_BY_ID, ALLOWED_SORT_FIELDS, RETURN_FIELDS_GET_ALL, CONVERTIBLE_STATUS
 from rolaface_lms_app.modules.loan.loan import service as loan_service
+from frappe.desk.form.assign_to import add as add_assign, remove as remove_assign
 
 def create_custom_loan_application(data: Dict[str, Any]) -> Dict[str, Any]:
     validate_custom_loan_application_payload(data, is_update=False)
@@ -244,3 +245,187 @@ def get_custom_loan_applications_by_email(email: str) -> list:
         )
 
     return [get_custom_loan_application_by_id(name) for name in matching_names]
+
+def clear_all_assignments(doctype: str, docname: str):
+    """
+    Helper function to cleanly remove all existing assignments from a document.
+    This guarantees that only one person holds the document at any given time.
+    """
+    # Find all users currently assigned to this specific document
+    assigned_users = frappe.get_all(
+        "ToDo",
+        filters={
+            "reference_type": doctype,
+            "reference_name": docname,
+            "status": "Open"
+        },
+        pluck="allocated_to"
+    )
+    
+    # Remove the assignment for every user found
+    for user in assigned_users:
+        if user:
+            try:
+                remove_assign(doctype, docname, user)
+            except Exception:
+                pass
+
+
+def assign_loan_application(application_id: str, assign_to_user: str, comment: str = None) -> Dict[str, Any]:
+    """Handles the FIRST assignment from Pending -> Under Review"""
+    if not application_id or not assign_to_user:
+        raise frappe.ValidationError("application_id and assign_to_user are required.")
+
+    doc = frappe.get_doc("Custom Loan Application", application_id)
+    
+    if doc.status not in ("Pending", "Draft"):
+        raise frappe.ValidationError(
+            f"Applications can only be initially assigned when the status is 'Pending'. "
+            f"Current status: '{doc.status}'."
+        )
+
+    # 1. Clear any rogue assignments before transferring
+    clear_all_assignments("Custom Loan Application", application_id)
+
+    # 2. Add the new assignment cleanly
+    add_assign({
+        "assign_to": [assign_to_user],
+        "doctype": "Custom Loan Application",
+        "name": application_id,
+        "description": comment or "Please review this loan application."
+    })
+
+    if comment:
+        doc.add_comment("Comment", text=f"Initially assigned to {assign_to_user} with note: {comment}")
+
+    frappe.db.set_value("Custom Loan Application", application_id, "status", "Under Review")
+    
+    return {"status": "Under Review", "name": application_id}
+
+
+def process_loan_review(application_id: str, action: str, current_user: str, comment: str = None, assign_to_user: str = None) -> Dict[str, Any]:
+    """Handles all ping-pong interactions and terminal decisions"""
+    
+    action_status_map = {
+        "Ready for Approval": "Ready for Approval",
+        "Request Info": "Additional Information Required",
+        "Recommend Reject": "Rejection",
+        "Resubmit": "Under Review",
+        "Approve": "Approved",
+        "Reject": "Rejected"
+    }
+
+    if not application_id or action not in action_status_map:
+        raise frappe.ValidationError(f"Invalid action. Allowed actions: {', '.join(action_status_map.keys())}")
+
+    comment_required_actions = ["Request Info", "Recommend Reject", "Resubmit", "Reject"]
+    if action in comment_required_actions and not comment:
+        raise frappe.ValidationError(f"A comment is strictly required when selecting '{action}'.")
+
+    is_terminal = action in ["Approve", "Reject"]
+    if not is_terminal and not assign_to_user:
+        raise frappe.ValidationError(f"You must select a user to assign this back to for the '{action}' action.")
+
+    doc = frappe.get_doc("Custom Loan Application", application_id)
+    new_status = action_status_map[action]
+
+    log_text = f"Action taken: **{action}**"
+    if comment:
+        log_text += f"\nNote: {comment}"
+    if not is_terminal:
+        log_text += f"\nAssigned to: {assign_to_user}"
+    doc.add_comment("Comment", text=log_text)
+
+    clear_all_assignments("Custom Loan Application", application_id)
+
+    if not is_terminal:
+        frappe.message_log.clear() 
+        
+        add_assign({
+            "assign_to": [assign_to_user],
+            "doctype": "Custom Loan Application",
+            "name": application_id,
+            "description": comment or f"Application requires your attention. Status: {new_status}"
+        })
+
+    frappe.db.set_value("Custom Loan Application", application_id, "status", new_status)
+    
+    return {"status": new_status, "name": application_id}
+
+def assign_loan_application(application_id: str, assign_to_user: str, comment: str = None) -> Dict[str, Any]:
+    """Handles the FIRST assignment from Pending -> Under Review"""
+    if not application_id or not assign_to_user:
+        raise frappe.ValidationError("application_id and assign_to_user are required.")
+
+    doc = frappe.get_doc("Custom Loan Application", application_id)
+    
+    if doc.status not in ("Pending", "Draft"):
+        raise frappe.ValidationError(
+            f"Applications can only be initially assigned when the status is 'Pending'. "
+            f"Current status: '{doc.status}'."
+        )
+
+    add_assign({
+        "assign_to": [assign_to_user],
+        "doctype": "Custom Loan Application",
+        "name": application_id,
+        "description": comment or "Please review this loan application."
+    })
+
+    if comment:
+        doc.add_comment("Comment", text=f"Initially assigned to {assign_to_user} with note: {comment}")
+
+    frappe.db.set_value("Custom Loan Application", application_id, "status", "Under Review")
+    
+    return {"status": "Under Review", "name": application_id}
+
+
+def process_loan_review(application_id: str, action: str, current_user: str, comment: str = None, assign_to_user: str = None) -> Dict[str, Any]:
+    """Handles all ping-pong interactions and terminal decisions"""
+    
+    action_status_map = {
+        "Ready for Approval": "Ready for Approval",
+        "Request Info": "Additional Information Required",
+        "Recommend Reject": "Rejection",
+        "Resubmit": "Under Review",
+        "Approve": "Approved",      
+        "Reject": "Rejected"        
+    }
+
+    if not application_id or action not in action_status_map:
+        raise frappe.ValidationError(f"Invalid action. Allowed actions: {', '.join(action_status_map.keys())}")
+
+    comment_required_actions = ["Request Info", "Recommend Reject", "Resubmit", "Reject"]
+    if action in comment_required_actions and not comment:
+        raise frappe.ValidationError(f"A comment is strictly required when selecting '{action}'.")
+
+    is_terminal = action in ["Approve", "Reject"]
+    if not is_terminal and not assign_to_user:
+        raise frappe.ValidationError(f"You must select a user to assign this back to for the '{action}' action.")
+
+    doc = frappe.get_doc("Custom Loan Application", application_id)
+    new_status = action_status_map[action]
+
+    log_text = f"Action taken: **{action}**"
+    if comment:
+        log_text += f"\nNote: {comment}"
+    if not is_terminal:
+        log_text += f"\nAssigned to: {assign_to_user}"
+    doc.add_comment("Comment", text=log_text)
+
+    try:
+        remove_assign("Custom Loan Application", application_id, current_user)
+    except Exception:
+        pass
+
+    if not is_terminal:
+        add_assign({
+            "assign_to": [assign_to_user],
+            "doctype": "Custom Loan Application",
+            "name": application_id,
+            "description": comment or f"Application requires your attention. Status: {new_status}"
+        })
+
+    frappe.db.set_value("Custom Loan Application", application_id, "status", new_status)
+    
+    return {"status": new_status, "name": application_id}

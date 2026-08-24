@@ -271,3 +271,60 @@ def get_custom_loan_application_by_email(email=None):
         )
     except Exception as e:
         return handle_api_error(e, "Get Custom Loan Application By Email Error")
+
+@frappe.whitelist(allow_guest=False, methods=["POST"])
+def assign_loan_application():
+    """
+    Assign a Pending application to a Loan Officer.
+    """
+    try:
+        data = parse_api_payload()
+        application_id = data.get("application_id")
+        assign_to_user = data.get("assign_to_user")
+        comment = data.get("comment")
+
+        # Pass data to the service layer
+        result_data = service.assign_loan_application(application_id, assign_to_user, comment)
+        
+        frappe.db.commit()
+
+        return send_response(
+            status="success",
+            message=f"Application assigned to {assign_to_user} successfully.",
+            data=result_data,
+            status_code=200,
+            http_status=200,
+        )
+
+    except Exception as e:
+        return handle_api_error(e, "Assign Loan Application Error")
+
+
+@frappe.whitelist(allow_guest=False, methods=["POST"])
+def process_loan_application_review():
+    """
+    Approve or Reject an application that is Under Review.
+    """
+    try:
+        data = parse_api_payload()
+        application_id = data.get("application_id")
+        action = data.get("action")
+        comment = data.get("comment")
+        assign_to_user = data.get("assign_to_user")
+        current_user = frappe.session.user
+
+        # Pass data to the service layer
+        result_data = service.process_loan_review(application_id, action, current_user, comment, assign_to_user)
+        
+        frappe.db.commit()
+
+        return send_response(
+            status="success",
+            message=f"Application {result_data.get('status')} successfully.",
+            data=result_data,
+            status_code=200,
+            http_status=200,
+        )
+
+    except Exception as e:
+        return handle_api_error(e, "Process Loan Application Review Error")

@@ -49,6 +49,7 @@ ALLOWED_CUSTOM_LOAN_APPLICATION_FIELDS = {
     "applicant_address",
     "applicant_position",
     "applicant_nationality",
+    "_assign"
 }
 
 RETURN_FIELDS_GET_ALL = [
@@ -94,6 +95,7 @@ RETURN_FIELDS_GET_ALL = [
     "company_name",
     "amount",
     "total_amount",
+    "_assign"
 ]
 
 CONVERTIBLE_STATUS = "Submitted"

@@ -255,6 +255,7 @@ def get_loans():
                 "applicant",
                 "applicant_name",
                 "loan_product",
+                "status",
             ],
             field_map={
                 "name": "name",

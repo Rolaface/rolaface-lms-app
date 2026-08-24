@@ -127,6 +127,7 @@ def _attach_phone_numbers(loans: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return loans
 
 def get_loan_repayment_by_id(repayment_id: str) -> Dict[str, Any]:
+    frappe.log_error(f"Repayment ID --> {repayment_id}")
     if not frappe.db.exists("Loan Repayment", repayment_id):
         raise frappe.DoesNotExistError(f"Loan Repayment '{repayment_id}' does not exist.")
 
@@ -352,9 +353,6 @@ def process_amendment(repayment_doc):
 
 def update_loan_repayment_status(repayment_id: str, action: str):
     repayment_doc = frappe.get_doc("Loan Repayment", repayment_id)
-
-    if not frappe.has_permission("Loan Repayment", "write", repayment_doc):
-        raise frappe.PermissionError("No permission to modify this Loan Repayment.")
 
     if action == "approved":
         return process_approval(repayment_doc)

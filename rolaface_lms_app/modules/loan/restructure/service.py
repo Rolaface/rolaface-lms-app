@@ -1,4 +1,4 @@
-from apps.rolaface_lms_app.rolaface_lms_app.modules.loan.repayment.service import DOCSTATUS_LABELS
+from rolaface_lms_app.modules.loan.repayment.service import DOCSTATUS_LABELS
 from rolaface_lms_app.modules.loan.restructure.utils import _add_periods, create_search_filters
 import frappe
 from typing import Dict, Any

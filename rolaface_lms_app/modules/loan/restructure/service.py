@@ -84,36 +84,43 @@ def get_by_name(name):
 
 def get_restructures(search, order_by, status, page, page_size):
 
-    or_filters = None
+    or_filters = []
     filters = {}
     response = {}
+    docstatus_filters = []
+    status_filters = []
     if status:
             if isinstance(status, str):
                 try:
                     status = json.loads(status)
                 except json.JSONDecodeError:
                     status = [status]
-            LABEL_TO_DOCSTATUS = {v.lower(): k for k, v in DOCSTATUS_LABELS.items()}
+            
     
-            normalized_status = []
             for s in status:
                 if isinstance(s, str) and not s.isdigit():
-                    mapped = LABEL_TO_DOCSTATUS.get(s.strip().lower())
-                    if mapped is None:
-                        frappe.throw(f"Invalid status value: '{s}'")
-                    normalized_status.append(mapped)
-                else:
-                    normalized_status.append(int(s))
+                    if s == "Draft":
+                        docstatus_filters.append(0)
+                    elif s == "Approved":
+                        docstatus_filters.append(1)
+                    elif s == "Cancelled":
+                        docstatus_filters.append(2)
+                    else:
+                        status_filters.append(s)
     
-            filters["docstatus"] = ["in", normalized_status]
-
+    if docstatus_filters:
+        or_filters.append(["docstatus", "in", docstatus_filters])
+    if status_filters:
+        or_filters.append(["status", "in", status_filters])
     if search:
-           or_filters = create_search_filters(search)
+        #    or_filters = create_search_filters(search)
+        or_filters.extend(create_search_filters(search))
+
 
     offset = (int(page) - 1) * int(page_size) 
     restructures = frappe.db.get_all( 'Loan Restructure', 
                                     filters=filters, or_filters=or_filters, fields=GET_FIELDS, 
-                                    order_by=order_by, start=offset, page_length=int(page_size)
+                                    order_by=order_by, start=offset, page_length=int(page_size), debug=True 
                                 )
     for r in restructures:
         r.status = "Draft" if r.docstatus == 0 else r.status

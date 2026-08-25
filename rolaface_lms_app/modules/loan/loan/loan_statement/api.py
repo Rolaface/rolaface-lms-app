@@ -120,7 +120,7 @@ def send_loan_statment():
             message=f"Dear {customer_name},<br><br>"
                     f"Please find attached your loan statement for {loan_id}"
                     f"{f' covering {formatted_from_date} to {formatted_to_date}' if from_date and to_date else ''}.<br><br>"
-                    f"Kindly review the attached statement and contact us should you require any clarification."
+                    f"Kindly review the attached statement and contact us should you require any clarification.<br><br>"
                     f"Regards,<br>{frappe.defaults.get_user_default('Company') or ''}",
 
             attachments=[{

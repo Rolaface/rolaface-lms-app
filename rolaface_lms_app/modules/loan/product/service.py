@@ -32,6 +32,7 @@ def create_loan_product(data: dict):
         product.company = frappe.defaults.get_user_default("Company")
 
     sync_loan_charges(product, data.get("loan_charges"))
+    product.is_term_loan = 1
     product.insert(ignore_permissions=True)
     return get_loan_product_by_id(product.name)
 

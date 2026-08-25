@@ -1,6 +1,7 @@
 import frappe
 from rolaface_lms_app.utils.api_response import send_response, handle_api_error
 from . import service
+from frappe.utils import getdate
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_loan_statement_dashboard(loan_id=None, from_date=None, to_date=None, view_type="detailed", **kwargs):
@@ -109,13 +110,19 @@ def send_loan_statment():
         customer_email, customer_name = frappe.db.get_value(
                                                                 "Customer", customer_id, ["email_id", "customer_name"]
                                                             )
+        
+        formatted_from_date = getdate(from_date).strftime("%d %B %Y") if from_date else None
+        formatted_to_date = getdate(to_date).strftime("%d %B %Y") if to_date else None
+
         frappe.sendmail(
             recipients=[customer_email],
             subject=f"Loan Statement — {loan_id}",
             message=f"Dear {customer_name},<br><br>"
                     f"Please find attached your loan statement for {loan_id}"
-                    f"{f' covering {from_date} to {to_date}' if from_date and to_date else ''}.<br><br>"
+                    f"{f' covering {formatted_from_date} to {formatted_to_date}' if from_date and to_date else ''}.<br><br>"
+                    f"Kindly review the attached statement and contact us should you require any clarification."
                     f"Regards,<br>{frappe.defaults.get_user_default('Company') or ''}",
+
             attachments=[{
                 "fname": f"Loan_Statement_{loan_id}.pdf",
                 "fcontent": pdf,

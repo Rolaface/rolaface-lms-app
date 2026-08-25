@@ -69,6 +69,7 @@ RETURN_FIELDS_GET_BY_ID = list(ALLOWED_CUSTOM_LOAN_APPLICATION_FIELDS) + [
     "modified",
     "docstatus",
     "naming_series",
+     "_comments"
 ]
 
 ALLOWED_SORT_FIELDS = {
@@ -95,7 +96,8 @@ RETURN_FIELDS_GET_ALL = [
     "company_name",
     "amount",
     "total_amount",
-    "_assign"
+    "_assign",
+    "_comments"
 ]
 
 CONVERTIBLE_STATUS = "Submitted"

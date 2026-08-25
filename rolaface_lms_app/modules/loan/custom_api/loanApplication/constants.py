@@ -95,7 +95,8 @@ RETURN_FIELDS_GET_ALL = [
     "company_name",
     "amount",
     "total_amount",
-    "_assign"
+    "_assign",
+    "_comments"
 ]
 
 CONVERTIBLE_STATUS = "Submitted"

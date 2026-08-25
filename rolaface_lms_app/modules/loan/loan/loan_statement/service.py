@@ -239,10 +239,18 @@ def _build_snapshot_metrics(loan_doc: Any, total_disbursed: float) -> Dict[str, 
         .run(as_dict=True)
     )
     
-    emis_paid = f"{schedule_summary[0].total_installments_paid or 0} / {schedule_summary[0].total_installments_raised or 0}" if schedule_summary else "0 / 0"
-    
-    emi_amount = schedule_summary[0].monthly_repayment_amount if schedule_summary else 0.0
-    maturity_date = schedule_summary[0].maturity_date
+    schedule = schedule_summary[0] if schedule_summary else None
+
+    emis_paid = (
+        f"{schedule.total_installments_paid or 0} / "
+        f"{schedule.total_installments_raised or 0}"
+        if schedule
+        else "0 / 0"
+    )
+
+    emi_amount = schedule.monthly_repayment_amount if schedule else 0.0
+    maturity_date = schedule.maturity_date if schedule else None
+
     
     return {
         "currency": company_currency, 

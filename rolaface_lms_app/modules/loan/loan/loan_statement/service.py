@@ -201,7 +201,7 @@ def _process_native_data(statement_lines: List[Dict[str, Any]]) -> Dict[str, Any
         if "Disbursement" in t_type:
             summary["total_disbursed"] = flt(summary["total_disbursed"] + debit, 2)
             monthly_flow[month_key]["disbursal"] = flt(monthly_flow[month_key]["disbursal"] + debit, 2)
-        elif "Repayment" in t_type:
+        elif "Repayment" in t_type or "Pre Payment" in t_type or "Prepayment" in t_type:
             summary["total_repayments"] = flt(summary["total_repayments"] + credit, 2)
             monthly_flow[month_key]["repayment"] = flt(monthly_flow[month_key]["repayment"] + credit, 2)
         elif "Interest" in t_type or "Charge" in t_type or "Penalty" in t_type:

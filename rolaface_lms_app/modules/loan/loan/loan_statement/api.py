@@ -99,25 +99,39 @@ def export_loan_statement_excel(loan_id=None, from_date=None, to_date=None, view
 
 @frappe.whitelist(allow_guest=False, methods=["POST"])
 def send_loan_statment():
-    args = frappe.local.form_dict
-    loan_id = args.get("loan_id")
-    from_date = args.get("from_date")
-    to_date = args.get("to_date")
-    customer_id = args.get("customer_id")
-    pdf = service.generate_statement_pdf(loan_id, from_date, to_date)
-    customer_email, customer_name = frappe.db.get_value(
-                                                            "Customer", customer_id, ["email_id", "customer_name"]
-                                                        )
-    frappe.sendmail(
-        recipients=[customer_email],
-        subject=f"Loan Statement — {loan_id}",
-        message=f"Dear {customer_name},<br><br>"
-                f"Please find attached your loan statement for {loan_id}"
-                f"{f' covering {from_date} to {to_date}' if from_date and to_date else ''}.<br><br>"
-                f"Regards,<br>{frappe.defaults.get_user_default('Company') or ''}",
-        attachments=[{
-            "fname": f"Loan_Statement_{loan_id}.pdf",
-            "fcontent": pdf,
-        }],
-        now=True
-    )
+    try:
+        args = frappe.local.form_dict
+        loan_id = args.get("loan_id")
+        from_date = args.get("from_date")
+        to_date = args.get("to_date")
+        customer_id = args.get("customer_id")
+        pdf = service.generate_statement_pdf(loan_id, from_date, to_date)
+        customer_email, customer_name = frappe.db.get_value(
+                                                                "Customer", customer_id, ["email_id", "customer_name"]
+                                                            )
+        frappe.sendmail(
+            recipients=[customer_email],
+            subject=f"Loan Statement — {loan_id}",
+            message=f"Dear {customer_name},<br><br>"
+                    f"Please find attached your loan statement for {loan_id}"
+                    f"{f' covering {from_date} to {to_date}' if from_date and to_date else ''}.<br><br>"
+                    f"Regards,<br>{frappe.defaults.get_user_default('Company') or ''}",
+            attachments=[{
+                "fname": f"Loan_Statement_{loan_id}.pdf",
+                "fcontent": pdf,
+            }],
+            now=True
+        )
+        return send_response(
+                    status="success",
+                    message="Success",
+                    data=None,
+                    status_code=200
+                )
+    except Exception as e:
+        return send_response(
+                status="error",
+                message="Internal Server Error",
+                status_code=500,
+                http_status=500,
+            )

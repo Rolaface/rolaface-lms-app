@@ -116,7 +116,7 @@ def get_restructures(search, order_by, status, page, page_size):
         #    or_filters = create_search_filters(search)
         or_filters.extend(create_search_filters(search))
 
-
+    filters["restructure_type"] = "Normal Restructure"
     offset = (int(page) - 1) * int(page_size) 
     restructures = frappe.db.get_all( 'Loan Restructure', 
                                     filters=filters, or_filters=or_filters, fields=GET_FIELDS, 

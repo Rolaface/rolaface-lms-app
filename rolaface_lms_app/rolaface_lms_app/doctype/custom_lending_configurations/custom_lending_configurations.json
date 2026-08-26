@@ -1,0 +1,269 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:company",
+ "creation": "2026-08-26 11:54:11.345312",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "basic_tab",
+  "company",
+  "enable_auto_disbursement",
+  "enable_topup",
+  "tab_break_accounting",
+  "section_break_principal",
+  "default_loan_account",
+  "column_break_jzzp",
+  "default_disbursement_bank_account",
+  "column_break_dkie",
+  "default_repayment_bank_account",
+  "section_break_interest_and_penalty",
+  "default_interest_income_account",
+  "default_interest_receivable_account",
+  "default_interest_accrued_account",
+  "default_interest_suspended_account",
+  "default_interest_waiver_account",
+  "column_break_mfog",
+  "default_penalty_income_account",
+  "default_penalty_receivable_account",
+  "default_penalty_accrued_account",
+  "default_penalty_suspended_account",
+  "default_penalty_waiver_account",
+  "section_break_general_accounts",
+  "default_write_off_account",
+  "default_security_deposit_account",
+  "column_break_aotr",
+  "default_write_off_recovery",
+  "default_suspense_collection",
+  "column_break_zowd",
+  "default_subsidy_account",
+  "default_customer_refund"
+ ],
+ "fields": [
+  {
+   "fieldname": "tab_break_accounting",
+   "fieldtype": "Tab Break",
+   "label": "Accounting"
+  },
+  {
+   "fieldname": "default_loan_account",
+   "fieldtype": "Link",
+   "label": "Default Loan Account",
+   "link_filters": "[\n    [\"Account\", \"company\", \"=\", \"eval:doc.company\"],\n    [\"Account\", \"root_type\", \"in\", [\"Asset\", \"Liability\"]],\n    [\"Account\", \"is_group\", \"=\", 0]\n]\n",
+   "options": "Account"
+  },
+  {
+   "fieldname": "default_disbursement_bank_account",
+   "fieldtype": "Link",
+   "label": "Default Disbursement Bank Account",
+   "link_filters": "[\n    [\"Account\", \"company\", \"=\", \"eval:doc.company\"],\n    [\"Account\", \"is_group\", \"=\", 0]\n]\n",
+   "options": "Account"
+  },
+  {
+   "fieldname": "default_repayment_bank_account",
+   "fieldtype": "Link",
+   "label": "Default Repayment Bank Account",
+   "link_filters": "[\n    [\"Account\", \"company\", \"=\", \"eval:doc.company\"],\n    [\"Account\", \"is_group\", \"=\", 0]\n]\n",
+   "options": "Account"
+  },
+  {
+   "fieldname": "default_interest_income_account",
+   "fieldtype": "Link",
+   "label": "Default Interest Income Account",
+   "link_filters": "[\n    [\"Account\", \"company\", \"=\", \"eval:doc.company\"],\n    [\"Account\", \"is_group\", \"=\", 0]\n]\n",
+   "options": "Account"
+  },
+  {
+   "fieldname": "default_penalty_income_account",
+   "fieldtype": "Link",
+   "label": "Default Penalty Income Account",
+   "link_filters": "[\n    [\"Account\", \"company\", \"=\", \"eval:doc.company\"],\n    [\"Account\", \"is_group\", \"=\", 0]\n]\n",
+   "options": "Account"
+  },
+  {
+   "fieldname": "default_interest_receivable_account",
+   "fieldtype": "Link",
+   "label": "Default Interest Receivable Account",
+   "link_filters": "[\n    [\"Account\", \"company\", \"=\", \"eval:doc.company\"],\n    [\"Account\", \"is_group\", \"=\", 0]\n]\n",
+   "options": "Account"
+  },
+  {
+   "fieldname": "default_penalty_receivable_account",
+   "fieldtype": "Link",
+   "label": "Default Penalty Receivable Account",
+   "link_filters": "[\n    [\"Account\", \"company\", \"=\", \"eval:doc.company\"],\n    [\"Account\", \"is_group\", \"=\", 0]\n]\n",
+   "options": "Account"
+  },
+  {
+   "fieldname": "default_interest_accrued_account",
+   "fieldtype": "Link",
+   "label": "Default Interest Accrued Account",
+   "link_filters": "[\n    [\"Account\", \"company\", \"=\", \"eval:doc.company\"],\n    [\"Account\", \"is_group\", \"=\", 0]\n]\n",
+   "options": "Account"
+  },
+  {
+   "fieldname": "default_penalty_accrued_account",
+   "fieldtype": "Link",
+   "label": "Default Penalty Accrued Account",
+   "link_filters": "[\n    [\"Account\", \"company\", \"=\", \"eval:doc.company\"],\n    [\"Account\", \"is_group\", \"=\", 0]\n]\n",
+   "options": "Account"
+  },
+  {
+   "fieldname": "default_interest_suspended_account",
+   "fieldtype": "Link",
+   "label": "Default Interest Suspended Account",
+   "link_filters": "[\n    [\"Account\", \"company\", \"=\", \"eval:doc.company\"],\n    [\"Account\", \"is_group\", \"=\", 0]\n]\n",
+   "options": "Account"
+  },
+  {
+   "fieldname": "default_penalty_suspended_account",
+   "fieldtype": "Link",
+   "label": "Default Penalty Suspended Account",
+   "link_filters": "[\n    [\"Account\", \"company\", \"=\", \"eval:doc.company\"],\n    [\"Account\", \"is_group\", \"=\", 0]\n]\n",
+   "options": "Account"
+  },
+  {
+   "fieldname": "default_interest_waiver_account",
+   "fieldtype": "Link",
+   "label": "Default Interest Waiver Account",
+   "link_filters": "[\n    [\"Account\", \"company\", \"=\", \"eval:doc.company\"],\n    [\"Account\", \"is_group\", \"=\", 0]\n]\n",
+   "options": "Account"
+  },
+  {
+   "fieldname": "default_penalty_waiver_account",
+   "fieldtype": "Link",
+   "label": "Default Penalty Waiver Account",
+   "link_filters": "[\n    [\"Account\", \"company\", \"=\", \"eval:doc.company\"],\n    [\"Account\", \"is_group\", \"=\", 0]\n]\n",
+   "options": "Account"
+  },
+  {
+   "fieldname": "default_write_off_account",
+   "fieldtype": "Link",
+   "label": "Default Write Off Account",
+   "link_filters": "[\n    [\"Account\", \"company\", \"=\", \"eval:doc.company\"],\n    [\"Account\", \"is_group\", \"=\", 0]\n]\n",
+   "options": "Account"
+  },
+  {
+   "fieldname": "default_write_off_recovery",
+   "fieldtype": "Link",
+   "label": "Default Write Off Recovery",
+   "link_filters": "[\n    [\"Account\", \"company\", \"=\", \"eval:doc.company\"],\n    [\"Account\", \"is_group\", \"=\", 0]\n]\n",
+   "options": "Account"
+  },
+  {
+   "fieldname": "default_subsidy_account",
+   "fieldtype": "Link",
+   "label": "Default Subsidy Account",
+   "link_filters": "[\n    [\"Account\", \"company\", \"=\", \"eval:doc.company\"],\n    [\"Account\", \"is_group\", \"=\", 0]\n]\n",
+   "options": "Account"
+  },
+  {
+   "fieldname": "default_security_deposit_account",
+   "fieldtype": "Link",
+   "label": "Default Security Deposit Account",
+   "link_filters": "[\n    [\"Account\", \"company\", \"=\", \"eval:doc.company\"],\n    [\"Account\", \"is_group\", \"=\", 0]\n]\n",
+   "options": "Account"
+  },
+  {
+   "fieldname": "default_suspense_collection",
+   "fieldtype": "Link",
+   "label": "Default Suspense Collection",
+   "link_filters": "[\n    [\"Account\", \"company\", \"=\", \"eval:doc.company\"],\n    [\"Account\", \"is_group\", \"=\", 0]\n]\n",
+   "options": "Account"
+  },
+  {
+   "fieldname": "default_customer_refund",
+   "fieldtype": "Link",
+   "label": "Default Customer Refund",
+   "link_filters": "[\n    [\"Account\", \"company\", \"=\", \"eval:doc.company\"],\n    [\"Account\", \"is_group\", \"=\", 0]\n]\n",
+   "options": "Account"
+  },
+  {
+   "fieldname": "section_break_principal",
+   "fieldtype": "Section Break",
+   "label": "Principal Account"
+  },
+  {
+   "fieldname": "section_break_interest_and_penalty",
+   "fieldtype": "Section Break",
+   "label": "Interest And Penalty Accounts"
+  },
+  {
+   "fieldname": "section_break_general_accounts",
+   "fieldtype": "Section Break",
+   "label": "General AccountsGeneral Accounts"
+  },
+  {
+   "fieldname": "column_break_jzzp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_aotr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_dkie",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_mfog",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_zowd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "unique": 1
+  },
+  {
+   "fieldname": "basic_tab",
+   "fieldtype": "Tab Break",
+   "label": "Basic"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_auto_disbursement",
+   "fieldtype": "Check",
+   "label": "Enable Auto Disbursement"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_topup",
+   "fieldtype": "Check",
+   "label": "Enable TopUp"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-26 16:13:27.779062",
+ "modified_by": "Administrator",
+ "module": "Rolaface Lms App",
+ "name": "Custom Lending Configurations",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

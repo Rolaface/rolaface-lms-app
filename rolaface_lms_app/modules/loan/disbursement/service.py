@@ -40,6 +40,9 @@ def create_loan_disbursement(data: Dict[str, Any]) -> Dict[str, Any]:
     sync_loan_disbursement_charges(loan_disbursement_doc, data.get("loan_disbursement_charges"))
     loan_disbursement_doc.set_missing_values()    
     loan_disbursement_doc.insert(ignore_permissions=True)
+    comment = data.get("_comments")
+    if comment:
+        loan_disbursement_doc.add_comment("Comment", text=str(comment))
     return get_loan_disbursement_by_id(loan_disbursement_doc.name)
 
 
@@ -112,6 +115,9 @@ def update_loan_disbursement(disbursement_id: str, data: Dict[str, Any]) -> Dict
 
     if has_changes:
         loan_disbursement_doc.save(ignore_permissions=True)
+    comment = data.get("_comments")
+    if comment:
+        loan_disbursement_doc.add_comment("Comment", text=str(comment))
 
     return get_loan_disbursement_by_id(loan_disbursement_doc.name)
 

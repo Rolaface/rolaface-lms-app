@@ -17,6 +17,9 @@ def create_loan_write_off(data: Dict[str, Any]) -> Dict[str, Any]:
             
     write_off_doc.set_missing_values()    
     write_off_doc.insert(ignore_permissions=True)
+    comment = data.get("_comments")
+    if comment:
+        write_off_doc.add_comment("Comment", text=str(comment))
     
     return get_loan_write_off_by_id(write_off_doc.name)
 
@@ -41,6 +44,10 @@ def update_loan_write_off(write_off_id: str, data: Dict[str, Any]) -> Dict[str, 
 
     if has_changes:
         write_off_doc.save(ignore_permissions=True)
+
+    comment = data.get("_comments")
+    if comment:
+        write_off_doc.add_comment("Comment", text=str(comment))
 
     return get_loan_write_off_by_id(write_off_doc.name)
 

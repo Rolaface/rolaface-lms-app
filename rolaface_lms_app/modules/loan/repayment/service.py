@@ -18,6 +18,9 @@ def create_payment(data: Dict[str, Any]):
                         message=frappe.as_json(payment_doc.as_dict())
                     )
     payment_doc.insert(ignore_permissions=True)
+    comment = data.get("_comments")
+    if comment:
+        payment_doc.add_comment("Comment", text=str(comment))
 
 
 def get_loan_repayment_account(search_term: str = "", limit: int = 20, initiated_restructure: bool = False) -> List[Dict[str, Any]]:
@@ -236,6 +239,10 @@ def update_loan_repayment(repayment_id: str, data: Dict[str, Any]) -> Dict[str, 
 
     if has_changes:
         repayment_doc.save(ignore_permissions=True)
+
+    comment = data.get("_comments")
+    if comment:
+        repayment_doc.add_comment("Comment", text=str(comment))
 
     return get_loan_repayment_by_id(repayment_doc.name)
 

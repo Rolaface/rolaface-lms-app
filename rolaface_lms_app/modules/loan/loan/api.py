@@ -6,9 +6,10 @@ from rolaface_lms_app.utils.api_response import (
 )
 from rolaface_lms_app.utils.api_request import parse_api_payload
 from . import service
-
+from rolaface_lms_app.utils.decorators import validate_payload
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
+@validate_payload("validate_create_payload") 
 def create_loan():
     """
     Create Loan
@@ -39,6 +40,7 @@ def create_loan():
 
 
 @frappe.whitelist(allow_guest=True, methods=["PUT", "PATCH"])
+@validate_payload("validate_update_payload") 
 def update_loan(id=None):
     try:
         data = parse_api_payload()

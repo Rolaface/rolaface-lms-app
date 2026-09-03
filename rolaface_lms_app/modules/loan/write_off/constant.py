@@ -2,7 +2,7 @@ ALLOWED_WRITE_OFF_FIELDS = {
     "loan", "loan_disbursement", "applicant_type", "applicant", 
     "loan_product", "company", "posting_date", "value_date", 
     "is_npa", "is_settlement_write_off", "cost_center", 
-    "write_off_account", "write_off_amount", "amended_from"
+    "write_off_account", "write_off_amount", "amended_from","_comments"
 }
 
 ALLOWED_SORT_FIELDS = {

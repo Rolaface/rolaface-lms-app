@@ -31,6 +31,9 @@ def create_restructure(data: Dict[str, Any]):
                         message=frappe.as_json(restructure_doc.as_dict())
                     )
     restructure_doc.insert(ignore_permissions=True)
+    comment = data.get("_comments")
+    if comment:
+        restructure_doc.add_comment("Comment", text=str(comment))
     return restructure_doc.name
 
 def update_restructure(data: Dict[str, Any]):
@@ -57,6 +60,9 @@ def update_restructure(data: Dict[str, Any]):
             restructure_doc.append("loan_restructure_charges", row)
 
     restructure_doc.save(ignore_permissions=True)
+    comment = data.get("_comments")
+    if comment:
+        restructure_doc.add_comment("Comment", text=str(comment))
     return restructure_doc.name
 
 def get_by_name(name):

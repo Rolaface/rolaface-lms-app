@@ -9,7 +9,7 @@ ALLOWED_DISBURSEMENT_FIELDS = {
     "principal_amount_paid", "mode_of_payment", "disbursement_account",
     "refund_account", "loan_account", "bank_account", "cost_center",
     "total_emi_charges", "reference_date", "days_past_due", "status",
-    "reference_number", "amended_from", "tranche_number"
+    "reference_number", "amended_from", "tranche_number", "_comments"
 }
 
 ALLOWED_SORT_FIELDS = {

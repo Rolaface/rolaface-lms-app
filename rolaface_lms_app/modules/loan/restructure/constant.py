@@ -1,7 +1,7 @@
 ALLOWED_RESTRUCTURE_FIELD = [
     "applicant_type", "applicant", "restructure_type", "loan_product",
     "loan", "restructure_date", "reason_for_restructure", "new_repayment_period_in_months",
-    "new_rate_of_interest"
+    "new_rate_of_interest","_comments"
 ]
 
 ALLOWED_CHARGE_FIELDS = [

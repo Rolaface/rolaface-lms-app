@@ -201,7 +201,7 @@ def _process_native_data(statement_lines: List[Dict[str, Any]]) -> Dict[str, Any
         if "Disbursement" in t_type:
             summary["total_disbursed"] = flt(summary["total_disbursed"] + debit, 2)
             monthly_flow[month_key]["disbursal"] = flt(monthly_flow[month_key]["disbursal"] + debit, 2)
-        elif "Repayment" in t_type:
+        elif "Repayment" in t_type or "Pre Payment" in t_type or "Prepayment" in t_type:
             summary["total_repayments"] = flt(summary["total_repayments"] + credit, 2)
             monthly_flow[month_key]["repayment"] = flt(monthly_flow[month_key]["repayment"] + credit, 2)
         elif "Interest" in t_type or "Charge" in t_type or "Penalty" in t_type:
@@ -239,10 +239,18 @@ def _build_snapshot_metrics(loan_doc: Any, total_disbursed: float) -> Dict[str, 
         .run(as_dict=True)
     )
     
-    emis_paid = f"{schedule_summary[0].total_installments_paid or 0} / {schedule_summary[0].total_installments_raised or 0}" if schedule_summary else "0 / 0"
-    
-    emi_amount = schedule_summary[0].monthly_repayment_amount if schedule_summary else 0.0
-    maturity_date = schedule_summary[0].maturity_date
+    schedule = schedule_summary[0] if schedule_summary else None
+
+    emis_paid = (
+        f"{schedule.total_installments_paid or 0} / "
+        f"{schedule.total_installments_raised or 0}"
+        if schedule
+        else "0 / 0"
+    )
+
+    emi_amount = schedule.monthly_repayment_amount if schedule else 0.0
+    maturity_date = schedule.maturity_date if schedule else None
+
     
     return {
         "currency": company_currency, 

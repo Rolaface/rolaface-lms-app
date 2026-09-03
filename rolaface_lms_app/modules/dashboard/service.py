@@ -536,14 +536,10 @@ def get_pending_approvals(args, page=1, page_size=20):
 
     return formatted_rows, total
 
-
 def get_overdue_tasks(args, page=1, page_size=20):
     period = parse_dashboard_filters(args)
-    from_date, to_date, filters = (
-        period["from_date"],
-        period["to_date"],
-        period["filters"],
-    )
+    to_date = period["to_date"]
+    filters = period["filters"]
 
     query_filters = {
         **filter_subset("Loan", filters),
@@ -554,37 +550,81 @@ def get_overdue_tasks(args, page=1, page_size=20):
     if to_date:
         query_filters["creation"] = ["<=", to_date]
 
-    start = (cint(page) - 1) * cint(page_size)
+    page = max(cint(page), 1)
+    page_size = max(cint(page_size), 1)
+    start = (page - 1) * page_size
 
     rows = frappe.get_all(
         "Loan",
         filters=query_filters,
         fields=[
             "name as loan_account",
-            "applicant_name as customer_name",
+            "applicant",
             "days_past_due",
             "total_payment",
             "total_amount_paid",
         ],
         order_by="days_past_due desc",
         limit_start=start,
-        limit_page_length=cint(page_size),
+        limit_page_length=page_size,
     )
 
-    total = frappe.db.count("Loan", query_filters)
+    applicant_ids = list({
+        row.applicant
+        for row in rows
+        if row.applicant
+    })
+
+    customer_map = {}
+
+    if applicant_ids:
+        customers = frappe.get_all(
+            "Customer",
+            filters={
+                "name": ["in", applicant_ids],
+            },
+            fields=[
+                "name",
+                "customer_name",
+            ],
+        )
+
+        customer_map = {
+            customer.name: customer.customer_name
+            for customer in customers
+        }
 
     for row in rows:
-        days_past_due = row["days_past_due"] or 0
+        applicant = row.pop("applicant", None)
+
+        row["customer_name"] = customer_map.get(
+            applicant,
+            applicant,
+        )
+
+        days_past_due = cint(row.get("days_past_due"))
+
+        total_payment = flt(row.pop("total_payment"))
+        total_amount_paid = flt(row.pop("total_amount_paid"))
+
         row["amount_overdue"] = max(
-            flt(row.pop("total_payment")) - flt(row.pop("total_amount_paid")), 0
+            total_payment - total_amount_paid,
+            0,
         )
-        row["next_action"] = (
-            "Legal Notice" if days_past_due >= 60 else "Agent Follow-up"
-        )
-        row["priority"] = (
-            "High"
-            if days_past_due >= 60
-            else ("Medium" if days_past_due >= 30 else "Low")
-        )
+
+        if days_past_due >= 60:
+            row["next_action"] = "Legal Notice"
+            row["priority"] = "High"
+        elif days_past_due >= 30:
+            row["next_action"] = "Agent Follow-up"
+            row["priority"] = "Medium"
+        else:
+            row["next_action"] = "Agent Follow-up"
+            row["priority"] = "Low"
+
+    total = frappe.db.count(
+        "Loan",
+        filters=query_filters,
+    )
 
     return rows, total

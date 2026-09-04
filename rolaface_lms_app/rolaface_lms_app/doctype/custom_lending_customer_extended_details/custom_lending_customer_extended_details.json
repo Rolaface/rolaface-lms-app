@@ -1,0 +1,189 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-09-03 12:01:27.342876",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_g2vt",
+  "national_identification_number",
+  "date_of_birth",
+  "gender",
+  "marital_status",
+  "nationality",
+  "is_staff_customer",
+  "staff_id",
+  "occupation",
+  "registered_company_name",
+  "registration_number",
+  "incorporation_date",
+  "section_break_ddrf",
+  "education_level",
+  "employment_type",
+  "industry_type",
+  "employer_name",
+  "source_of_income",
+  "monthly_income",
+  "annual_income",
+  "total_assets",
+  "total_liabilities",
+  "net_worth",
+  "existing_monthly_obligations",
+  "annual_revenue",
+  "number_of_employees"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_g2vt",
+   "fieldtype": "Section Break",
+   "label": "General"
+  },
+  {
+   "fieldname": "national_identification_number",
+   "fieldtype": "Data",
+   "label": "National Identification Number"
+  },
+  {
+   "fieldname": "date_of_birth",
+   "fieldtype": "Date",
+   "label": "Date Of Birth"
+  },
+  {
+   "fieldname": "gender",
+   "fieldtype": "Data",
+   "label": "Gender"
+  },
+  {
+   "fieldname": "marital_status",
+   "fieldtype": "Select",
+   "label": "Marital Status",
+   "options": "Single\nMarried\nSeparated\nDivorced\nWidowed\nAnnulled"
+  },
+  {
+   "fieldname": "nationality",
+   "fieldtype": "Link",
+   "label": "Nationality",
+   "options": "Country"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_staff_customer",
+   "fieldtype": "Check",
+   "label": "Is Staff Customer"
+  },
+  {
+   "fieldname": "staff_id",
+   "fieldtype": "Data",
+   "label": "Staff Id"
+  },
+  {
+   "fieldname": "occupation",
+   "fieldtype": "Data",
+   "label": "Occupation"
+  },
+  {
+   "fieldname": "registered_company_name",
+   "fieldtype": "Data",
+   "label": "Registered Company Name"
+  },
+  {
+   "fieldname": "registration_number",
+   "fieldtype": "Data",
+   "label": "Registration Number"
+  },
+  {
+   "fieldname": "incorporation_date",
+   "fieldtype": "Data",
+   "label": "Incorporation Date"
+  },
+  {
+   "fieldname": "section_break_ddrf",
+   "fieldtype": "Section Break",
+   "label": "Financial"
+  },
+  {
+   "fieldname": "education_level",
+   "fieldtype": "Data",
+   "label": "Education Level"
+  },
+  {
+   "fieldname": "employment_type",
+   "fieldtype": "Data",
+   "label": "Employment Type"
+  },
+  {
+   "fieldname": "industry_type",
+   "fieldtype": "Data",
+   "label": "Industry Type"
+  },
+  {
+   "fieldname": "employer_name",
+   "fieldtype": "Data",
+   "label": "Employer Name"
+  },
+  {
+   "fieldname": "source_of_income",
+   "fieldtype": "Data",
+   "label": "Source of Income"
+  },
+  {
+   "fieldname": "monthly_income",
+   "fieldtype": "Currency",
+   "label": "Monthly Income"
+  },
+  {
+   "fieldname": "annual_income",
+   "fieldtype": "Currency",
+   "label": "Annual Income"
+  },
+  {
+   "fieldname": "total_assets",
+   "fieldtype": "Currency",
+   "label": "Total Assets"
+  },
+  {
+   "fieldname": "total_liabilities",
+   "fieldtype": "Currency",
+   "label": "Total Liabilities"
+  },
+  {
+   "fieldname": "net_worth",
+   "fieldtype": "Currency",
+   "label": "Net Worth"
+  },
+  {
+   "fieldname": "existing_monthly_obligations",
+   "fieldtype": "Currency",
+   "label": "Existing Monthly Obligations"
+  },
+  {
+   "fieldname": "annual_revenue",
+   "fieldtype": "Currency",
+   "label": "Annual Revenue"
+  },
+  {
+   "fieldname": "number_of_employees",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
+   "label": "No of Employees"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-03 15:47:10.162775",
+ "modified_by": "Administrator",
+ "module": "Rolaface Lms App",
+ "name": "Custom Lending Customer Extended Details",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

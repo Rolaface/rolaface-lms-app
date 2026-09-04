@@ -1,4 +1,14 @@
-# constant.py
+FIELD_MAPPING = {
+    "relationship_manager": "account_manager"
+}
+
+TABLE_MAPPING = {
+    "basic_details": "custom_basic_details",
+    "extended_details": "custom_extended_details",
+    "next_of_kin": "custom_next_of_kin",
+    "stakeholders": "custom_stakeholders",
+    "documents": "custom_documents"
+}
 
 ALLOWED_CUSTOMER_FIELDS = {
     "naming_series",
@@ -24,7 +34,7 @@ ALLOWED_CUSTOMER_FIELDS = {
     "represents_company",
     "loyalty_program",
     "loyalty_program_tier",
-    "account_manager",
+    "account_manager", 
     "default_sales_partner",
     "default_commission_rate",
     "so_required",
@@ -63,10 +73,9 @@ RETURN_FIELDS_GET_ALL = [
     "territory",
     "email_id",
     "mobile_no",
-    # "tax_id",
+    "account_manager",
     "disabled"
 ]
-
 
 RETURN_FIELDS_GET_BY_ID = list(ALLOWED_CUSTOMER_FIELDS) + [
     "name",

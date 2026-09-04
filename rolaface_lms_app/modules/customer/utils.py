@@ -1,9 +1,48 @@
-# utils.py
 import frappe
 import json
 import re
 from typing import Dict, Any, List
 from frappe.utils import flt, cint
+
+from .constant import FIELD_MAPPING, TABLE_MAPPING
+
+
+def transform_payload_to_db(data: Dict[str, Any]) -> Dict[str, Any]:
+    db_payload = data.copy()
+    
+    for api_key, db_key in FIELD_MAPPING.items():
+        if api_key in db_payload:
+            db_payload[db_key] = db_payload.pop(api_key)
+
+    for api_table, db_table in TABLE_MAPPING.items():
+        if api_table in db_payload:
+            db_payload[db_table] = db_payload.pop(api_table)
+
+    return db_payload
+
+
+def transform_db_to_payload(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Translates internal Frappe schema to clean frontend API keys."""
+    api_payload = data.copy()
+
+    for api_key, db_key in FIELD_MAPPING.items():
+        if db_key in api_payload:
+            api_payload[api_key] = api_payload.pop(db_key)
+
+    for api_table, db_table in TABLE_MAPPING.items():
+        if db_table in api_payload:
+            api_payload[api_table] = api_payload.pop(db_table)
+
+    # Automatically fetch and attach Relationship Manager Name if User ID is present
+    rm_id = api_payload.get("relationship_manager")
+    if rm_id:
+        full_name = frappe.db.get_value("User", rm_id, "full_name")
+        api_payload["relationship_manager_name"] = full_name or None
+    else:
+        api_payload["relationship_manager_name"] = None
+
+    return api_payload
+
 
 def validate_customer_payload(data: Dict[str, Any], is_update=False):
     if not is_update:
@@ -54,7 +93,7 @@ def sync_addresses(parent_doc, addresses_data: list, is_update: bool = False):
     for i, addr in enumerate(addresses_data):
         addr_id = addr.get("name")
         is_primary = 1 if addr.get("is_primary_address") or i == 0 else 0
-        country = addr.get("country") or frappe.defaults.get_global_default("country") or "India"
+        country = addr.get("country") or frappe.defaults.get_global_default("country") or "Zambia"
 
         if is_update and addr_id and frappe.db.exists("Address", addr_id):
             address = frappe.get_doc("Address", addr_id)
@@ -245,7 +284,6 @@ def build_customer_filters(args: Dict[str, Any]) -> Dict[str, Any]:
         if args.get(field) is not None:
             filters[field] = cint(args.get(field))
 
-    # 2. Exact Match or List (IN) Filters
     list_fields = [
         "customer_type", "customer_group", "territory", "gender", 
         "default_currency", "tax_category", "tax_withholding_category",

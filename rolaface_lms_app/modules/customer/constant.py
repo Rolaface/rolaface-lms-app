@@ -10,6 +10,117 @@ TABLE_MAPPING = {
     "documents": "custom_documents"
 }
 
+CHILD_TABLE_FIELDS = {
+    "basic_details": {
+        "name",
+        "date_of_birth",
+        "marital_status",
+        "nationality",
+        "is_staff_customer",
+        "staff_id",
+        "occupation",
+        "education_level",
+        "employment_type",
+        "industry_type",
+        "employer_name",
+        "source_of_income",
+        "monthly_income",
+        "annual_income",
+        "total_assets",
+        "total_liabilities",
+        "net_worth",
+        "existing_monthly_obligations",
+        "annual_revenue",
+        "number_of_employees"
+    },
+    "extended_details": {
+        "name",
+        "national_identification_number",
+        "date_of_birth",
+        "gender",
+        "marital_status",
+        "nationality",
+        "is_staff_customer",
+        "staff_id",
+        "occupation",
+        "registered_company_name",
+        "registration_number",
+        "incorporation_date",
+        "education_level",
+        "employment_type",
+        "industry_type",
+        "employer_name",
+        "source_of_income",
+        "monthly_income",
+        "annual_income",
+        "total_assets",
+        "total_liabilities",
+        "net_worth",
+        "existing_monthly_obligations",
+        "annual_revenue",
+        "number_of_employees"
+    },
+    "next_of_kin": {
+        "name",
+        "first_name",
+        "middle_name",
+        "last_name",
+        "relationship",
+        "phone",
+        "address_line_1",
+        "address_line_2",
+        "city",
+        "district",
+        "state",
+        "country",
+        "postal_code"
+    },
+    "stakeholders": {
+        "name",
+        "stakeholder_name",
+        "stakeholder_role",
+        "ownership_percentage"
+    },
+    "documents": {
+        "name",
+        "document_type",
+        "document_name",
+        "document_number",
+        "issue_date",
+        "expiry_date",
+        "verification_status",
+        "issuing_authority",
+        "place_of_issue",
+        "document_upload",
+        "issuing_country"
+    }
+}
+
+ADDRESS_FIELDS = {
+    "name",
+    "address_type",
+    "address_line1",
+    "address_line2",
+    "city",
+    "state",
+    "pincode",
+    "country",
+    "is_primary_address",
+    "is_shipping_address"
+}
+
+CONTACT_FIELDS = {
+    "name",
+    "first_name",
+    "last_name",
+    "salutation",
+    "designation",
+    "email_id",
+    "mobile_no",
+    "is_primary_contact",
+    "is_billing_contact"
+}
+
 ALLOWED_CUSTOMER_FIELDS = {
     "naming_series",
     "customer_type",

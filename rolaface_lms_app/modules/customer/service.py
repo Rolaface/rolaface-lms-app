@@ -13,6 +13,9 @@ from .utils import (
 )
 from .constant import (
     ALLOWED_CUSTOMER_FIELDS,
+    ADDRESS_FIELDS,
+    CHILD_TABLE_FIELDS,
+    CONTACT_FIELDS,
     TABLE_MAPPING,
     RETURN_FIELDS_GET_ALL,
     RETURN_FIELDS_GET_BY_ID,
@@ -34,7 +37,7 @@ def create_customer(data: Dict[str, Any]) -> Dict[str, Any]:
             if db_table_name in db_payload and isinstance(db_payload.get(db_table_name), list):
                 customer.set(db_table_name, db_payload.get(db_table_name))
         
-        customer.insert(ignore_permissions=True)
+        customer.insert()
 
         if data.get("addresses"):
             sync_addresses(customer, data.get("addresses"), is_update=False)
@@ -62,7 +65,7 @@ def update_customer(customer_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         has_changes = False
 
         for field in ALLOWED_CUSTOMER_FIELDS:
-            if field in db_payload and db_payload.get(field) is not None:
+            if field in db_payload:
                 if customer.get(field) != db_payload.get(field):
                     customer.set(field, db_payload.get(field))
                     has_changes = True
@@ -73,7 +76,7 @@ def update_customer(customer_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
                 has_changes = True
 
         if has_changes:
-            customer.save(ignore_permissions=True)
+            customer.save()
 
         if "addresses" in data:
             sync_addresses(customer, data.get("addresses"), is_update=True)
@@ -93,14 +96,25 @@ def get_customer_by_id(customer_id: str) -> Dict[str, Any]:
         raise frappe.DoesNotExistError(f"Customer '{customer_id}' does not exist.")
 
     doc = frappe.get_doc("Customer", customer_id)
+    doc.check_permission("read")
     raw_result = {field: doc.get(field) for field in RETURN_FIELDS_GET_BY_ID}
 
-    for db_table_name in TABLE_MAPPING.values():
-        raw_result[db_table_name] = [row.as_dict() for row in doc.get(db_table_name, [])]
+    for api_table_name, db_table_name in TABLE_MAPPING.items():
+        allowed_fields = CHILD_TABLE_FIELDS.get(api_table_name, set())
+        raw_result[db_table_name] = [
+            {field: value for field, value in row.as_dict().items() if field in allowed_fields}
+            for row in doc.get(db_table_name, [])
+        ]
 
     raw_result["status"] = "active" if not doc.disabled else "inactive"
-    raw_result["addresses"] = get_linked_addresses("Customer", customer_id)
-    raw_result["contacts"] = get_linked_contacts("Customer", customer_id)
+    raw_result["addresses"] = [
+        {field: value for field, value in address.items() if field in ADDRESS_FIELDS}
+        for address in get_linked_addresses("Customer", customer_id)
+    ]
+    raw_result["contacts"] = [
+        {field: value for field, value in contact.items() if field in CONTACT_FIELDS}
+        for contact in get_linked_contacts("Customer", customer_id)
+    ]
 
     return transform_db_to_payload(raw_result)
 
@@ -148,12 +162,13 @@ def get_customers(
         order_by=order_by_string,
     )
 
-    total_customers = len(frappe.get_all(
+    count_result = frappe.get_all(
         "Customer", 
         filters=filters, 
-        or_filters=or_filters if search else None, 
-        pluck="name"
-    ))
+        or_filters=or_filters if search else None,
+        fields=["count(`tabCustomer`.`name`) as count"],
+    )
+    total_customers = int(count_result[0].get("count") or 0) if count_result else 0
     
     total_pages = (total_customers + page_size - 1) // page_size
 
@@ -175,7 +190,7 @@ def delete_customer(customer_id: str):
         "customer_primary_address": None,
     }, update_modified=False)
 
-    frappe.delete_doc("Customer", customer_id, ignore_permissions=True)
+    frappe.delete_doc("Customer", customer_id)
 
 
 def update_customer_status(customer_id: str, action: str):

@@ -166,7 +166,7 @@ def get_customers(
         "Customer", 
         filters=filters, 
         or_filters=or_filters if search else None,
-        fields=["count(`tabCustomer`.`name`) as count"],
+        fields=[{"COUNT": "*", "as": "count"}],
     )
     total_customers = int(count_result[0].get("count") or 0) if count_result else 0
     

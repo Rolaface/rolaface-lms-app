@@ -104,7 +104,7 @@ def get_customer_by_id(customer_id: str) -> Dict[str, Any]:
         raw_result[db_table_name] = [
             {field: value for field, value in row.as_dict().items() if field in allowed_fields}
             # for row in doc.get(db_table_name, [])
-            for row in (doc.get(db_table_name) or []):
+            for row in (doc.get(db_table_name) or [])
         ]
 
     raw_result["status"] = "active" if not doc.disabled else "inactive"

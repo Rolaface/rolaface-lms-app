@@ -272,6 +272,7 @@ fixtures = [
         "doctype": "Custom Field",
         "filters": [
             ["dt", "in", [
+                "Customer",
                 "Loan Classification",
                 "Custom Loan Application",
                 "Custom Loan Application Director Details",

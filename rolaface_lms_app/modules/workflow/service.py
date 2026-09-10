@@ -40,12 +40,16 @@ def get_allowed_workflow_actions(doctype: str, docname: str) -> Dict[str, Any]:
     user_roles = set(frappe.get_roles(frappe.session.user))
     allowed_actions = []
 
+    # Build a map of state -> allow_edit
+    state_edit_roles = {s.state: s.allow_edit for s in workflow_doc.get("states", [])}
+
     for transition in workflow_doc.get("transitions", []):
         if transition.state == current_state and transition.allowed in user_roles:
             allowed_actions.append({
                 "action": transition.action,
                 "next_state": transition.next_state,
-                "allowed_role": transition.allowed
+                "allowed_role": transition.allowed,
+                "assignable_role": state_edit_roles.get(transition.next_state)
             })
 
     return {

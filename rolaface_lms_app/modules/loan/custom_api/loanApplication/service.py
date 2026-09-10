@@ -142,12 +142,14 @@ def get_custom_loan_applications(
 
         # Pre-compute state -> allowed_actions hash map (single pass over transitions)
         action_map: Dict[str, list] = {}
+        state_edit_roles = {s.state: s.allow_edit for s in workflow_doc.get("states", [])}
         for transition in workflow_doc.get("transitions", []):
             if transition.allowed in user_roles:
                 action_map.setdefault(transition.state, []).append({
                     "action": transition.action,
                     "next_state": transition.next_state,
                     "allowed_role": transition.allowed,
+                    "assignable_role": state_edit_roles.get(transition.next_state),
                 })
 
         for app in loan_applications:

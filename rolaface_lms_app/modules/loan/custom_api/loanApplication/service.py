@@ -1,5 +1,7 @@
 import frappe
-from typing import Dict, Tuple, Any
+from typing import Dict, Tuple, Any, Optional
+from frappe.model.workflow import get_workflow_name
+from frappe.desk.form.assign_to import add as add_assign, remove as remove_assign
 from .utils import (
     validate_custom_loan_application_payload,
     sync_custom_loan_application_documents,
@@ -8,9 +10,15 @@ from .utils import (
     build_custom_loan_application_filters,
     create_customer_from_application,
 )
-from .constants import ALLOWED_CUSTOM_LOAN_APPLICATION_FIELDS, RETURN_FIELDS_GET_BY_ID, ALLOWED_SORT_FIELDS, RETURN_FIELDS_GET_ALL, CONVERTIBLE_STATUS
+from .constants import (
+    ALLOWED_CUSTOM_LOAN_APPLICATION_FIELDS,
+    RETURN_FIELDS_GET_BY_ID,
+    ALLOWED_SORT_FIELDS,
+    RETURN_FIELDS_GET_ALL,
+    CONVERTIBLE_STATUS,
+)
 from rolaface_lms_app.modules.loan.loan import service as loan_service
-from frappe.desk.form.assign_to import add as add_assign, remove as remove_assign
+
 
 def create_custom_loan_application(data: Dict[str, Any]) -> Dict[str, Any]:
     validate_custom_loan_application_payload(data, is_update=False)
@@ -68,7 +76,21 @@ def get_custom_loan_application_by_id(loan_application_id: str) -> Dict[str, Any
 
     return result
 
-def get_custom_loan_applications(args: Dict[str, Any], page: int, page_size: int, sort_by="creation", sort_order="desc") -> Tuple[list, int, int]:
+
+def get_custom_loan_applications(
+    args: Dict[str, Any],
+    page: int,
+    page_size: int,
+    sort_by: str = "creation",
+    sort_order: str = "desc",
+) -> Tuple[list, int, int]:
+    """
+    Returns a paginated list of Custom Loan Applications.
+
+    Appends `workflow_state` and `allowed_workflow_actions` to every row using
+    an O(1) state-to-action hash map built from the active site workflow — no
+    per-row queries.
+    """
     start = (page - 1) * page_size
     or_filters = []
 
@@ -93,15 +115,45 @@ def get_custom_loan_applications(args: Dict[str, Any], page: int, page_size: int
 
     order_by_string = f"`tabCustom Loan Application`.`{sort_by}` {sort_order_clean}"
 
+    # Resolve the active workflow once — no per-row queries
+    workflow_name = get_workflow_name("Custom Loan Application")
+    state_field = None
+    fetch_fields = list(RETURN_FIELDS_GET_ALL)
+
+    if workflow_name:
+        state_field = frappe.db.get_value("Workflow", workflow_name, "workflow_state_field")
+        if state_field and state_field not in fetch_fields:
+            fetch_fields.append(state_field)
+
     loan_applications = frappe.get_all(
         "Custom Loan Application",
         filters=safe_filters,
         or_filters=or_filters if search else None,
-        fields=RETURN_FIELDS_GET_ALL,
+        fields=fetch_fields,
         limit_start=start,
         limit_page_length=page_size,
         order_by=order_by_string,
     )
+
+    if workflow_name and loan_applications:
+        workflow_doc = frappe.get_doc("Workflow", workflow_name)
+        # O(1) role membership check via set
+        user_roles = set(frappe.get_roles(frappe.session.user))
+
+        # Pre-compute state -> allowed_actions hash map (single pass over transitions)
+        action_map: Dict[str, list] = {}
+        for transition in workflow_doc.get("transitions", []):
+            if transition.allowed in user_roles:
+                action_map.setdefault(transition.state, []).append({
+                    "action": transition.action,
+                    "next_state": transition.next_state,
+                    "allowed_role": transition.allowed,
+                })
+
+        for app in loan_applications:
+            current_state = app.get(state_field)
+            app["workflow_state"] = current_state
+            app["allowed_workflow_actions"] = action_map.get(current_state, [])
 
     total = len(
         frappe.get_all(
@@ -115,6 +167,82 @@ def get_custom_loan_applications(args: Dict[str, Any], page: int, page_size: int
     total_pages = (total + page_size - 1) // page_size
 
     return loan_applications, total, total_pages
+
+
+def update_custom_loan_application(loan_application_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    if not frappe.db.exists("Custom Loan Application", loan_application_id):
+        raise frappe.DoesNotExistError(f"Custom Loan Application '{loan_application_id}' does not exist.")
+
+    loan_application = frappe.get_doc("Custom Loan Application", loan_application_id)
+
+    validate_custom_loan_application_payload(data, is_update=True)
+
+    for field in ALLOWED_CUSTOM_LOAN_APPLICATION_FIELDS:
+        if field in data and data.get(field) is not None:
+            loan_application.set(field, data.get(field))
+
+    if "documents" in data:
+        sync_custom_loan_application_documents(loan_application, data.get("documents"))
+
+    if "directors" in data:
+        sync_custom_loan_application_directors(loan_application, data.get("directors"))
+
+    if "business_documents" in data:
+        sync_custom_loan_application_business_documents(loan_application, data.get("business_documents"))
+
+    loan_application.save(ignore_permissions=True)
+
+    return get_custom_loan_application_by_id(loan_application.name)
+
+
+def delete_custom_loan_application(loan_application_id: str) -> None:
+    if not frappe.db.exists("Custom Loan Application", loan_application_id):
+        raise frappe.DoesNotExistError(f"Custom Loan Application '{loan_application_id}' does not exist.")
+
+    frappe.delete_doc("Custom Loan Application", loan_application_id, ignore_permissions=True)
+
+
+def get_custom_loan_applications_by_nrc(national_registration_card: str) -> list:
+    if not national_registration_card:
+        raise frappe.ValidationError("National Registration Card is required.")
+
+    matching_names = frappe.get_all(
+        "Custom Loan Application",
+        or_filters=[
+            ["national_registration_card", "=", national_registration_card],
+            ["applicant_national_registration_card", "=", national_registration_card],
+        ],
+        pluck="name",
+    )
+
+    if not matching_names:
+        raise frappe.DoesNotExistError(
+            f"No Custom Loan Application found for National Registration Card '{national_registration_card}'."
+        )
+
+    return [get_custom_loan_application_by_id(name) for name in matching_names]
+
+
+def get_custom_loan_applications_by_email(email: str) -> list:
+    if not email:
+        raise frappe.ValidationError("Email is required.")
+
+    matching_names = frappe.get_all(
+        "Custom Loan Application",
+        or_filters=[
+            ["email", "=", email],
+            ["applicant_email", "=", email],
+        ],
+        pluck="name",
+    )
+
+    if not matching_names:
+        raise frappe.DoesNotExistError(
+            f"No Custom Loan Application found for email '{email}'."
+        )
+
+    return [get_custom_loan_application_by_id(name) for name in matching_names]
+
 
 def convert_custom_loan_application_to_loan(loan_application_id: str, loan_product: str) -> Dict[str, Any]:
     company = frappe.defaults.get_user_default("Company")
@@ -173,259 +301,3 @@ def convert_custom_loan_application_to_loan(loan_application_id: str, loan_produ
         loan_service.attach_loan_documents(loan_data["name"], documents_payload)
 
     return loan_service.get_loan_by_id(loan_data["name"])
-
-def update_custom_loan_application(loan_application_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-    if not frappe.db.exists("Custom Loan Application", loan_application_id):
-        raise frappe.DoesNotExistError(f"Custom Loan Application '{loan_application_id}' does not exist.")
-
-    loan_application = frappe.get_doc("Custom Loan Application", loan_application_id)
-
-    validate_custom_loan_application_payload(data, is_update=True)
-
-    for field in ALLOWED_CUSTOM_LOAN_APPLICATION_FIELDS:
-        if field in data and data.get(field) is not None:
-            loan_application.set(field, data.get(field))
-
-    if "documents" in data:
-        sync_custom_loan_application_documents(loan_application, data.get("documents"))
-
-    if "directors" in data:
-        sync_custom_loan_application_directors(loan_application, data.get("directors"))
-
-    if "business_documents" in data:
-        sync_custom_loan_application_business_documents(loan_application, data.get("business_documents"))
-
-    loan_application.save(ignore_permissions=True)
-
-    return get_custom_loan_application_by_id(loan_application.name)
-
-
-def delete_custom_loan_application(loan_application_id: str):
-    if not frappe.db.exists("Custom Loan Application", loan_application_id):
-        raise frappe.DoesNotExistError(f"Custom Loan Application '{loan_application_id}' does not exist.")
-
-    frappe.delete_doc("Custom Loan Application", loan_application_id, ignore_permissions=True)
-
-def get_custom_loan_applications_by_nrc(national_registration_card: str) -> list:
-    if not national_registration_card:
-        raise frappe.ValidationError("National Registration Card is required.")
-
-    matching_names = frappe.get_all(
-        "Custom Loan Application",
-        or_filters=[
-            ["national_registration_card", "=", national_registration_card],
-            ["applicant_national_registration_card", "=", national_registration_card],
-        ],
-        pluck="name",
-    )
-
-    if not matching_names:
-        raise frappe.DoesNotExistError(
-            f"No Custom Loan Application found for National Registration Card '{national_registration_card}'."
-        )
-
-    return [get_custom_loan_application_by_id(name) for name in matching_names]
-
-def get_custom_loan_applications_by_email(email: str) -> list:
-    if not email:
-        raise frappe.ValidationError("Email is required.")
-
-    matching_names = frappe.get_all(
-        "Custom Loan Application",
-        or_filters=[
-            ["email", "=", email],
-            ["applicant_email", "=", email],
-        ],
-        pluck="name",
-    )
-
-    if not matching_names:
-        raise frappe.DoesNotExistError(
-            f"No Custom Loan Application found for email '{email}'."
-        )
-
-    return [get_custom_loan_application_by_id(name) for name in matching_names]
-
-def clear_all_assignments(doctype: str, docname: str):
-    """
-    Helper function to cleanly remove all existing assignments from a document.
-    This guarantees that only one person holds the document at any given time.
-    """
-    # Find all users currently assigned to this specific document
-    assigned_users = frappe.get_all(
-        "ToDo",
-        filters={
-            "reference_type": doctype,
-            "reference_name": docname,
-            "status": "Open"
-        },
-        pluck="allocated_to"
-    )
-    
-    # Remove the assignment for every user found
-    for user in assigned_users:
-        if user:
-            try:
-                remove_assign(doctype, docname, user)
-            except Exception:
-                pass
-
-
-def assign_loan_application(application_id: str, assign_to_user: str, comment: str = None) -> Dict[str, Any]:
-    """Handles the FIRST assignment from Pending -> Under Review"""
-    if not application_id or not assign_to_user:
-        raise frappe.ValidationError("application_id and assign_to_user are required.")
-
-    doc = frappe.get_doc("Custom Loan Application", application_id)
-    
-    if doc.status not in ("Pending", "Draft"):
-        raise frappe.ValidationError(
-            f"Applications can only be initially assigned when the status is 'Pending'. "
-            f"Current status: '{doc.status}'."
-        )
-
-    # 1. Clear any rogue assignments before transferring
-    clear_all_assignments("Custom Loan Application", application_id)
-
-    # 2. Add the new assignment cleanly
-    add_assign({
-        "assign_to": [assign_to_user],
-        "doctype": "Custom Loan Application",
-        "name": application_id,
-        "description": comment or "Please review this loan application."
-    })
-
-    if comment:
-        doc.add_comment("Comment", text=f"Initially assigned to {assign_to_user} with note: {comment}")
-
-    frappe.db.set_value("Custom Loan Application", application_id, "status", "Under Review")
-    
-    return {"status": "Under Review", "name": application_id}
-
-
-def process_loan_review(application_id: str, action: str, current_user: str, comment: str = None, assign_to_user: str = None) -> Dict[str, Any]:
-    """Handles all ping-pong interactions and terminal decisions"""
-    
-    action_status_map = {
-        "Ready for Approval": "Ready for Approval",
-        "Request Info": "Additional Information Required",
-        "Recommend Reject": "Rejection",
-        "Resubmit": "Under Review",
-        "Approve": "Approved",
-        "Reject": "Rejected"
-    }
-
-    if not application_id or action not in action_status_map:
-        raise frappe.ValidationError(f"Invalid action. Allowed actions: {', '.join(action_status_map.keys())}")
-
-    comment_required_actions = ["Request Info", "Recommend Reject", "Resubmit", "Reject"]
-    if action in comment_required_actions and not comment:
-        raise frappe.ValidationError(f"A comment is strictly required when selecting '{action}'.")
-
-    is_terminal = action in ["Approve", "Reject"]
-    if not is_terminal and not assign_to_user:
-        raise frappe.ValidationError(f"You must select a user to assign this back to for the '{action}' action.")
-
-    doc = frappe.get_doc("Custom Loan Application", application_id)
-    new_status = action_status_map[action]
-
-    log_text = f"Action taken: **{action}**"
-    if comment:
-        log_text += f"\nNote: {comment}"
-    if not is_terminal:
-        log_text += f"\nAssigned to: {assign_to_user}"
-    doc.add_comment("Comment", text=log_text)
-
-    clear_all_assignments("Custom Loan Application", application_id)
-
-    if not is_terminal:
-        frappe.message_log.clear() 
-        
-        add_assign({
-            "assign_to": [assign_to_user],
-            "doctype": "Custom Loan Application",
-            "name": application_id,
-            "description": comment or f"Application requires your attention. Status: {new_status}"
-        })
-
-    frappe.db.set_value("Custom Loan Application", application_id, "status", new_status)
-    
-    return {"status": new_status, "name": application_id}
-
-def assign_loan_application(application_id: str, assign_to_user: str, comment: str = None) -> Dict[str, Any]:
-    """Handles the FIRST assignment from Pending -> Under Review"""
-    if not application_id or not assign_to_user:
-        raise frappe.ValidationError("application_id and assign_to_user are required.")
-
-    doc = frappe.get_doc("Custom Loan Application", application_id)
-    
-    if doc.status not in ("Pending", "Draft"):
-        raise frappe.ValidationError(
-            f"Applications can only be initially assigned when the status is 'Pending'. "
-            f"Current status: '{doc.status}'."
-        )
-
-    add_assign({
-        "assign_to": [assign_to_user],
-        "doctype": "Custom Loan Application",
-        "name": application_id,
-        "description": comment or "Please review this loan application."
-    })
-
-    if comment:
-        doc.add_comment("Comment", text=f"Initially assigned to {assign_to_user} with note: {comment}")
-
-    frappe.db.set_value("Custom Loan Application", application_id, "status", "Under Review")
-    
-    return {"status": "Under Review", "name": application_id}
-
-
-def process_loan_review(application_id: str, action: str, current_user: str, comment: str = None, assign_to_user: str = None) -> Dict[str, Any]:
-    """Handles all ping-pong interactions and terminal decisions"""
-    
-    action_status_map = {
-        "Ready for Approval": "Ready for Approval",
-        "Request Info": "Additional Information Required",
-        "Recommend Reject": "Rejection",
-        "Resubmit": "Under Review",
-        "Approve": "Approved",      
-        "Reject": "Rejected"        
-    }
-
-    if not application_id or action not in action_status_map:
-        raise frappe.ValidationError(f"Invalid action. Allowed actions: {', '.join(action_status_map.keys())}")
-
-    comment_required_actions = ["Request Info", "Recommend Reject", "Resubmit", "Reject"]
-    if action in comment_required_actions and not comment:
-        raise frappe.ValidationError(f"A comment is strictly required when selecting '{action}'.")
-
-    is_terminal = action in ["Approve", "Reject"]
-    if not is_terminal and not assign_to_user:
-        raise frappe.ValidationError(f"You must select a user to assign this back to for the '{action}' action.")
-
-    doc = frappe.get_doc("Custom Loan Application", application_id)
-    new_status = action_status_map[action]
-
-    log_text = f"Action taken: **{action}**"
-    if comment:
-        log_text += f"\nNote: {comment}"
-    if not is_terminal:
-        log_text += f"\nAssigned to: {assign_to_user}"
-    doc.add_comment("Comment", text=log_text)
-
-    try:
-        remove_assign("Custom Loan Application", application_id, current_user)
-    except Exception:
-        pass
-
-    if not is_terminal:
-        add_assign({
-            "assign_to": [assign_to_user],
-            "doctype": "Custom Loan Application",
-            "name": application_id,
-            "description": comment or f"Application requires your attention. Status: {new_status}"
-        })
-
-    frappe.db.set_value("Custom Loan Application", application_id, "status", new_status)
-    
-    return {"status": new_status, "name": application_id}

@@ -73,6 +73,7 @@ def get_custom_loan_application_by_id(id=None):
     except Exception as e:
         return handle_api_error(e, "Get Custom Loan Application By ID Error")
 
+
 @frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_custom_loan_applications(page=1, page_size=20):
     """
@@ -80,7 +81,10 @@ def get_custom_loan_applications(page=1, page_size=20):
     ---
     tags:
       - Custom Loan Application
-    summary: Paginated list of Custom Loan Applications with filtering.
+    summary: >
+      Paginated list of Custom Loan Applications with filtering.
+      Each row includes `workflow_state` and `allowed_workflow_actions`
+      derived dynamically from the active site workflow — no extra requests needed.
     parameters:
       - in: query
         name: page
@@ -134,8 +138,28 @@ def get_custom_loan_applications(page=1, page_size=20):
     except Exception as e:
         return handle_api_error(e, "Get All Custom Loan Applications Error")
 
+
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 def convert_custom_loan_application_to_loan(id=None):
+    """
+    Convert Custom Loan Application to Loan
+    ---
+    tags:
+      - Custom Loan Application
+    summary: Converts an approved Custom Loan Application into an active Loan record.
+    parameters:
+      - in: query
+        name: id
+        required: true
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - loan_product
+    """
     try:
         data = parse_api_payload()
         loan_application_id = id or frappe.request.args.get("id")
@@ -146,10 +170,6 @@ def convert_custom_loan_application_to_loan(id=None):
         loan_product = data.get("loan_product")
         if not loan_product:
             raise frappe.ValidationError("'loan_product' is required to convert this application into a Loan.")
-
-        # company = data.get("company")
-        # if not company:
-        #     raise frappe.ValidationError("'company' is required to convert this application into a Loan.")
 
         loan_data = service.convert_custom_loan_application_to_loan(loan_application_id, loan_product)
         frappe.db.commit()
@@ -164,8 +184,23 @@ def convert_custom_loan_application_to_loan(id=None):
     except Exception as e:
         return handle_api_error(e, "Convert Custom Loan Application To Loan API Error")
 
+
 @frappe.whitelist(allow_guest=True, methods=["PUT", "PATCH"])
 def update_custom_loan_application(id=None):
+    """
+    Update Custom Loan Application
+    ---
+    tags:
+      - Custom Loan Application
+    summary: Update specific attributes of a Custom Loan Application.
+    parameters:
+      - in: query
+        name: id
+        required: true
+    responses:
+      200:
+        description: Custom Loan Application updated successfully.
+    """
     try:
         data = parse_api_payload()
         loan_application_id = id or frappe.request.args.get("id")
@@ -189,6 +224,17 @@ def update_custom_loan_application(id=None):
 
 @frappe.whitelist(allow_guest=True, methods=["DELETE"])
 def delete_custom_loan_application(id=None):
+    """
+    Delete Custom Loan Application
+    ---
+    tags:
+      - Custom Loan Application
+    summary: Delete a Draft Custom Loan Application.
+    parameters:
+      - in: query
+        name: id
+        required: true
+    """
     try:
         loan_application_id = id or frappe.local.form_dict.get("id")
         if not loan_application_id:
@@ -205,6 +251,7 @@ def delete_custom_loan_application(id=None):
         )
     except Exception as e:
         return handle_api_error(e, "Delete Custom Loan Application Error")
+
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_custom_loan_application_by_nrc(national_registration_card=None):
@@ -239,6 +286,7 @@ def get_custom_loan_application_by_nrc(national_registration_card=None):
     except Exception as e:
         return handle_api_error(e, "Get Custom Loan Application By NRC Error")
 
+
 @frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_custom_loan_application_by_email(email=None):
     """
@@ -271,60 +319,3 @@ def get_custom_loan_application_by_email(email=None):
         )
     except Exception as e:
         return handle_api_error(e, "Get Custom Loan Application By Email Error")
-
-@frappe.whitelist(allow_guest=False, methods=["POST"])
-def assign_loan_application():
-    """
-    Assign a Pending application to a Loan Officer.
-    """
-    try:
-        data = parse_api_payload()
-        application_id = data.get("application_id")
-        assign_to_user = data.get("assign_to_user")
-        comment = data.get("comment")
-
-        # Pass data to the service layer
-        result_data = service.assign_loan_application(application_id, assign_to_user, comment)
-        
-        frappe.db.commit()
-
-        return send_response(
-            status="success",
-            message=f"Application assigned to {assign_to_user} successfully.",
-            data=result_data,
-            status_code=200,
-            http_status=200,
-        )
-
-    except Exception as e:
-        return handle_api_error(e, "Assign Loan Application Error")
-
-
-@frappe.whitelist(allow_guest=False, methods=["POST"])
-def process_loan_application_review():
-    """
-    Approve or Reject an application that is Under Review.
-    """
-    try:
-        data = parse_api_payload()
-        application_id = data.get("application_id")
-        action = data.get("action")
-        comment = data.get("comment")
-        assign_to_user = data.get("assign_to_user")
-        current_user = frappe.session.user
-
-        # Pass data to the service layer
-        result_data = service.process_loan_review(application_id, action, current_user, comment, assign_to_user)
-        
-        frappe.db.commit()
-
-        return send_response(
-            status="success",
-            message=f"Application {result_data.get('status')} successfully.",
-            data=result_data,
-            status_code=200,
-            http_status=200,
-        )
-
-    except Exception as e:
-        return handle_api_error(e, "Process Loan Application Review Error")

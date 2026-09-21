@@ -50,6 +50,7 @@ def get_loan_repayment_account(search_term: str = "", limit: int = 20, initiated
         initiated_loans = frappe.get_all("Loan Restructure", filters={"status": "Initiated"}, fields=["loan"])
         initiated_loan_names = [d.loan for d in initiated_loans]
         filters.append(["name", "not in", initiated_loan_names])
+        filters.append(["status", "in", ["Partially Disbursed", "Disbursed"]])
 
     if loan_meta.has_field("applicant_name"):
         or_filters.append(["Loan", "applicant_name", "like", like_term])

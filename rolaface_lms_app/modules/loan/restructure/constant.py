@@ -13,3 +13,5 @@ RETURN_GET_FIELD_BY_ID = list(ALLOWED_RESTRUCTURE_FIELD) + [
 ]
 
 GET_FIELDS = ["name", "restructure_type", "reason_for_restructure", "restructure_date", "status", "docstatus"]
+
+RESTRUCTURABLE_LOAN_STATUSES = ("Disbursed", "Partially Disbursed")

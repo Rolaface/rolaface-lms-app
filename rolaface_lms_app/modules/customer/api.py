@@ -1,4 +1,3 @@
-# api.py
 import frappe
 from rolaface_lms_app.utils.api_response import (
     send_response,
@@ -83,7 +82,16 @@ def get_customer_by_id(id=None):
 def get_customers(page=1, page_size=20):
     try:
         args = frappe.local.form_dict
-        page, page_size = int(page), int(page_size)
+        try:
+            page = int(page)
+            page_size = int(page_size)
+        except (TypeError, ValueError):
+            raise frappe.ValidationError("page and page_size must be integers.")
+
+        if page < 1:
+            raise frappe.ValidationError("page must be greater than or equal to 1.")
+        if page_size < 1 or page_size > 100:
+            raise frappe.ValidationError("page_size must be between 1 and 100.")
 
         sort_by = args.get("sort_by", "creation")
         sort_order = args.get("sort_order", "desc")

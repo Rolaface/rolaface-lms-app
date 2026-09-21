@@ -1,9 +1,54 @@
-# utils.py
 import frappe
 import json
 import re
 from typing import Dict, Any, List
-from frappe.utils import flt, cint
+from frappe.utils import cint
+
+from .constant import CHILD_TABLE_FIELDS, FIELD_MAPPING, TABLE_MAPPING
+
+
+def transform_payload_to_db(data: Dict[str, Any]) -> Dict[str, Any]:
+    db_payload = data.copy()
+
+    for table_name, allowed_fields in CHILD_TABLE_FIELDS.items():
+        if isinstance(db_payload.get(table_name), list):
+            db_payload[table_name] = [
+                {field: value for field, value in row.items() if field in allowed_fields}
+                for row in db_payload[table_name]
+            ]
+    
+    for api_key, db_key in FIELD_MAPPING.items():
+        if api_key in db_payload:
+            db_payload[db_key] = db_payload.pop(api_key)
+
+    for api_table, db_table in TABLE_MAPPING.items():
+        if api_table in db_payload:
+            db_payload[db_table] = db_payload.pop(api_table)
+
+    return db_payload
+
+
+def transform_db_to_payload(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Translates internal Frappe schema to clean frontend API keys."""
+    api_payload = data.copy()
+
+    for api_key, db_key in FIELD_MAPPING.items():
+        if db_key in api_payload:
+            api_payload[api_key] = api_payload.pop(db_key)
+
+    for api_table, db_table in TABLE_MAPPING.items():
+        if db_table in api_payload:
+            api_payload[api_table] = api_payload.pop(db_table)
+
+    rm_id = api_payload.get("relationship_manager")
+    if rm_id:
+        full_name = frappe.db.get_value("User", rm_id, "full_name")
+        api_payload["relationship_manager_name"] = full_name or None
+    else:
+        api_payload["relationship_manager_name"] = None
+
+    return api_payload
+
 
 def validate_customer_payload(data: Dict[str, Any], is_update=False):
     if not is_update:
@@ -33,10 +78,24 @@ def validate_customer_payload(data: Dict[str, Any], is_update=False):
         if frappe.db.exists("Customer", filters):
             raise frappe.exceptions.DuplicateEntryError(f"Customer with tax_id (TPIN) {tpin} already exists.")
 
+    for field in ("addresses", "contacts"):
+        if field not in data:
+            continue
+        items = data[field]
+        if not isinstance(items, list):
+            raise frappe.ValidationError(f"'{field}' must be a list.")
+        if not all(isinstance(item, dict) for item in items):
+            raise frappe.ValidationError(f"Each item in '{field}' must be an object.")
+
+    if "contacts" in data and any(not item.get("first_name") for item in data["contacts"]):
+        raise frappe.ValidationError("Each contact must include first_name.")
+
 
 def sync_addresses(parent_doc, addresses_data: list, is_update: bool = False):
-    if not addresses_data:
+    if addresses_data is None:
         return
+
+    addresses_data = addresses_data or []
 
     link_doctype = parent_doc.doctype
     link_name = parent_doc.name
@@ -54,9 +113,13 @@ def sync_addresses(parent_doc, addresses_data: list, is_update: bool = False):
     for i, addr in enumerate(addresses_data):
         addr_id = addr.get("name")
         is_primary = 1 if addr.get("is_primary_address") or i == 0 else 0
-        country = addr.get("country") or frappe.defaults.get_global_default("country") or "India"
+        country = addr.get("country") or frappe.defaults.get_global_default("country") or "Zambia"
 
-        if is_update and addr_id and frappe.db.exists("Address", addr_id):
+        if is_update and addr_id:
+            if addr_id not in existing_addresses:
+                raise frappe.ValidationError(f"Address '{addr_id}' is not linked to customer '{link_name}'.")
+            if not frappe.db.exists("Address", addr_id):
+                raise frappe.DoesNotExistError(f"Address '{addr_id}' does not exist.")
             address = frappe.get_doc("Address", addr_id)
             address.address_title = doc_title
             address.address_type = addr.get("address_type", address.address_type)
@@ -72,7 +135,7 @@ def sync_addresses(parent_doc, addresses_data: list, is_update: bool = False):
             if not any(l.link_doctype == link_doctype and l.link_name == link_name for l in address.links):
                 address.append("links", {"link_doctype": link_doctype, "link_name": link_name})
 
-            address.save(ignore_permissions=True)
+            address.save()
             processed_addresses.add(address.name)
         else:
             address = frappe.get_doc({
@@ -90,7 +153,7 @@ def sync_addresses(parent_doc, addresses_data: list, is_update: bool = False):
                 "is_primary_address": is_primary,
                 "is_shipping_address": 1 if addr.get("is_shipping_address") else 0,
                 "links": [{"link_doctype": link_doctype, "link_name": link_name}],
-            }).insert(ignore_permissions=True)
+            }).insert()
             processed_addresses.add(address.name)
 
         if is_primary:
@@ -98,21 +161,25 @@ def sync_addresses(parent_doc, addresses_data: list, is_update: bool = False):
 
     if primary_address and frappe.db.has_column(parent_doc.doctype, "customer_primary_address"):
         parent_doc.db_set("customer_primary_address", primary_address, update_modified=True)
+    elif is_update and frappe.db.has_column(parent_doc.doctype, "customer_primary_address"):
+        parent_doc.db_set("customer_primary_address", None, update_modified=True)
 
     if is_update:
         for doc_name in (existing_addresses - processed_addresses):
             doc = frappe.get_doc("Address", doc_name)
             doc.links = [l for l in doc.links if not (l.link_doctype == link_doctype and l.link_name == link_name)]
             if doc.links:
-                doc.save(ignore_permissions=True)
+                doc.save()
             else:
                 doc.disabled = 1
-                doc.save(ignore_permissions=True)
+                doc.save()
 
 
 def sync_contacts(parent_doc, contacts_data: list, is_update: bool = False):
-    if not contacts_data:
+    if contacts_data is None:
         return
+
+    contacts_data = contacts_data or []
 
     link_doctype = parent_doc.doctype
     link_name = parent_doc.name
@@ -153,9 +220,11 @@ def sync_contacts(parent_doc, contacts_data: list, is_update: bool = False):
             if email: contact_doc.append("email_ids", {"email_id": email, "is_primary": 1})
             if mobile: contact_doc.append("phone_nos", {"phone": mobile, "is_primary_mobile_no": 1})
             
-            contact_doc.save(ignore_permissions=True)
+            contact_doc.save()
             processed_contacts.add(contact_doc.name)
         else:
+            if is_update and contact_id:
+                raise frappe.ValidationError(f"Contact '{contact_id}' is not linked to customer '{link_name}'.")
             contact_doc = frappe.get_doc({
                 "doctype": "Contact",
                 "first_name": first_name,
@@ -169,7 +238,7 @@ def sync_contacts(parent_doc, contacts_data: list, is_update: bool = False):
             if email: contact_doc.append("email_ids", {"email_id": email, "is_primary": 1})
             if mobile: contact_doc.append("phone_nos", {"phone": mobile, "is_primary_mobile_no": 1})
             
-            contact_doc.insert(ignore_permissions=True)
+            contact_doc.insert()
             processed_contacts.add(contact_doc.name)
 
         if is_primary:
@@ -178,11 +247,11 @@ def sync_contacts(parent_doc, contacts_data: list, is_update: bool = False):
             primary_mobile = mobile
 
     updates = {}
-    if primary_contact and getattr(parent_doc, "customer_primary_contact", None) != primary_contact:
+    if getattr(parent_doc, "customer_primary_contact", None) != primary_contact:
         updates["customer_primary_contact"] = primary_contact
-    if primary_email and getattr(parent_doc, "email_id", None) != primary_email:
+    if getattr(parent_doc, "email_id", None) != primary_email:
         updates["email_id"] = primary_email
-    if primary_mobile and getattr(parent_doc, "mobile_no", None) != primary_mobile:
+    if getattr(parent_doc, "mobile_no", None) != primary_mobile:
         updates["mobile_no"] = primary_mobile
     
     if updates:
@@ -194,9 +263,9 @@ def sync_contacts(parent_doc, contacts_data: list, is_update: bool = False):
             doc.links = [l for l in doc.links if not (l.link_doctype == link_doctype and l.link_name == link_name)]
             doc.flags.ignore_links = True
             if doc.links:
-                doc.save(ignore_permissions=True)
+                doc.save()
             else:
-                try: frappe.delete_doc("Contact", doc.name, ignore_permissions=True, force=True)
+                try: frappe.delete_doc("Contact", doc.name, force=True)
                 except frappe.exceptions.LinkExistsError: pass
 
 
@@ -245,7 +314,6 @@ def build_customer_filters(args: Dict[str, Any]) -> Dict[str, Any]:
         if args.get(field) is not None:
             filters[field] = cint(args.get(field))
 
-    # 2. Exact Match or List (IN) Filters
     list_fields = [
         "customer_type", "customer_group", "territory", "gender", 
         "default_currency", "tax_category", "tax_withholding_category",

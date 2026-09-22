@@ -2,6 +2,7 @@ from dateutil.relativedelta import relativedelta
 from frappe.utils.data import add_days, add_months
 from lending.loan_management.doctype.loan_repayment_schedule.utils import add_single_month
 from datetime import date
+import frappe
 
 def get_amounts(balance_amount, rate_of_interest, days, months, monthly_repayment_amount ):
 
@@ -12,8 +13,7 @@ def get_amounts(balance_amount, rate_of_interest, days, months, monthly_repaymen
     principal_amount = monthly_repayment_amount - float(interest_amount)
 
     if interest_amount > monthly_repayment_amount:
-        interest_amount = monthly_repayment_amount
-        principal_amount = 0
+        frappe.throw(f"EMI amount is too low. The minimum EMI must be greater than the monthly interest amount of {interest_amount}")
 
     balance_amount = round(balance_amount + interest_amount - monthly_repayment_amount, 2)
 

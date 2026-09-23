@@ -15,9 +15,9 @@ def validate_payload(payload):
         flt(amounts.get("pending_principal_amount"))
         + flt(amounts.get("interest_amount"))
         + flt(amounts.get("penalty_amount"))
-        + flt(amounts.get("unaccrued_interest"))
-        + flt(amounts.get("unbooked_interest"))
-        + flt(amounts.get("unbooked_penalty"))
+        # + flt(amounts.get("unaccrued_interest"))
+        # + flt(amounts.get("unbooked_interest"))
+        # + flt(amounts.get("unbooked_penalty"))
         + flt(amounts.get("total_charges_payable"))
     )
 

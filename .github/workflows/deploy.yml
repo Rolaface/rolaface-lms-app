@@ -13,9 +13,9 @@ jobs:
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.SERVER_HOST }}
+          host: ${{ secrets.SSH_HOST }}
           username: root
-          key: ${{ secrets.SERVER_PRIVATE_KEY }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             set -e
 
@@ -28,9 +28,9 @@ jobs:
             su - frappe -c "
               set -e
               cd ${BENCH_PATH}
-              git -C apps/${APP} fetch origin
+              git -C apps/${APP} fetch upstream
               git -C apps/${APP} checkout version-16
-              git -C apps/${APP} pull origin version-16
+              git -C apps/${APP} pull upstream version-16
 
               ${BENCH_PATH}/env/bin/pip install -e apps/${APP}
 

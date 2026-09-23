@@ -36,10 +36,10 @@ def create():
 def get_loan_repayment_account(initiated_restructure=False):
     search_term = frappe.local.form_dict.get("search_term", "")
     limit = frappe.local.form_dict.get("limit", 20)
-
+    status = frappe.local.form_dict.get("status", None)
     try:
         results = service.get_loan_repayment_account(
-            search_term=search_term, limit=int(limit), initiated_restructure=initiated_restructure
+            search_term=search_term, limit=int(limit), initiated_restructure=initiated_restructure, status=status
         )
         return send_response(
             status="success",

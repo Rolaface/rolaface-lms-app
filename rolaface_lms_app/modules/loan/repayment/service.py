@@ -23,7 +23,7 @@ def create_payment(data: Dict[str, Any]):
         payment_doc.add_comment("Comment", text=str(comment))
 
 
-def get_loan_repayment_account(search_term: str = "", limit: int = 20, initiated_restructure: bool = False) -> List[Dict[str, Any]]:
+def get_loan_repayment_account(search_term: str = "", limit: int = 20, initiated_restructure: bool = False, status: str = None) -> List[Dict[str, Any]]:
 
     search_term = (search_term or "").strip()
     if not search_term:
@@ -50,13 +50,23 @@ def get_loan_repayment_account(search_term: str = "", limit: int = 20, initiated
         initiated_loans = frappe.get_all("Loan Restructure", filters={"status": "Initiated"}, fields=["loan"])
         initiated_loan_names = [d.loan for d in initiated_loans]
         filters.append(["name", "not in", initiated_loan_names])
-        filters.append(["status", "in", ["Partially Disbursed", "Disbursed"]])
+        # filters.append(["status", "in", ["Partially Disbursed", "Disbursed"]])
 
     if loan_meta.has_field("applicant_name"):
         or_filters.append(["Loan", "applicant_name", "like", like_term])
 
     if phone_matched_applicants:
         or_filters.append(["Loan", "applicant", "in", phone_matched_applicants])
+
+    if status is not None:
+        status = status
+        if isinstance(status, str):
+            try:
+                 status = json.loads(status)
+            except json.JSONDecodeError:
+                status = [status]
+        print(type(status))
+        filters.append(["status", "in", status] if isinstance(status, list) else ["status", "=", status])
 
     fields = [
         "name as against_loan",

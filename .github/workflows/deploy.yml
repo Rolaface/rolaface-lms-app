@@ -37,8 +37,8 @@ jobs:
 
               ${BENCH_PATH}/env/bin/pip install -e apps/${APP}
 
-              bench --site ${SITE} migrate
-              bench build --app ${APP}
+              ${BENCH_CMD} --site ${SITE} migrate
+              ${BENCH_CMD} build --app ${APP}
             "
 
             # Supervisor restart needs root

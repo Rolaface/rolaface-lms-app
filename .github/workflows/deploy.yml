@@ -24,6 +24,7 @@ jobs:
             BENCH_PATH="/srv/apps/erp/backend/dev-bench"
             SITE="api.erp.lms.rolaface.com"
             APP="rolaface_lms_app"
+            BENCH_CMD="/home/frappe/.local/bin/bench"
 
             # Run all bench commands as the frappe user, not root/deploy user,
             # to avoid PermissionError on log files during migrate.

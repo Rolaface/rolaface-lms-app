@@ -13,9 +13,9 @@ jobs:
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.SERVER_HOST }}
+          host: ${{ secrets.SSH_HOST }}
           username: root
-          key: ${{ secrets.SERVER_PRIVATE_KEY }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           timeout: 60s
           command_timeout: 20m
           script: |
@@ -56,5 +56,11 @@ jobs:
               exit $DEPLOY_STATUS
             fi
 
-            # Supervisor restart needs root
-            sudo supervisorctl restart all
+            # Supervisor restart needs root — only restart this bench's own
+            # programs (not 'all'), since other benches on this server have
+            # unrelated broken redis/socketio supervisor entries that error
+            # out and make 'restart all' return non-zero.
+            sudo supervisorctl restart dev-bench-web:dev-bench-frappe-web
+            sudo supervisorctl restart dev-bench-workers:dev-bench-frappe-schedule
+            sudo supervisorctl restart dev-bench-workers:dev-bench-frappe-short-worker-0
+            sudo supervisorctl restart dev-bench-workers:dev-bench-frappe-long-worker-0

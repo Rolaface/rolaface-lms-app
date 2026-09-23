@@ -5,7 +5,7 @@ from .service import get_fixed_repayment_schedule
 
 @frappe.whitelist(allow_guest=False, methods=["GET"])
 def calculate_fixed_amount_schedule(loan_amount: float, rate_of_interest: float, monthly_repayment_amount: float, repayment_frequency: str, repayment_start_date: str = None) -> list[dict]:
-
+    frappe.log_error(f"calculate_fixed_amount_schedule called with loan_amount={loan_amount}, rate_of_interest={rate_of_interest}, monthly_repayment_amount={monthly_repayment_amount}, repayment_frequency={repayment_frequency}, repayment_start_date={repayment_start_date}")
     schedule = get_fixed_repayment_schedule(loan_amount, rate_of_interest, monthly_repayment_amount, repayment_frequency, repayment_start_date)
 
     frappe.response["message"] = schedule

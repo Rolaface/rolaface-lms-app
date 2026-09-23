@@ -25,9 +25,13 @@ jobs:
             SITE="api.erp.lms.rolaface.com"
             APP="rolaface_lms_app"
             BENCH_CMD="/home/frappe/.local/bin/bench"
+            LOGFILE="/tmp/deploy_$(date +%s).log"
 
             # Run all bench commands as the frappe user, not root/deploy user,
             # to avoid PermissionError on log files during migrate.
+            # Output is redirected to a log file (not streamed live) to avoid
+            # overloading the SSH pipe with migrate's heavy progress output.
+            set +e
             su - frappe -c "
               set -e
               cd ${BENCH_PATH}
@@ -39,7 +43,18 @@ jobs:
 
               ${BENCH_CMD} --site ${SITE} migrate
               ${BENCH_CMD} build --app ${APP}
-            "
+            " > "${LOGFILE}" 2>&1
+            DEPLOY_STATUS=$?
+            set -e
+
+            echo "----- last 80 lines of deploy log -----"
+            tail -n 80 "${LOGFILE}"
+            echo "----- full log saved at ${LOGFILE} on server -----"
+
+            if [ $DEPLOY_STATUS -ne 0 ]; then
+              echo "Deploy step failed with status $DEPLOY_STATUS"
+              exit $DEPLOY_STATUS
+            fi
 
             # Supervisor restart needs root
             sudo supervisorctl restart all

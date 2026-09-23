@@ -5,7 +5,7 @@ from rolaface_lms_app.utils.api_response import send_response
 import json
 
 @frappe.whitelist(allow_guest = False, methods=["POST"])
-@validate_payload("validate_payload") 
+@validate_payload("validate_payload")
 def create():
     data = frappe.local.form_dict
     try:
@@ -115,6 +115,7 @@ def get_all():
 
 
 @frappe.whitelist(allow_guest=False, methods=["PUT", "POST"])
+@validate_payload("validate_payload")
 def update():
     repayment_id = frappe.local.form_dict.get("id") or frappe.local.request.args.get("id")
     data = frappe.local.form_dict

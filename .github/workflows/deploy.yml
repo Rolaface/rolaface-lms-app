@@ -1,0 +1,66 @@
+name: Deploy rolaface-lms-app
+
+on:
+  push:
+    branches:
+      - version-16
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: root
+          key: ${{ secrets.SERVER_PRIVATE_KEY }}
+          timeout: 60s
+          command_timeout: 20m
+          script: |
+            set -e
+
+            BENCH_PATH="/srv/apps/erp/backend/dev-bench"
+            SITE="api.erp.lms.rolaface.com"
+            APP="rolaface_lms_app"
+            BENCH_CMD="/home/frappe/.local/bin/bench"
+            LOGFILE="/tmp/deploy_$(date +%s).log"
+
+            # Run all bench commands as the frappe user, not root/deploy user,
+            # to avoid PermissionError on log files during migrate.
+            # Output is redirected to a log file (not streamed live) to avoid
+            # overloading the SSH pipe with migrate's heavy progress output.
+            set +e
+            su - frappe -c "
+              set -e
+              cd ${BENCH_PATH}
+              git -C apps/${APP} fetch upstream
+              git -C apps/${APP} checkout version-16
+              git -C apps/${APP} pull upstream version-16
+
+              ${BENCH_PATH}/env/bin/pip install -e apps/${APP}
+
+              ${BENCH_CMD} --site ${SITE} migrate
+              ${BENCH_CMD} build --app ${APP}
+            " > "${LOGFILE}" 2>&1
+            DEPLOY_STATUS=$?
+            set -e
+
+            echo "----- last 80 lines of deploy log -----"
+            tail -n 80 "${LOGFILE}"
+            echo "----- full log saved at ${LOGFILE} on server -----"
+
+            if [ $DEPLOY_STATUS -ne 0 ]; then
+              echo "Deploy step failed with status $DEPLOY_STATUS"
+              exit $DEPLOY_STATUS
+            fi
+
+            # Supervisor restart needs root — only restart this bench's own
+            # programs (not 'all'), since other benches on this server have
+            # unrelated broken redis/socketio supervisor entries that error
+            # out and make 'restart all' return non-zero.
+            sudo supervisorctl restart dev-bench-web:dev-bench-frappe-web
+            sudo supervisorctl restart dev-bench-workers:dev-bench-frappe-schedule
+            sudo supervisorctl restart dev-bench-workers:dev-bench-frappe-short-worker-0
+            sudo supervisorctl restart dev-bench-workers:dev-bench-frappe-long-worker-0

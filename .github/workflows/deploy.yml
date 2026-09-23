@@ -16,6 +16,8 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: root
           key: ${{ secrets.SERVER_PRIVATE_KEY }}
+          timeout: 60s
+          command_timeout: 20m
           script: |
             set -e
 

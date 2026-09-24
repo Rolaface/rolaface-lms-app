@@ -10,28 +10,34 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy over SSH
+      - name: Start deploy in background on server
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: root
           key: ${{ secrets.SERVER_PRIVATE_KEY }}
           timeout: 60s
-          command_timeout: 20m
+          command_timeout: 2m
           script: |
+            set -e
+
+            LOGFILE="/tmp/rolaface_deploy.log"
+            EXITFILE="/tmp/rolaface_deploy.exitcode"
+            SCRIPT="/tmp/rolaface_deploy.sh"
+
+            rm -f "${LOGFILE}" "${EXITFILE}"
+
+            cat > "${SCRIPT}" << 'DEPLOY_SCRIPT'
+            #!/bin/bash
             set -e
 
             BENCH_PATH="/srv/apps/erp/backend/dev-bench"
             SITE="api.erp.lms.rolaface.com"
             APP="rolaface_lms_app"
             BENCH_CMD="/home/frappe/.local/bin/bench"
-            LOGFILE="/tmp/deploy_$(date +%s).log"
 
             # Run all bench commands as the frappe user, not root/deploy user,
             # to avoid PermissionError on log files during migrate.
-            # Output is redirected to a log file (not streamed live) to avoid
-            # overloading the SSH pipe with migrate's heavy progress output.
-            set +e
             su - frappe -c "
               set -e
               cd ${BENCH_PATH}
@@ -43,18 +49,7 @@ jobs:
 
               ${BENCH_CMD} --site ${SITE} migrate
               ${BENCH_CMD} build --app ${APP}
-            " > "${LOGFILE}" 2>&1
-            DEPLOY_STATUS=$?
-            set -e
-
-            echo "----- last 80 lines of deploy log -----"
-            tail -n 80 "${LOGFILE}"
-            echo "----- full log saved at ${LOGFILE} on server -----"
-
-            if [ $DEPLOY_STATUS -ne 0 ]; then
-              echo "Deploy step failed with status $DEPLOY_STATUS"
-              exit $DEPLOY_STATUS
-            fi
+            "
 
             # Supervisor restart needs root — only restart this bench's own
             # programs (not 'all'), since other benches on this server have
@@ -64,3 +59,58 @@ jobs:
             sudo supervisorctl restart dev-bench-workers:dev-bench-frappe-schedule
             sudo supervisorctl restart dev-bench-workers:dev-bench-frappe-short-worker-0
             sudo supervisorctl restart dev-bench-workers:dev-bench-frappe-long-worker-0
+            DEPLOY_SCRIPT
+
+            chmod +x "${SCRIPT}"
+
+            # Run with nohup, detached from stdin/the SSH session, so that if
+            # this SSH connection drops mid-way (which has been happening
+            # intermittently), the deploy keeps running on the server instead
+            # of being killed.
+            nohup bash -c "'${SCRIPT}' > '${LOGFILE}' 2>&1; echo \$? > '${EXITFILE}'" < /dev/null > /dev/null 2>&1 &
+            disown
+
+            echo "Deploy started in background on the server."
+
+      - name: Wait for deploy to finish and show result
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: root
+          key: ${{ secrets.SERVER_PRIVATE_KEY }}
+          timeout: 60s
+          command_timeout: 20m
+          script: |
+            set -e
+
+            LOGFILE="/tmp/rolaface_deploy.log"
+            EXITFILE="/tmp/rolaface_deploy.exitcode"
+
+            # Poll every 10s for up to ~15 minutes. Each poll is a tiny,
+            # fast command, so a single dropped connection here just means
+            # this step retries/reconnects rather than losing the deploy.
+            for i in $(seq 1 90); do
+              if [ -f "${EXITFILE}" ]; then
+                break
+              fi
+              sleep 10
+            done
+
+            if [ ! -f "${EXITFILE}" ]; then
+              echo "Deploy did not finish within the wait window. Last output so far:"
+              tail -n 80 "${LOGFILE}" || true
+              exit 1
+            fi
+
+            DEPLOY_STATUS=$(cat "${EXITFILE}")
+
+            echo "----- last 80 lines of deploy log -----"
+            tail -n 80 "${LOGFILE}"
+            echo "----- full log saved at ${LOGFILE} on server -----"
+
+            if [ "${DEPLOY_STATUS}" != "0" ]; then
+              echo "Deploy failed with status ${DEPLOY_STATUS}"
+              exit "${DEPLOY_STATUS}"
+            fi
+
+            echo "Deploy finished successfully."

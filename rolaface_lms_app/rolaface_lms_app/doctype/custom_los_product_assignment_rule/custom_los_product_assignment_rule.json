@@ -1,0 +1,102 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "PAR-.#####",
+ "creation": "2026-09-28 23:55:49.849126",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "rule_name",
+  "priority",
+  "column_break_1",
+  "product",
+  "matching_section",
+  "sources",
+  "loan_types",
+  "condition"
+ ],
+ "fields": [
+  {
+   "fieldname": "rule_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Rule Name"
+  },
+  {
+   "description": "1 is checked first",
+   "fieldname": "priority",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Priority",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "product",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Product",
+   "options": "Loan Product",
+   "reqd": 1
+  },
+  {
+   "fieldname": "matching_section",
+   "fieldtype": "Section Break",
+   "label": "Matching"
+  },
+  {
+   "description": "Array of Custom LOS Channel names",
+   "fieldname": "sources",
+   "fieldtype": "JSON",
+   "label": "Sources",
+   "reqd": 1
+  },
+  {
+   "description": "Array of level 1 Custom LOS Loan Type Tree IDs",
+   "fieldname": "loan_types",
+   "fieldtype": "JSON",
+   "label": "Loan Types",
+   "reqd": 1
+  },
+  {
+   "description": "{join, groups: [{name, join, clauses: [{variable, operator, value}]}]}. Empty means always matches",
+   "fieldname": "condition",
+   "fieldtype": "JSON",
+   "label": "Condition"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-28 23:55:49.849126",
+ "modified_by": "Administrator",
+ "module": "Rolaface Lms App",
+ "name": "Custom LOS Product Assignment Rule",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "priority",
+ "sort_order": "ASC",
+ "states": [],
+ "title_field": "rule_name",
+ "track_changes": 1
+}

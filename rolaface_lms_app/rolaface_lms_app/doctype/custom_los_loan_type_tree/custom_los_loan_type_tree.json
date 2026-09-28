@@ -1,0 +1,130 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-09-28 23:08:13.833136",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "lft",
+  "rgt",
+  "is_group",
+  "old_parent",
+  "parent_custom_los_loan_type_tree",
+  "column_break_u8s3",
+  "applicant_type",
+  "node_name",
+  "level",
+  "loan_type",
+  "sub_type",
+  "is_active"
+ ],
+ "fields": [
+  {
+   "fieldname": "lft",
+   "fieldtype": "Int",
+   "hidden": 1,
+   "label": "Left",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "rgt",
+   "fieldtype": "Int",
+   "hidden": 1,
+   "label": "Right",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_group",
+   "fieldtype": "Check",
+   "label": "Is Group"
+  },
+  {
+   "fieldname": "old_parent",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Old Parent",
+   "options": "Custom LOS Loan Type Tree"
+  },
+  {
+   "fieldname": "parent_custom_los_loan_type_tree",
+   "fieldtype": "Link",
+   "ignore_user_permissions": 1,
+   "label": "Parent Custom LOS Loan Type Tree",
+   "options": "Custom LOS Loan Type Tree"
+  },
+  {
+   "fieldname": "applicant_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Applicant Type",
+   "options": "Individual\nBusiness",
+   "reqd": 1
+  },
+  {
+   "fieldname": "node_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "level",
+   "fieldtype": "Int",
+   "label": "Level"
+  },
+  {
+   "fieldname": "loan_type",
+   "fieldtype": "Link",
+   "label": "Loan Type",
+   "options": "Custom LOS Loan Type Tree"
+  },
+  {
+   "fieldname": "sub_type",
+   "fieldtype": "Link",
+   "label": "Sub Type",
+   "options": "Custom LOS Loan Type Tree"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Active"
+  },
+  {
+   "fieldname": "column_break_u8s3",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_tree": 1,
+ "links": [],
+ "modified": "2026-09-28 23:32:33.060175",
+ "modified_by": "Administrator",
+ "module": "Rolaface Lms App",
+ "name": "Custom LOS Loan Type Tree",
+ "nsm_parent_field": "parent_custom_los_loan_type_tree",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

@@ -1,0 +1,64 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-09-28 23:47:54.360847",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "several_match",
+  "no_match",
+  "default_product"
+ ],
+ "fields": [
+  {
+   "default": "First match",
+   "fieldname": "several_match",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Several Rules Match",
+   "options": "First match\nManual Review",
+   "reqd": 1
+  },
+  {
+   "default": "Default Product",
+   "fieldname": "no_match",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "No Rules Match",
+   "options": "Manual Review\nDefault Product",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.no_match==\"Default Product\"",
+   "fieldname": "default_product",
+   "fieldtype": "JSON",
+   "label": "Default product"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-09-28 23:50:03.170812",
+ "modified_by": "Administrator",
+ "module": "Rolaface Lms App",
+ "name": "Custom LOS Product Assignment Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

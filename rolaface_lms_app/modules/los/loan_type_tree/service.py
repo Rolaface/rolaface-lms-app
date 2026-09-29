@@ -301,9 +301,9 @@ def save_setup(config: Dict[str, Any], version=None) -> Dict[str, Any]:
 	Saves the Loan Type Setup screen in one call. For each applicant type in config:
 	unknown IDs are created, changed names renamed, and nodes left out are deleted,
 	or deactivated when something still uses them. Nothing is written if any part is invalid,
-	or if the tree changed since the caller loaded it (version).
+	or if a version was sent and the tree changed since.
 	"""
-	check_version(version, table_version(TREE_DOCTYPE), "get_loan_type_setup")
+	check_version(version, table_version(TREE_DOCTYPE))
 	applicant_types = _validate_setup_shape(config)
 
 	existing = {

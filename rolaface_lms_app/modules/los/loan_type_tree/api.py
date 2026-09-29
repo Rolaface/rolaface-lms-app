@@ -293,7 +293,7 @@ def get_loan_type_setup(include_inactive=0):
 	description: >
 	  Returns {setup, version}. setup is
 	  {"Individual": [{id, name, subTypes: [{id, name, purposes: [{id, name}]}]}], "Business": [...]};
-	  with include_inactive=1 each item also has isActive. Send version back with the save.
+	  with include_inactive=1 each item also has isActive. version is optional to send back with the save.
 	parameters:
 	  - {in: query, name: include_inactive, schema: {type: integer, enum: [0, 1], default: 0}}
 	"""
@@ -318,7 +318,7 @@ def save_loan_type_setup():
 	  (renamed if the name changed), items with an unknown or no id are created, and stored items left out
 	  are deleted, or deactivated if something still uses them. Applicant types not sent are untouched.
 	  If any part is invalid, nothing is saved. The response has the saved setup (with real IDs), the new version
-	  and a summary. version must be the one from the load: if the tree changed since, the save is refused with 409.
+	  and a summary. version is optional: if sent and the tree changed since, the save is refused with 409.
 	requestBody:
 	  required: true
 	  content:
@@ -352,11 +352,10 @@ def save_loan_type_setup():
 	            description: Same shape as Individual.
 	          version:
 	            type: string
-	            description: From get_loan_type_setup, or from the previous save.
-	        required: [version]
+	            description: Optional. From get_loan_type_setup; protects against overwriting someone else's save.
 	responses:
 	  409:
-	    description: Someone else saved the setup after you loaded it. Reload and save again.
+	    description: A version was sent and someone else saved the setup since. Reload and save again.
 	"""
 	try:
 		args = request_args()

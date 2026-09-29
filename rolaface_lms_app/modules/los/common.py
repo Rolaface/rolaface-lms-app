@@ -205,8 +205,8 @@ def ensure_status_change(current, is_active: int, label: str):
 
 
 # ---------------------------------------------------------------- Version check for whole-page saves
-# A page load returns a version; the save sends it back. If someone saved in between, the save is refused
-# with 409 instead of silently overwriting their work.
+# A page load returns a version. A save may send it back (optional): if someone saved in between,
+# the save is refused with 409 instead of silently overwriting their work. Without it, the save goes through.
 
 
 def table_version(doctype: str, *extra) -> str:
@@ -220,10 +220,8 @@ def single_modified(doctype: str) -> Optional[str]:
 	return row[0][0] if row else None
 
 
-def check_version(sent, current: str, loaded_from: str):
-	if not sent:
-		raise frappe.ValidationError(f"version is required. Send the version returned by {loaded_from}.")
-	if str(sent) != current:
+def check_version(sent, current: str):
+	if sent and str(sent) != current:
 		raise frappe.TimestampMismatchError(
 			"Someone else saved this page after you loaded it. Reload to see their changes, then save again."
 		)

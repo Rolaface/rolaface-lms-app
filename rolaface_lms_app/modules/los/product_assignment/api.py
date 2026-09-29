@@ -35,18 +35,17 @@ def save_product_assignment():
 	description: >
 	  Rules with a name are updated, rules without one are created (active), stored rules left out are deleted.
 	  Priority follows list order, and each rule keeps its active/inactive status. If any rule is invalid, nothing is saved.
-	  version must be the one from the load: if the page changed since, the save is refused with 409.
+	  version is optional: if sent and the page changed since, the save is refused with 409.
 	requestBody:
 	  required: true
 	  content:
 	    application/json:
 	      schema:
 	        type: object
-	        required: [version]
 	        properties:
 	          version:
 	            type: string
-	            description: From get_product_assignment, or from the previous save.
+	            description: Optional. From get_product_assignment; protects against overwriting someone else's save.
 	          several_match:
 	            type: string
 	            enum: [First match, Manual Review]
@@ -69,7 +68,7 @@ def save_product_assignment():
 	                product: {type: string}
 	responses:
 	  409:
-	    description: Someone else saved the page after you loaded it. Reload and save again.
+	    description: A version was sent and someone else saved the page since. Reload and save again.
 	"""
 	try:
 		result = service.save_product_assignment(request_args())

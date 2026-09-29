@@ -262,9 +262,9 @@ def save_product_assignment(data: Dict[str, Any]) -> Dict[str, Any]:
 	Saves the screen in one go: settings plus the full ordered rule list.
 	Rules with an existing "name" are updated, rules without one are created (active),
 	and stored rules missing from the list are deleted. A rule keeps its active/inactive status.
-	Nothing is written if any rule is invalid, or if the page changed since the caller loaded it (version).
+	Nothing is written if any rule is invalid, or if a version was sent and the page changed since.
 	"""
-	check_version(data.get("version"), _page_version(), "get_product_assignment")
+	check_version(data.get("version"), _page_version())
 	refs = load_references()
 	rules_payload = load_json(data.get("rules"), None)
 	if rules_payload is not None and not isinstance(rules_payload, list):

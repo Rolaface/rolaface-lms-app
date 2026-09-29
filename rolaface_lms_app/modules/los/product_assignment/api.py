@@ -33,7 +33,9 @@ def save_product_assignment():
 	  - LOS Product Assignment
 	summary: Saves settings and the full ordered rule list together, for the screen's single Save button.
 	description: >
-	  Rules with a name are updated, rules without one are created (active), stored rules left out are deleted.
+	  Only what changed is written. Rules with a name are updated if their fields or position changed, rules
+	  without one are created (active), stored rules left out are deleted. The response has a summary
+	  (settings_updated, created, updated, deleted, unchanged).
 	  Priority follows list order, and each rule keeps its active/inactive status. If any rule is invalid, nothing is saved.
 	  version is optional: if sent and the page changed since, the save is refused with 409.
 	requestBody:

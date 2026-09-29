@@ -49,8 +49,14 @@ def _prefix(index: Optional[int]) -> str:
 # ---------------------------------------------------------------- Settings
 
 
-def validate_settings(settings: Dict[str, Any], refs: Dict[str, Dict[str, str]]) -> Dict[str, Any]:
-	"""settings holds the merged result (stored values overlaid with the payload)."""
+def validate_settings(
+	settings: Dict[str, Any], refs: Dict[str, Dict[str, str]], stored_defaults: Optional[Dict[str, str]] = None
+) -> Dict[str, Any]:
+	"""
+	settings holds the merged result (stored values overlaid with the payload).
+	Entries already stored may keep a loan type or product that has since been disabled; new ones must be active.
+	"""
+	stored_defaults = stored_defaults or {}
 	if settings.get("several_match") not in SEVERAL_MATCH_OPTIONS:
 		raise frappe.ValidationError(f"several_match must be one of: {', '.join(SEVERAL_MATCH_OPTIONS)}.")
 	if settings.get("no_match") not in NO_MATCH_OPTIONS:
@@ -64,9 +70,9 @@ def validate_settings(settings: Dict[str, Any], refs: Dict[str, Dict[str, str]])
 	for loan_type, product in default_product.items():
 		if not product:
 			continue  # empty means manual review for that loan type
-		if loan_type not in refs["loan_types"]:
+		if loan_type not in refs["loan_types"] and loan_type not in stored_defaults:
 			raise frappe.ValidationError(f"default_product: '{loan_type}' is not an active loan type.")
-		if product not in refs["products"]:
+		if product not in refs["products"] and product != stored_defaults.get(loan_type):
 			raise frappe.ValidationError(f"default_product: '{product}' is not an enabled loan product.")
 		cleaned[loan_type] = product
 
@@ -81,10 +87,18 @@ def validate_settings(settings: Dict[str, Any], refs: Dict[str, Dict[str, str]])
 
 
 def validate_rule(
-	data: Dict[str, Any], refs: Dict[str, Dict[str, str]], index: Optional[int] = None
+	data: Dict[str, Any],
+	refs: Dict[str, Dict[str, str]],
+	index: Optional[int] = None,
+	current: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-	"""Returns clean values for a complete rule. Mirrors rowError in the frontend."""
+	"""
+	Returns clean values for a complete rule. Mirrors rowError in the frontend.
+	current is the stored rule when updating: channels, loan types and the product it already has may stay
+	even if they have been disabled since, so disabling one never blocks saving the page. New ones must be active.
+	"""
 	prefix = _prefix(index)
+	current = current or {}
 
 	rule_name = str(data.get("rule_name") or "").strip()
 	if len(rule_name) > RULE_NAME_MAX_LENGTH:
@@ -93,21 +107,21 @@ def validate_rule(
 	sources = parse_id_list(data.get("sources"))
 	if not sources:
 		raise frappe.ValidationError(f"{prefix}Choose at least one source.")
-	unknown = [s for s in sources if s not in refs["channels"]]
+	unknown = [s for s in sources if s not in refs["channels"] and s not in (current.get("sources") or [])]
 	if unknown:
 		raise frappe.ValidationError(f"{prefix}Not an active channel: {', '.join(unknown)}.")
 
 	loan_types = parse_id_list(data.get("loan_types"))
 	if not loan_types:
 		raise frappe.ValidationError(f"{prefix}Choose at least one loan type.")
-	unknown = [lt for lt in loan_types if lt not in refs["loan_types"]]
+	unknown = [lt for lt in loan_types if lt not in refs["loan_types"] and lt not in (current.get("loan_types") or [])]
 	if unknown:
 		raise frappe.ValidationError(f"{prefix}Not an active loan type: {', '.join(unknown)}.")
 
 	product = str(data.get("product") or "").strip()
 	if not product:
 		raise frappe.ValidationError(f"{prefix}Choose a product.")
-	if product not in refs["products"]:
+	if product not in refs["products"] and product != current.get("product"):
 		raise frappe.ValidationError(f"{prefix}'{product}' is not an enabled loan product.")
 
 	return {
@@ -184,11 +198,13 @@ def parse_rule_row(row: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def find_shadowed(rules: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-	"""Rules that can never match: an earlier rule with no condition already covers all their sources and loan types."""
+	"""Active rules that can never match: an earlier active rule with no condition covers all their sources and loan types."""
 	warnings = []
 	for i, rule in enumerate(rules):
+		if not rule.get("is_active", 1):
+			continue
 		for earlier in rules[:i]:
-			if earlier.get("condition"):
+			if earlier.get("condition") or not earlier.get("is_active", 1):
 				continue
 			if set(rule["sources"]) <= set(earlier["sources"]) and set(rule["loan_types"]) <= set(earlier["loan_types"]):
 				warnings.append(
@@ -212,6 +228,10 @@ def build_rule_filters(args: Dict[str, Any]) -> Dict[str, Any]:
 		filters["sources"] = json_contains("sources", args.get("source"))[1:]
 	if args.get("loan_type"):
 		filters["loan_types"] = json_contains("loan_types", args.get("loan_type"))[1:]
+
+	is_active = as_bool_flag(args, "is_active")
+	if is_active is not None:
+		filters["is_active"] = is_active
 
 	has_condition = as_bool_flag(args, "has_condition")
 	if has_condition is not None:

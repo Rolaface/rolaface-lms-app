@@ -1,7 +1,8 @@
 CHANNEL_DOCTYPE = "Custom LOS Channel"
 RULE_DOCTYPE = "Custom LOS Product Assignment Rule"
 
-ALLOWED_CHANNEL_FIELDS = {"channel_name", "is_active"}
+ALLOWED_CREATE_FIELDS = {"channel_name", "is_active"}
+ALLOWED_UPDATE_FIELDS = {"channel_name"}
 
 ALLOWED_SORT_FIELDS = {"name", "channel_name", "is_active", "creation", "modified"}
 

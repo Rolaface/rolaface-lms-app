@@ -25,7 +25,7 @@ SETTINGS_FIELDS = ("several_match", "no_match", "default_product")
 ALLOWED_RULE_FIELDS = {"rule_name", "priority", "product", "sources", "loan_types", "condition"}
 JSON_RULE_FIELDS = {"sources", "loan_types", "condition"}
 
-ALLOWED_SORT_FIELDS_RULE = {"name", "rule_name", "priority", "product", "creation", "modified"}
+ALLOWED_SORT_FIELDS_RULE = {"name", "rule_name", "priority", "product", "is_active", "creation", "modified"}
 DEFAULT_SORT_BY = "priority"
 DEFAULT_SORT_ORDER = "asc"
 
@@ -39,6 +39,7 @@ RETURN_FIELDS_GET_ALL_RULE = [
 	"sources",
 	"loan_types",
 	"condition",
+	"is_active",
 	"creation",
 	"modified",
 ]

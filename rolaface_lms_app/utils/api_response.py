@@ -92,7 +92,9 @@ def handle_api_error(e: Exception, context_message: str):
     if isinstance(e, frappe.DoesNotExistError):
         status_code = 404
         status_type = "fail"
-    elif isinstance(e, frappe.DuplicateEntryError):
+    elif isinstance(e, (frappe.DuplicateEntryError, frappe.LinkExistsError, frappe.TimestampMismatchError)):
+        # LinkExistsError: the record is still used elsewhere (e.g. delete refused).
+        # TimestampMismatchError: someone else saved the record after it was loaded.
         status_code = 409
         status_type = "fail"
     elif isinstance(e, frappe.PermissionError):

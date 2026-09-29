@@ -2,11 +2,14 @@ from typing import Any, Dict, Optional
 
 import frappe
 
-from ..common import add_date_range, as_bool_flag, json_contains, parse_flag, parse_id_list
-from .constant import CHANNEL_DOCTYPE, CHANNEL_NAME_MAX_LENGTH, RULE_DOCTYPE
+from ..common import add_date_range, as_bool_flag, json_contains, parse_flag, parse_id_list, validate_update_fields
+from .constant import ALLOWED_UPDATE_FIELDS, CHANNEL_DOCTYPE, CHANNEL_NAME_MAX_LENGTH, RULE_DOCTYPE
 
 
 def validate_channel_payload(data: Dict[str, Any], is_update: bool = False, channel_id: Optional[str] = None):
+	if is_update:
+		validate_update_fields(data, ALLOWED_UPDATE_FIELDS, "channel")
+
 	if "channel_name" in data or not is_update:
 		channel_name = str(data.get("channel_name") or "").strip()
 		if not channel_name:
@@ -21,7 +24,7 @@ def validate_channel_payload(data: Dict[str, Any], is_update: bool = False, chan
 			raise frappe.DuplicateEntryError(f"Channel '{channel_name}' already exists.")
 		data["channel_name"] = channel_name
 
-	if data.get("is_active") is not None:
+	if not is_update and data.get("is_active") is not None:
 		data["is_active"] = parse_flag(data.get("is_active"), "is_active")
 
 

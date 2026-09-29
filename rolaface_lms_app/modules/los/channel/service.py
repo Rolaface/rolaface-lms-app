@@ -1,12 +1,14 @@
 from typing import Any, Dict, List, Tuple
 
 import frappe
+from frappe.model.rename_doc import rename_doc
 
-from ..common import build_order_by, count_records, search_or_filters
+from ..common import build_order_by, count_records, dump_json, ensure_status_change, json_contains, load_json, search_or_filters
 from .constant import (
-	ALLOWED_CHANNEL_FIELDS,
+	ALLOWED_CREATE_FIELDS,
 	ALLOWED_SORT_FIELDS,
 	CHANNEL_DOCTYPE,
+	RULE_DOCTYPE,
 	RETURN_FIELDS_GET_ALL,
 	RETURN_FIELDS_GET_BY_ID,
 	SEARCH_FIELDS,
@@ -23,7 +25,7 @@ def create_channel(data: Dict[str, Any]) -> Dict[str, Any]:
 	validate_channel_payload(data, is_update=False)
 
 	channel_doc = frappe.new_doc(CHANNEL_DOCTYPE)
-	for field in ALLOWED_CHANNEL_FIELDS:
+	for field in ALLOWED_CREATE_FIELDS:
 		if data.get(field) is not None:
 			channel_doc.set(field, data.get(field))
 
@@ -32,20 +34,27 @@ def create_channel(data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def update_channel(channel_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+	"""
+	Renames a channel. The channel's ID is its name (By fieldname), so this is a real rename:
+	Frappe updates Link fields, and rules that list the channel in their sources JSON are updated here.
+	"""
 	_ensure_exists(channel_id)
 	validate_channel_payload(data, is_update=True, channel_id=channel_id)
 
-	channel_doc = frappe.get_doc(CHANNEL_DOCTYPE, channel_id)
-	has_changes = False
-	for field in ALLOWED_CHANNEL_FIELDS:
-		if data.get(field) is not None and channel_doc.get(field) != data.get(field):
-			channel_doc.set(field, data.get(field))
-			has_changes = True
+	new_name = data["channel_name"]
+	if new_name == channel_id:
+		return get_channel_by_id(channel_id)
 
-	if has_changes:
-		channel_doc.save(ignore_permissions=True)
+	rename_doc(doctype=CHANNEL_DOCTYPE, old=channel_id, new=new_name, ignore_permissions=True, show_alert=False)
+	_replace_channel_in_rules(channel_id, new_name)
+	return get_channel_by_id(new_name)
 
-	return get_channel_by_id(channel_id)
+
+def _replace_channel_in_rules(old_id: str, new_id: str):
+	for rule_id in frappe.get_all(RULE_DOCTYPE, filters=[json_contains("sources", old_id)], pluck="name"):
+		rule_doc = frappe.get_doc(RULE_DOCTYPE, rule_id)
+		rule_doc.sources = dump_json([new_id if s == old_id else s for s in load_json(rule_doc.sources, [])])
+		rule_doc.save(ignore_permissions=True)
 
 
 def get_channel_by_id(channel_id: str) -> Dict[str, Any]:
@@ -79,37 +88,28 @@ def get_channels(
 	return channels, total_records, total_pages
 
 
-def get_active_channels() -> List[Dict[str, Any]]:
-	"""Every active channel, for dropdowns and the product assignment source picker."""
-	return frappe.get_all(
-		CHANNEL_DOCTYPE,
-		filters={"is_active": 1},
-		fields=["name", "channel_name"],
-		order_by="channel_name asc",
-		limit_page_length=0,
-	)
-
-
 def delete_channel(channel_id: str):
 	_ensure_exists(channel_id)
 
+	channel_name = frappe.db.get_value(CHANNEL_DOCTYPE, channel_id, "channel_name")
 	rules_count = count_rules_using_channel(channel_id)
 	if rules_count:
-		raise frappe.ValidationError(
-			f"Cannot delete this channel because {rules_count} product assignment rule(s) use it. "
-			"Disable it instead."
+		raise frappe.LinkExistsError(
+			f"Cannot delete channel '{channel_name}': {rules_count} product assignment rule(s) use it. Disable it instead."
 		)
 
-	frappe.delete_doc(CHANNEL_DOCTYPE, channel_id, ignore_permissions=True)
+	try:
+		frappe.delete_doc(CHANNEL_DOCTYPE, channel_id, ignore_permissions=True)
+	except frappe.LinkExistsError:
+		frappe.clear_last_message()
+		raise frappe.LinkExistsError(f"Cannot delete channel '{channel_name}': other records use it. Disable it instead.")
 
 
 def toggle_channel_status(channel_id: str, is_active: int) -> Dict[str, Any]:
 	_ensure_exists(channel_id)
 
 	channel_doc = frappe.get_doc(CHANNEL_DOCTYPE, channel_id)
-	if channel_doc.is_active == is_active:
-		action = "active" if is_active else "inactive"
-		raise frappe.ValidationError(f"Channel '{channel_doc.channel_name}' is already {action}.")
+	ensure_status_change(channel_doc.is_active, is_active, f"Channel '{channel_doc.channel_name}'")
 
 	channel_doc.is_active = is_active
 	channel_doc.save(ignore_permissions=True)

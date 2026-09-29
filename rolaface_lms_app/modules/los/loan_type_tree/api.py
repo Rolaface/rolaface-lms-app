@@ -2,9 +2,8 @@ import frappe
 
 from rolaface_lms_app.utils.api_response import handle_api_error, send_response, send_response_list
 
-from ..common import build_pagination, parse_pagination, request_args, require_id
+from ..common import request_args, require_id
 from . import service
-from .constant import DEFAULT_SORT_BY, DEFAULT_SORT_ORDER
 
 # ---------------------------------------------------------------- CRUD
 
@@ -60,8 +59,7 @@ def update_node(id=None):
 	---
 	tags:
 	  - LOS Loan Type Tree
-	summary: Rename a node or change its active flag. Parent and applicant type cannot change.
-	description: Deactivating a node also deactivates everything under it.
+	summary: Rename a node. Parent and applicant type cannot change; use enable_node / disable_node for status.
 	parameters:
 	  - in: query
 	    name: id
@@ -69,16 +67,21 @@ def update_node(id=None):
 	    schema:
 	      type: string
 	requestBody:
+	  required: true
 	  content:
 	    application/json:
 	      schema:
 	        type: object
+	        required:
+	          - node_name
 	        properties:
 	          node_name:
 	            type: string
-	          is_active:
-	            type: integer
-	            enum: [0, 1]
+	responses:
+	  400:
+	    description: Nothing to update, a blank name, is_active sent, or parent / applicant type changed.
+	  409:
+	    description: The same name already exists under this parent.
 	"""
 	try:
 		result = service.update_node(require_id(id, "Node"), request_args())
@@ -110,52 +113,6 @@ def get_node_by_id(id=None):
 		return handle_api_error(e, "Get LOS Loan Type Tree Node By ID Error")
 
 
-@frappe.whitelist(methods=["GET"])
-def get_nodes(page=1, page_size=20):
-	"""
-	List Loan Type Tree Nodes
-	---
-	tags:
-	  - LOS Loan Type Tree
-	summary: Paginated flat list of nodes with filters.
-	parameters:
-	  - {in: query, name: page, schema: {type: integer, default: 1}}
-	  - {in: query, name: page_size, schema: {type: integer, default: 20, maximum: 500}}
-	  - {in: query, name: search, description: Matches ID or name, schema: {type: string}}
-	  - {in: query, name: node_name, description: Partial match, schema: {type: string}}
-	  - {in: query, name: applicant_type, schema: {type: string, enum: [Individual, Business]}}
-	  - {in: query, name: level, description: 1 loan type, 2 sub-type, 3 purpose, schema: {type: integer, enum: [1, 2, 3]}}
-	  - {in: query, name: parent_node, description: Direct children of this node, schema: {type: string}}
-	  - {in: query, name: is_root, description: 1 for nodes without a parent, schema: {type: integer, enum: [0, 1]}}
-	  - {in: query, name: loan_type, description: Everything under this loan type, schema: {type: string}}
-	  - {in: query, name: sub_type, description: Everything under this sub-type, schema: {type: string}}
-	  - {in: query, name: is_active, schema: {type: integer, enum: [0, 1]}}
-	  - {in: query, name: is_group, schema: {type: integer, enum: [0, 1]}}
-	  - {in: query, name: ids, description: Comma separated or JSON array of IDs, schema: {type: string}}
-	  - {in: query, name: from_date, schema: {type: string, format: date}}
-	  - {in: query, name: to_date, schema: {type: string, format: date}}
-	  - {in: query, name: sort_by, schema: {type: string, enum: [name, node_name, applicant_type, level, is_active, creation, modified], default: level}}
-	  - {in: query, name: sort_order, schema: {type: string, enum: [asc, desc], default: asc}}
-	"""
-	try:
-		args = request_args()
-		page, page_size = parse_pagination(args.get("page") or page, args.get("page_size") or page_size)
-		records, total_records, _ = service.get_nodes(
-			args=args,
-			page=page,
-			page_size=page_size,
-			sort_by=args.get("sort_by") or DEFAULT_SORT_BY,
-			sort_order=args.get("sort_order") or DEFAULT_SORT_ORDER,
-		)
-		return send_response_list(
-			"success",
-			"Loan type tree nodes retrieved successfully.",
-			{"data": records, "pagination": build_pagination(page, page_size, total_records)},
-		)
-	except Exception as e:
-		return handle_api_error(e, "Get All LOS Loan Type Tree Nodes Error")
-
-
 @frappe.whitelist(methods=["DELETE"])
 def delete_node(id=None):
 	"""
@@ -170,6 +127,9 @@ def delete_node(id=None):
 	    required: true
 	    schema:
 	      type: string
+	responses:
+	  409:
+	    description: It has items under it, or product assignment or other records use it. Disable it instead.
 	"""
 	try:
 		service.delete_node(require_id(id, "Node"))
@@ -193,6 +153,9 @@ def enable_node(id=None):
 	    required: true
 	    schema:
 	      type: string
+	responses:
+	  400:
+	    description: Already active, or its parent is inactive.
 	"""
 	try:
 		result = service.toggle_node_status(require_id(id, "Node"), is_active=1)
@@ -209,13 +172,16 @@ def disable_node(id=None):
 	---
 	tags:
 	  - LOS Loan Type Tree
-	summary: Sets is_active to 0 on the node and everything under it.
+	summary: Sets is_active to 0 on the node and everything under it. descendants_disabled says how many were switched off with it.
 	parameters:
 	  - in: query
 	    name: id
 	    required: true
 	    schema:
 	      type: string
+	responses:
+	  400:
+	    description: Already inactive.
 	"""
 	try:
 		result = service.toggle_node_status(require_id(id, "Node"), is_active=0)
@@ -229,38 +195,13 @@ def disable_node(id=None):
 
 
 @frappe.whitelist(methods=["GET"])
-def get_tree(applicant_type=None, loan_type=None, include_inactive=0):
-	"""
-	Loan Type Tree
-	---
-	tags:
-	  - LOS Loan Type Tree
-	summary: Nested loan type > sub-type > purpose tree for the Loan Type Setup screen and the application wizard.
-	parameters:
-	  - {in: query, name: applicant_type, schema: {type: string, enum: [Individual, Business]}}
-	  - {in: query, name: loan_type, description: Only this loan type's branch, schema: {type: string}}
-	  - {in: query, name: include_inactive, schema: {type: integer, enum: [0, 1], default: 0}}
-	"""
-	try:
-		args = request_args()
-		result = service.get_tree(
-			args.get("applicant_type") or applicant_type,
-			args.get("loan_type") or loan_type,
-			args.get("include_inactive", include_inactive),
-		)
-		return send_response_list("success", "Loan type tree retrieved successfully.", result)
-	except Exception as e:
-		return handle_api_error(e, "Get LOS Loan Type Tree Error")
-
-
-@frappe.whitelist(methods=["GET"])
 def get_loan_types(applicant_type=None, include_inactive=0):
 	"""
 	Loan Types
 	---
 	tags:
 	  - LOS Loan Type Tree
-	summary: Level 1 nodes, optionally for one applicant type.
+	summary: Level 1 nodes, optionally for one applicant type. First dropdown of the loan application.
 	parameters:
 	  - {in: query, name: applicant_type, schema: {type: string, enum: [Individual, Business]}}
 	  - {in: query, name: include_inactive, schema: {type: integer, enum: [0, 1], default: 0}}
@@ -282,10 +223,15 @@ def get_sub_types(loan_type=None, include_inactive=0):
 	---
 	tags:
 	  - LOS Loan Type Tree
-	summary: Level 2 nodes under one loan type.
+	summary: Level 2 nodes under one loan type. Second dropdown of the loan application.
 	parameters:
 	  - {in: query, name: loan_type, required: true, schema: {type: string}}
 	  - {in: query, name: include_inactive, schema: {type: integer, enum: [0, 1], default: 0}}
+	responses:
+	  400:
+	    description: loan_type missing, not a loan type, or inactive (without include_inactive).
+	  404:
+	    description: The loan type does not exist.
 	"""
 	try:
 		args = request_args()
@@ -313,6 +259,11 @@ def get_purposes(sub_type=None, loan_type=None, applicant_type=None, search=None
 	  - {in: query, name: applicant_type, schema: {type: string, enum: [Individual, Business]}}
 	  - {in: query, name: search, schema: {type: string}}
 	  - {in: query, name: include_inactive, schema: {type: integer, enum: [0, 1], default: 0}}
+	responses:
+	  400:
+	    description: sub_type or loan_type is the wrong level, or inactive (without include_inactive).
+	  404:
+	    description: The sub-type or loan type does not exist.
 	"""
 	try:
 		args = request_args()
@@ -328,23 +279,90 @@ def get_purposes(sub_type=None, loan_type=None, applicant_type=None, search=None
 		return handle_api_error(e, "Get LOS Purposes Error")
 
 
+# ---------------------------------------------------------------- Whole setup (Loan Type Setup screen)
+
+
 @frappe.whitelist(methods=["GET"])
-def get_node_path(id=None):
+def get_loan_type_setup(include_inactive=0):
 	"""
-	Loan Type Path of a Node
+	Loan Type Setup
 	---
 	tags:
 	  - LOS Loan Type Tree
-	summary: Applicant type, loan type, sub-type and purpose for any node, e.g. the loan type of a purpose.
+	summary: The whole setup for both applicant types in one call, in the Loan Type Setup screen's shape.
+	description: >
+	  Returns {setup, version}. setup is
+	  {"Individual": [{id, name, subTypes: [{id, name, purposes: [{id, name}]}]}], "Business": [...]};
+	  with include_inactive=1 each item also has isActive. Send version back with the save.
 	parameters:
-	  - in: query
-	    name: id
-	    required: true
-	    schema:
-	      type: string
+	  - {in: query, name: include_inactive, schema: {type: integer, enum: [0, 1], default: 0}}
 	"""
 	try:
-		result = service.get_node_path(require_id(id, "Node"))
-		return send_response("success", "Node path retrieved successfully.", result)
+		args = request_args()
+		result = service.get_setup_page(args.get("include_inactive", include_inactive))
+		return send_response("success", "Loan type setup retrieved successfully.", result)
 	except Exception as e:
-		return handle_api_error(e, "Get LOS Node Path Error")
+		return handle_api_error(e, "Get LOS Loan Type Setup Error")
+
+
+@frappe.whitelist(methods=["PUT", "POST"])
+def save_loan_type_setup():
+	"""
+	Save Loan Type Setup
+	---
+	tags:
+	  - LOS Loan Type Tree
+	summary: Saves loan types, sub-types and purposes for one or both applicant types in one call.
+	description: >
+	  Send the same shape the GET returns. For each applicant type sent: items with a known id are kept
+	  (renamed if the name changed), items with an unknown or no id are created, and stored items left out
+	  are deleted, or deactivated if something still uses them. Applicant types not sent are untouched.
+	  If any part is invalid, nothing is saved. The response has the saved setup (with real IDs), the new version
+	  and a summary. version must be the one from the load: if the tree changed since, the save is refused with 409.
+	requestBody:
+	  required: true
+	  content:
+	    application/json:
+	      schema:
+	        type: object
+	        properties:
+	          Individual:
+	            type: array
+	            items:
+	              type: object
+	              properties:
+	                id: {type: string, description: 'Stored ID, or a temporary one for new items'}
+	                name: {type: string}
+	                subTypes:
+	                  type: array
+	                  items:
+	                    type: object
+	                    properties:
+	                      id: {type: string}
+	                      name: {type: string}
+	                      purposes:
+	                        type: array
+	                        items:
+	                          type: object
+	                          properties:
+	                            id: {type: string}
+	                            name: {type: string}
+	          Business:
+	            type: array
+	            description: Same shape as Individual.
+	          version:
+	            type: string
+	            description: From get_loan_type_setup, or from the previous save.
+	        required: [version]
+	responses:
+	  409:
+	    description: Someone else saved the setup after you loaded it. Reload and save again.
+	"""
+	try:
+		args = request_args()
+		config = {key: args[key] for key in ("Individual", "Business") if key in args}
+		result = service.save_setup(config, args.get("version"))
+		frappe.db.commit()
+		return send_response("success", "Loan type setup saved successfully.", result)
+	except Exception as e:
+		return handle_api_error(e, "Save LOS Loan Type Setup Error")

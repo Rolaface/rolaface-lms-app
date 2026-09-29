@@ -14,18 +14,10 @@ APPLICANT_TYPES = ("Individual", "Business")
 
 NODE_NAME_MAX_LENGTH = 140
 
-ALLOWED_CREATE_FIELDS = {"node_name", "applicant_type", "parent_node", "is_active"}
-ALLOWED_UPDATE_FIELDS = {"node_name", "is_active"}
+ALLOWED_UPDATE_FIELDS = {"node_name"}
 SET_ONCE_FIELDS = {"applicant_type", "parent_node"}
 
-ALLOWED_SORT_FIELDS = {"name", "node_name", "applicant_type", "level", "is_active", "creation", "modified"}
-
-DEFAULT_SORT_BY = "level"
-DEFAULT_SORT_ORDER = "asc"
-
-SEARCH_FIELDS = ["name", "node_name"]
-
-RETURN_FIELDS_GET_ALL = [
+RETURN_FIELDS_GET_BY_ID = [
 	"name",
 	"node_name",
 	"applicant_type",
@@ -37,11 +29,11 @@ RETURN_FIELDS_GET_ALL = [
 	"is_active",
 	"creation",
 	"modified",
+	"owner",
+	"modified_by",
 ]
 
-RETURN_FIELDS_GET_BY_ID = RETURN_FIELDS_GET_ALL + ["owner", "modified_by"]
-
-# Smaller field set for the lookup endpoints (tree, loan types, sub-types, purposes).
+# Smaller field set for the lookup endpoints (loan types, sub-types, purposes).
 RETURN_FIELDS_LOOKUP = [
 	"name",
 	"node_name",

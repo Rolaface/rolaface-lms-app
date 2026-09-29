@@ -1,5 +1,6 @@
 """Helpers shared by the LOS setup modules (channel, loan type tree, product assignment)."""
 
+import hashlib
 import json
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -147,8 +148,14 @@ def dump_json(value) -> Optional[str]:
 
 
 def json_contains(fieldname: str, value: str) -> list:
-	# JSON arrays are stored as ["a","b"], so a quoted match finds one member.
-	return [fieldname, "like", f'%"{value}"%']
+	"""
+	Filter for "this JSON array contains value". Arrays are stored by dump_json, so the value is matched
+	exactly as json.dumps writes it (quotes included), with LIKE's wildcards escaped: a channel named
+	"USSD_2" must not match "USSDX2". Callers that act on the result should still check membership in Python.
+	"""
+	encoded = json.dumps(str(value))
+	escaped = encoded.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+	return [fieldname, "like", f"%{escaped}%"]
 
 
 def name_map(doctype: str, names, label_field: str) -> Dict[str, Any]:
@@ -178,3 +185,45 @@ def int_arg(args: Dict[str, Any], key: str) -> Optional[int]:
 
 def cint_or_none(value) -> Optional[int]:
 	return None if value is None or value == "" else cint(value)
+
+
+# ---------------------------------------------------------------- Updates and status
+# Status has one way in: the enable_* / disable_* endpoints. Updates only edit fields.
+
+
+def validate_update_fields(data: Dict[str, Any], allowed: set, action: str):
+	"""Rejects is_active on an update, and an update that sends nothing it can change."""
+	if "is_active" in data:
+		raise frappe.ValidationError(f"is_active cannot be changed by an update. Use enable_{action} or disable_{action}.")
+	if not any(field in data for field in allowed):
+		raise frappe.ValidationError(f"Nothing to update. Send at least one of: {', '.join(sorted(allowed))}.")
+
+
+def ensure_status_change(current, is_active: int, label: str):
+	if cint(current) == is_active:
+		raise frappe.ValidationError(f"{label} is already {'active' if is_active else 'inactive'}.")
+
+
+# ---------------------------------------------------------------- Version check for whole-page saves
+# A page load returns a version; the save sends it back. If someone saved in between, the save is refused
+# with 409 instead of silently overwriting their work.
+
+
+def table_version(doctype: str, *extra) -> str:
+	"""Changes whenever a row of the table is added, changed or removed."""
+	count, last_modified = frappe.db.sql(f"select count(*), max(modified) from `tab{doctype}`")[0]
+	return hashlib.sha1("|".join(map(str, (count, last_modified, *extra))).encode()).hexdigest()[:16]
+
+
+def single_modified(doctype: str) -> Optional[str]:
+	row = frappe.db.sql("select value from `tabSingles` where doctype=%s and field='modified'", doctype)
+	return row[0][0] if row else None
+
+
+def check_version(sent, current: str, loaded_from: str):
+	if not sent:
+		raise frappe.ValidationError(f"version is required. Send the version returned by {loaded_from}.")
+	if str(sent) != current:
+		raise frappe.TimestampMismatchError(
+			"Someone else saved this page after you loaded it. Reload to see their changes, then save again."
+		)

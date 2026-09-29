@@ -2,8 +2,9 @@ from typing import Any, Dict, Optional
 
 import frappe
 
-from ..common import add_date_range, as_bool_flag, int_arg, json_contains, load_json, parse_flag, parse_id_list
+from ..common import json_contains, load_json, validate_update_fields
 from .constant import (
+	ALLOWED_UPDATE_FIELDS,
 	APPLICANT_TYPES,
 	LEVEL_LABELS,
 	LEVEL_LOAN_TYPE,
@@ -108,12 +109,9 @@ def validate_update_payload(node: Dict[str, Any], data: Dict[str, Any]):
 				f"{field} cannot be changed after creation. Create a new node and disable this one instead."
 			)
 
-	if "node_name" in data:
-		data["node_name"] = clean_node_name(data.get("node_name"))
-		ensure_unique_name(data["node_name"], node.applicant_type, node.get(PARENT_FIELD), node.name)
-
-	if data.get("is_active") is not None:
-		data["is_active"] = parse_flag(data.get("is_active"), "is_active")
+	validate_update_fields(data, ALLOWED_UPDATE_FIELDS, "node")
+	data["node_name"] = clean_node_name(data.get("node_name"))
+	ensure_unique_name(data["node_name"], node.applicant_type, node.get(PARENT_FIELD), node.name)
 
 
 def descendant_filters(node: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -122,43 +120,6 @@ def descendant_filters(node: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 	if node.level == LEVEL_SUB_TYPE:
 		return {"sub_type": node.name}
 	return None
-
-
-def build_node_filters(args: Dict[str, Any]) -> Dict[str, Any]:
-	filters = {}
-
-	if args.get("applicant_type"):
-		filters["applicant_type"] = validate_applicant_type(args.get("applicant_type"))
-
-	level = int_arg(args, "level")
-	if level is not None:
-		if level not in LEVEL_LABELS:
-			raise frappe.ValidationError("level must be 1, 2 or 3.")
-		filters["level"] = level
-
-	if args.get("parent_node"):
-		filters[PARENT_FIELD] = args.get("parent_node")
-	elif as_bool_flag(args, "is_root"):
-		filters[PARENT_FIELD] = ["is", "not set"]
-
-	for field in ("loan_type", "sub_type"):
-		if args.get(field):
-			filters[field] = args.get(field)
-
-	for field in ("is_active", "is_group"):
-		value = as_bool_flag(args, field)
-		if value is not None:
-			filters[field] = value
-
-	if args.get("node_name"):
-		filters["node_name"] = ["like", f"%{str(args.get('node_name')).strip()}%"]
-
-	ids = parse_id_list(args.get("ids"))
-	if ids:
-		filters["name"] = ["in", ids]
-
-	add_date_range(filters, args)
-	return filters
 
 
 def count_node_usage(node_id: str) -> Dict[str, int]:

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<!-- no-cache -->
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>LOS API Docs</title>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui.css">
+	<style>
+		body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #fff; color: #1f2937; }
+		.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px 20px; border-bottom: 1px solid #e5e7eb; background: #f9fafb; }
+		.bar strong { margin-right: auto; font-size: 15px; }
+		.bar input { width: 320px; max-width: 100%; padding: 7px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; }
+		.bar button { padding: 7px 12px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; font-size: 13px; cursor: pointer; }
+		.bar button.primary { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+		.bar button[hidden], .bar input[hidden], .bar span[hidden] { display: none; }
+		.note { padding: 10px 20px; font-size: 13px; }
+		.note.error { color: #b91c1c; background: #fef2f2; border-bottom: 1px solid #fecaca; }
+		.note.info { color: #374151; background: #eef2ff; border-bottom: 1px solid #c7d2fe; }
+		.swagger-ui .topbar { display: none; }
+	</style>
+</head>
+<body>
+	<script>window.frappe = window.frappe || {};</script>
+	<!-- csrf_token -->
+
+	<div class="bar">
+		<strong>LOS API Docs</strong>
+		<span id="session-label" hidden>Using your Desk login</span>
+		<input id="token" type="password" placeholder="Session ID (Bearer token)" autocomplete="off" hidden>
+		<button id="use-token" class="primary" hidden>Load with token</button>
+		<button id="clear-token" hidden>Forget token</button>
+		<button id="download" hidden>Download openapi.json</button>
+	</div>
+	<div id="note" class="note" hidden></div>
+	<div id="swagger"></div>
+
+	<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui-bundle.js"></script>
+	<script>
+	(function () {
+		var SPEC_URL = "/api/method/rolaface_lms_app.modules.los.docs.api.get_openapi_spec";
+		var TOKEN_KEY = "los_api_docs_token";
+		var el = function (id) { return document.getElementById(id); };
+		var spec = null;
+
+		function storedToken() {
+			try { return sessionStorage.getItem(TOKEN_KEY) || ""; } catch (e) { return ""; }
+		}
+		function storeToken(value) {
+			try { value ? sessionStorage.setItem(TOKEN_KEY, value) : sessionStorage.removeItem(TOKEN_KEY); } catch (e) {}
+		}
+		function note(text, kind) {
+			var n = el("note");
+			n.hidden = !text;
+			n.className = "note " + (kind || "info");
+			n.textContent = text || "";
+		}
+		function showTokenInput(show) {
+			el("token").hidden = !show;
+			el("use-token").hidden = !show;
+		}
+
+		function loadSpec(token) {
+			var headers = { "Accept": "application/json" };
+			if (token) headers["Authorization"] = "Bearer " + token;
+			return fetch(SPEC_URL, { headers: headers, credentials: "same-origin" })
+				.then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); })
+				.then(function (res) {
+					var data = res.body && res.body.message && res.body.message.data;
+					if (!res.ok || !data || !data.openapi) throw new Error("not authorised");
+					return data;
+				});
+		}
+
+		function render(token) {
+			el("download").hidden = false;
+			el("clear-token").hidden = !token;
+			el("session-label").hidden = !!token;
+			showTokenInput(false);
+			SwaggerUIBundle({
+				spec: spec,
+				dom_id: "#swagger",
+				deepLinking: true,
+				docExpansion: "none",
+				filter: true,
+				tryItOutEnabled: true,
+				persistAuthorization: true,
+				requestInterceptor: function (req) {
+					var hasAuth = Object.keys(req.headers || {}).some(function (h) { return h.toLowerCase() === "authorization"; });
+					if (token && !hasAuth) req.headers["Authorization"] = "Bearer " + token;
+					// Cookie sessions need Frappe's CSRF token on writes.
+					var csrf = window.frappe.csrf_token;
+					if (!token && csrf && csrf !== "None") req.headers["X-Frappe-CSRF-Token"] = csrf;
+					return req;
+				}
+			});
+		}
+
+		function start(token) {
+			note("Loading…");
+			loadSpec(token).then(function (data) {
+				spec = data;
+				if (token) storeToken(token);
+				note("");
+				render(token);
+			}).catch(function () {
+				if (token) storeToken("");
+				showTokenInput(true);
+				note(token
+					? "That token did not work. It may have expired."
+					: "Log in to Desk, or paste a session ID to load the docs.", token ? "error" : "info");
+			});
+		}
+
+		el("use-token").addEventListener("click", function () {
+			var value = el("token").value.trim();
+			if (value) start(value);
+		});
+		el("token").addEventListener("keydown", function (e) {
+			if (e.key === "Enter") el("use-token").click();
+		});
+		el("clear-token").addEventListener("click", function () {
+			storeToken("");
+			window.location.reload();
+		});
+		el("download").addEventListener("click", function () {
+			var blob = new Blob([JSON.stringify(spec, null, 2)], { type: "application/json" });
+			var a = document.createElement("a");
+			a.href = URL.createObjectURL(blob);
+			a.download = "los-openapi.json";
+			a.click();
+			URL.revokeObjectURL(a.href);
+		});
+
+		// A saved token wins; otherwise try the Desk login cookie.
+		start(storedToken());
+	})();
+	</script>
+</body>
+</html>

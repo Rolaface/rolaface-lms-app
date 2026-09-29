@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "field:channel_name",
  "creation": "2026-09-28 23:03:50.752029",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -28,10 +29,11 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-28 23:32:10.926558",
+ "modified": "2026-09-29 13:00:00.000000",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom LOS Channel",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
@@ -52,5 +54,6 @@
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
- "title_field": "channel_name"
+ "title_field": "channel_name",
+ "track_changes": 1
 }

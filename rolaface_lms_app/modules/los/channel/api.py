@@ -50,7 +50,10 @@ def update_channel(id=None):
 	---
 	tags:
 	  - LOS Channel
-	summary: Update a channel's name or active flag.
+	summary: Rename a channel. Use enable_channel / disable_channel to change its status.
+	description: >
+	  The channel's ID is its name, so the ID changes too; the response has the new one.
+	  Product assignment rules that use the channel are updated in the same save.
 	parameters:
 	  - in: query
 	    name: id
@@ -58,16 +61,21 @@ def update_channel(id=None):
 	    schema:
 	      type: string
 	requestBody:
+	  required: true
 	  content:
 	    application/json:
 	      schema:
 	        type: object
+	        required:
+	          - channel_name
 	        properties:
 	          channel_name:
 	            type: string
-	          is_active:
-	            type: integer
-	            enum: [0, 1]
+	responses:
+	  400:
+	    description: Nothing to update, a blank name, or is_active was sent.
+	  409:
+	    description: A channel with this name already exists.
 	"""
 	try:
 		channel_id = require_id(id, "Channel")
@@ -107,7 +115,7 @@ def get_channels(page=1, page_size=20):
 	---
 	tags:
 	  - LOS Channel
-	summary: Paginated channels with filters.
+	summary: Paginated channels with filters. For a source dropdown use is_active=1 and a large page_size.
 	parameters:
 	  - {in: query, name: page, schema: {type: integer, default: 1}}
 	  - {in: query, name: page_size, schema: {type: integer, default: 20, maximum: 500}}
@@ -139,21 +147,6 @@ def get_channels(page=1, page_size=20):
 		return handle_api_error(e, "Get All LOS Channels Error")
 
 
-@frappe.whitelist(methods=["GET"])
-def get_active_channels():
-	"""
-	Active LOS Channels
-	---
-	tags:
-	  - LOS Channel
-	summary: Every active channel, unpaginated, for dropdowns and the source picker.
-	"""
-	try:
-		return send_response_list("success", "Active channels retrieved successfully.", service.get_active_channels())
-	except Exception as e:
-		return handle_api_error(e, "Get Active LOS Channels Error")
-
-
 @frappe.whitelist(methods=["DELETE"])
 def delete_channel(id=None):
 	"""
@@ -168,6 +161,9 @@ def delete_channel(id=None):
 	    required: true
 	    schema:
 	      type: string
+	responses:
+	  409:
+	    description: Product assignment rules or other records still use the channel. Disable it instead.
 	"""
 	try:
 		service.delete_channel(require_id(id, "Channel"))
@@ -191,6 +187,9 @@ def enable_channel(id=None):
 	    required: true
 	    schema:
 	      type: string
+	responses:
+	  400:
+	    description: The channel is already active.
 	"""
 	try:
 		result = service.toggle_channel_status(require_id(id, "Channel"), is_active=1)
@@ -214,6 +213,9 @@ def disable_channel(id=None):
 	    required: true
 	    schema:
 	      type: string
+	responses:
+	  400:
+	    description: The channel is already inactive.
 	"""
 	try:
 		result = service.toggle_channel_status(require_id(id, "Channel"), is_active=0)

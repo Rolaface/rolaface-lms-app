@@ -113,6 +113,7 @@ def test_ruleset(id=None):
 	  required: true
 	  content:
 	    application/json:
+	      example: {"facts": {"age": 34, "monthly_income": 14500, "credit_score": 712, "has_previous_default": false, "dti": 28}}
 	      schema:
 	        type: object
 	        required: [facts]
@@ -151,6 +152,7 @@ def create_ruleset():
 	  required: true
 	  content:
 	    application/json:
+	      example: {"ruleset_name": "Personal Loan — Pre-Screening Rules", "loan_product": "PL-001", "description": "Minimum checks an applicant must pass before full credit assessment."}
 	      schema:
 	        type: object
 	        required: [ruleset_name, loan_product]
@@ -190,6 +192,7 @@ def update_ruleset(id=None):
 	  required: true
 	  content:
 	    application/json:
+	      example: {"groups": [{"name": "Credit Standing", "logic": "ALL", "rules": [{"field": "credit_score", "operator": "greater_than_or_equal", "value": 550, "severity": "Blocking", "action": "Reject Application"}, {"field": "has_previous_default", "operator": "equals", "value": false, "severity": "Blocking", "action": "Reject Application"}, {"field": "dti", "operator": "less_than", "value": 45, "severity": "Warning", "action": "Continue with Warning"}]}]}
 	      schema:
 	        type: object
 	        properties:
@@ -227,6 +230,7 @@ def set_ruleset_status(id=None):
 	  required: true
 	  content:
 	    application/json:
+	      example: {"status": "Active"}
 	      schema:
 	        type: object
 	        required: [status]

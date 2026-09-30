@@ -21,6 +21,7 @@ def create_node():
 	  required: true
 	  content:
 	    application/json:
+	      example: {"node_name": "Wedding", "parent_node": "pmv0rb831q"}
 	      schema:
 	        type: object
 	        required:
@@ -70,6 +71,7 @@ def update_node(id=None):
 	  required: true
 	  content:
 	    application/json:
+	      example: {"node_name": "Wedding Loan"}
 	      schema:
 	        type: object
 	        required:
@@ -323,6 +325,7 @@ def save_loan_type_setup():
 	  required: true
 	  content:
 	    application/json:
+	      example: {"Individual": [{"id": "pmv0rb831q", "name": "Personal Loan", "subTypes": [{"id": "q7k22p1gsj", "name": "Wedding", "purposes": [{"id": "qcuo6k1giq", "name": "Daughter Wedding"}, {"name": "Son Wedding"}]}, {"name": "Education", "purposes": [{"name": "School Fees"}]}]}]}
 	      schema:
 	        type: object
 	        properties:

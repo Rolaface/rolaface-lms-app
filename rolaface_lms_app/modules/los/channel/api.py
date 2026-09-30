@@ -19,6 +19,7 @@ def create_channel():
 	  required: true
 	  content:
 	    application/json:
+	      example: {"channel_name": "Mobile Banking"}
 	      schema:
 	        type: object
 	        required:
@@ -64,6 +65,7 @@ def update_channel(id=None):
 	  required: true
 	  content:
 	    application/json:
+	      example: {"channel_name": "Mobile Banking App"}
 	      schema:
 	        type: object
 	        required:

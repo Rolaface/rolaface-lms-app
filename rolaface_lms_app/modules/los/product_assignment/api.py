@@ -42,6 +42,7 @@ def save_product_assignment():
 	  required: true
 	  content:
 	    application/json:
+	      example: {"several_match": "First match", "no_match": "Default Product", "default_product": {"pmv0rb831q": "PL-001"}, "rules": [{"name": "PAR-00001", "rule_name": "Staff personal loans", "sources": ["Branch"], "loan_types": ["pmv0rb831q"], "product": "PL-002", "condition": {"join": "AND", "groups": [{"name": "Staff with good score", "join": "AND", "clauses": [{"variable": "customer_type", "operator": "=", "value": "Staff"}, {"variable": "credit_score", "operator": ">=", "value": "650"}]}]}}, {"rule_name": "Everything else from Branch", "sources": ["Branch"], "loan_types": ["pmv0rb831q"], "product": "PL-001", "condition": null}]}
 	      schema:
 	        type: object
 	        properties:
@@ -109,6 +110,7 @@ def update_settings():
 	requestBody:
 	  content:
 	    application/json:
+	      example: {"several_match": "First match", "no_match": "Default Product", "default_product": {"pmv0rb831q": "PL-001"}}
 	      schema:
 	        type: object
 	        properties:
@@ -145,6 +147,7 @@ def create_rule():
 	  required: true
 	  content:
 	    application/json:
+	      example: {"rule_name": "Staff personal loans", "sources": ["Branch"], "loan_types": ["pmv0rb831q"], "product": "PL-002", "condition": {"join": "AND", "groups": [{"name": "Staff with good score", "join": "AND", "clauses": [{"variable": "customer_type", "operator": "=", "value": "Staff"}, {"variable": "credit_score", "operator": ">=", "value": "650"}]}]}}
 	      schema:
 	        type: object
 	        required: [sources, loan_types, product]
@@ -191,6 +194,7 @@ def update_rule(id=None):
 	  required: true
 	  content:
 	    application/json:
+	      example: {"product": "PL-001"}
 	      schema:
 	        type: object
 	        properties:
@@ -372,6 +376,7 @@ def resolve_product():
 	  required: true
 	  content:
 	    application/json:
+	      example: {"source": "Branch", "loan_type": "pmv0rb831q", "facts": {"customer_type": "Staff", "credit_score": 720}}
 	      schema:
 	        type: object
 	        required: [source]

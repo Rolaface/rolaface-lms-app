@@ -87,6 +87,7 @@ def create_eligibility_rule():
 	  required: true
 	  content:
 	    application/json:
+	      example: {"rule_name": "Standard Personal Loan Eligibility", "loan_product": "PL-001", "effective_from": "2026-10-01", "income_sources": [{"name": "Net Salary", "recognition_pct": 100, "verification_required": true, "included": true}, {"name": "Business Income", "recognition_pct": 70, "verification_required": true, "included": true}, {"name": "Rental Income", "recognition_pct": 80, "verification_required": true, "included": true}, {"name": "Other Income", "recognition_pct": 50, "verification_required": true, "included": true}], "obligation_sources": [{"name": "Existing Monthly EMI", "pct": 100, "verification_required": true, "included": true}, {"name": "Rental Obligation", "pct": 100, "verification_required": false, "included": false}, {"name": "Other Monthly Debt", "pct": 100, "verification_required": false, "included": true}], "credit_bands": [{"grade": "A", "min_score": 800, "multiple": 7, "basis": "Basic Salary", "decision": "Eligible"}, {"grade": "B", "min_score": 700, "multiple": 4, "basis": "Basic Salary", "decision": "Eligible"}, {"grade": "C", "min_score": 600, "multiple": 2.5, "basis": "Basic Salary", "decision": "Conditional"}, {"grade": "D", "min_score": 500, "multiple": 1, "basis": "Basic Salary", "decision": "Manual Review"}, {"grade": "E", "min_score": 0, "multiple": 0, "basis": "Basic Salary", "decision": "Decline"}], "internal_bands": [{"grade": "A", "min_score": 80, "multiple": 5, "basis": "Basic Salary", "decision": "Eligible"}, {"grade": "B", "min_score": 60, "multiple": 3, "basis": "Basic Salary", "decision": "Eligible"}, {"grade": "C", "min_score": 40, "multiple": 1.5, "basis": "Basic Salary", "decision": "Conditional"}, {"grade": "D", "min_score": 20, "multiple": 0.5, "basis": "Basic Salary", "decision": "Manual Review"}, {"grade": "E", "min_score": 0, "multiple": 0, "basis": "Basic Salary", "decision": "Decline"}], "collateral_items": [{"type": "Property", "haircut_pct": 20, "max_ltv_pct": 70}, {"type": "Vehicle", "haircut_pct": 30, "max_ltv_pct": 60}, {"type": "Fixed Deposit", "haircut_pct": 10, "max_ltv_pct": 90}], "formula_params": {"other_income_recognition": 70, "salary_multiple": 5, "max_emi_ratio": 30, "max_dti_ratio": 40, "affordability_buffer": 91, "product_max": 100000}, "hard_stops": [{"factor": "Fraud Flag Present", "operator": "Is True", "value": "Confirmed Fraud"}, {"factor": "Active NPA", "operator": "Equals", "value": "Yes"}, {"factor": "Existing Loan DPD", "operator": "Greater Than or Equal", "value": "90 Days"}, {"factor": "Debt Service Ratio (DSR)", "operator": "Greater Than", "value": "80%"}], "manual_reviews": [{"factor": "Credit Score", "operator": "Between", "value1": "580", "value2": "649"}, {"factor": "Debt Service Ratio (DSR)", "operator": "Between", "value1": "50%", "value2": "80%"}, {"factor": "Existing Loan DPD", "operator": "Between", "value1": "30", "value2": "89 Days"}]}
 	      schema:
 	        type: object
 	        required: [rule_name, loan_product]
@@ -132,6 +133,7 @@ def update_eligibility_rule(id=None):
 	  required: true
 	  content:
 	    application/json:
+	      example: {"formula_params": {"other_income_recognition": 70, "salary_multiple": 5, "max_emi_ratio": 30, "max_dti_ratio": 40, "affordability_buffer": 91, "product_max": 100000}}
 	      schema:
 	        type: object
 	        properties:
@@ -175,6 +177,7 @@ def set_eligibility_rule_status(id=None):
 	  required: true
 	  content:
 	    application/json:
+	      example: {"status": "Active"}
 	      schema:
 	        type: object
 	        required: [status]

@@ -19,11 +19,8 @@ from .constant import (
 	VARIABLES,
 )
 
-# ---------------------------------------------------------------- Reference data
-
 
 def load_references() -> Dict[str, Dict[str, str]]:
-	"""Active channels, active loan types and enabled products, 3 queries for any number of rules."""
 	return {
 		"channels": dict(
 			frappe.get_all(CHANNEL_DOCTYPE, filters={"is_active": 1}, fields=["name", "channel_name"], as_list=True)
@@ -46,16 +43,9 @@ def _prefix(index: Optional[int]) -> str:
 	return f"Rule {index + 1}: " if index is not None else ""
 
 
-# ---------------------------------------------------------------- Settings
-
-
 def validate_settings(
 	settings: Dict[str, Any], refs: Dict[str, Dict[str, str]], stored_defaults: Optional[Dict[str, str]] = None
 ) -> Dict[str, Any]:
-	"""
-	settings holds the merged result (stored values overlaid with the payload).
-	Entries already stored may keep a loan type or product that has since been disabled; new ones must be active.
-	"""
 	stored_defaults = stored_defaults or {}
 	if settings.get("several_match") not in SEVERAL_MATCH_OPTIONS:
 		raise frappe.ValidationError(f"several_match must be one of: {', '.join(SEVERAL_MATCH_OPTIONS)}.")
@@ -69,7 +59,7 @@ def validate_settings(
 	cleaned = {}
 	for loan_type, product in default_product.items():
 		if not product:
-			continue  # empty means manual review for that loan type
+			continue
 		if loan_type not in refs["loan_types"] and loan_type not in stored_defaults:
 			raise frappe.ValidationError(f"default_product: '{loan_type}' is not an active loan type.")
 		if product not in refs["products"] and product != stored_defaults.get(loan_type):
@@ -83,20 +73,12 @@ def validate_settings(
 	return settings
 
 
-# ---------------------------------------------------------------- Rules
-
-
 def validate_rule(
 	data: Dict[str, Any],
 	refs: Dict[str, Dict[str, str]],
 	index: Optional[int] = None,
 	current: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-	"""
-	Returns clean values for a complete rule. Mirrors rowError in the frontend.
-	current is the stored rule when updating: channels, loan types and the product it already has may stay
-	even if they have been disabled since, so disabling one never blocks saving the page. New ones must be active.
-	"""
 	prefix = _prefix(index)
 	current = current or {}
 
@@ -134,7 +116,6 @@ def validate_rule(
 
 
 def normalize_condition(value, prefix: str = "") -> Optional[Dict[str, Any]]:
-	"""{join, groups: [{id, name, join, clauses: [{id, variable, operator, value}]}]}, or None for no condition."""
 	condition = load_json(value, None)
 	if not condition:
 		return None
@@ -198,7 +179,6 @@ def parse_rule_row(row: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def find_shadowed(rules: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-	"""Active rules that can never match: an earlier active rule with no condition covers all their sources and loan types."""
 	warnings = []
 	for i, rule in enumerate(rules):
 		if not rule.get("is_active", 1):
@@ -256,9 +236,6 @@ def build_rule_filters(args: Dict[str, Any]) -> Dict[str, Any]:
 	return filters
 
 
-# ---------------------------------------------------------------- Evaluation
-
-
 def evaluate_condition(condition: Optional[Dict[str, Any]], facts: Dict[str, Any]) -> bool:
 	if not condition or not condition.get("groups"):
 		return True
@@ -274,7 +251,7 @@ def _evaluate_group(group: Dict[str, Any], facts: Dict[str, Any]) -> bool:
 def _evaluate_clause(clause: Dict[str, Any], facts: Dict[str, Any]) -> bool:
 	actual = facts.get(clause["variable"])
 	if actual is None or actual == "":
-		return False  # missing data never counts as a match
+		return False
 
 	operator, expected = clause["operator"], clause["value"]
 	if VARIABLES[clause["variable"]]["numeric"]:

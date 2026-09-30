@@ -1,20 +1,7 @@
 RULESET_DOCTYPE = "Custom LOS Prescreening Ruleset"
-LOAN_PRODUCT_DOCTYPE = "Loan Product"
+RULESET_LABEL = "a pre-screening rule set"
 
-# ---------------------------------------------------------------- Status
-STATUS_DRAFT = "Draft"
-STATUS_ACTIVE = "Active"
-STATUS_INACTIVE = "Inactive"
-STATUS_ARCHIVED = "Archived"
-
-# What set_ruleset_status accepts. Draft and Archived are reached through the lifecycle, not set directly.
-SETTABLE_STATUSES = (STATUS_ACTIVE, STATUS_INACTIVE)
-
-# The row the list screen shows for a product, best first.
-LIST_STATUS_ORDER = (STATUS_ACTIVE, STATUS_INACTIVE, STATUS_DRAFT)
-
-FIRST_VERSION = "1.0"
-
+COPY_TO_DRAFT_FIELDS = ["ruleset_name", "description", "groups"]
 ALLOWED_UPDATE_FIELDS = {"ruleset_name", "description", "effective_from", "effective_to", "groups"}
 
 RETURN_FIELDS = [
@@ -37,13 +24,12 @@ RETURN_FIELDS = [
 
 RULESET_NAME_MAX_LENGTH = 140
 
-# ---------------------------------------------------------------- Rules
 LOGICS = ("ALL", "ANY")
 SEVERITIES = {
 	"Blocking": "Reject Application",
 	"Warning": "Continue with Warning",
 	"Review": "Send for Manual Review",
-}  # severity: default action
+}
 ACTIONS = ("Reject Application", "Mark as Ineligible", "Send for Manual Review", "Continue with Warning")
 DATE_UNITS = ("days", "months", "years")
 
@@ -63,7 +49,6 @@ OPERATORS = {
 	"date": ("before", "after", "equals", "between", "older_than"),
 }
 
-# Same catalog as FIELDS in the frontend (PreScreening/types.tsx).
 FIELDS = {
 	"age": {"label": "Applicant Age", "category": "Applicant", "type": "numeric", "unit": "years"},
 	"gender": {"label": "Gender", "category": "Applicant", "type": "dropdown", "options": ("Male", "Female", "Other")},
@@ -99,7 +84,6 @@ FIELDS = {
 	"dob": {"label": "Date of Birth", "category": "Other", "type": "date"},
 }
 
-# ---------------------------------------------------------------- Test / evaluation result
 VERDICT_ELIGIBLE = "Eligible"
 VERDICT_WARNINGS = "Eligible with Warnings"
 VERDICT_REVIEW = "Manual Review"

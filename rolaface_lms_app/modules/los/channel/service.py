@@ -34,10 +34,6 @@ def create_channel(data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def update_channel(channel_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-	"""
-	Renames a channel. The channel's ID is its name (By fieldname), so this is a real rename:
-	Frappe updates Link fields, and rules that list the channel in their sources JSON are updated here.
-	"""
 	_ensure_exists(channel_id)
 	validate_channel_payload(data, is_update=True, channel_id=channel_id)
 

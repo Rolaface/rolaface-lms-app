@@ -7,8 +7,6 @@ LOAN_PRODUCT_DOCTYPE = "Loan Product"
 LEVEL_LOAN_TYPE = 1
 LEVEL_PURPOSE = 3
 
-# ---------------------------------------------------------------- Settings
-# Stored values of the Select fields. The UI labels differ ("First match only", "Loan type default").
 
 MATCH_FIRST = "First match"
 MATCH_MANUAL_REVIEW = "Manual Review"
@@ -20,10 +18,8 @@ NO_MATCH_OPTIONS = (NO_MATCH_MANUAL_REVIEW, NO_MATCH_DEFAULT_PRODUCT)
 
 SETTINGS_FIELDS = ("several_match", "no_match", "default_product")
 
-# ---------------------------------------------------------------- Rules
 
 ALLOWED_RULE_FIELDS = {"rule_name", "priority", "product", "sources", "loan_types", "condition"}
-JSON_RULE_FIELDS = {"sources", "loan_types", "condition"}
 
 ALLOWED_SORT_FIELDS_RULE = {"name", "rule_name", "priority", "product", "is_active", "creation", "modified"}
 DEFAULT_SORT_BY = "priority"
@@ -47,8 +43,6 @@ RETURN_FIELDS_GET_BY_ID_RULE = RETURN_FIELDS_GET_ALL_RULE + ["owner", "modified_
 
 RULE_NAME_MAX_LENGTH = 140
 
-# ---------------------------------------------------------------- Conditions
-# Same catalog as VARIABLES in the frontend (ProductAssignment/shared.ts).
 
 JOINERS = ("AND", "OR")
 NUMBER_OPERATORS = ("=", "<>", ">", ">=", "<", "<=")
@@ -70,7 +64,6 @@ VARIABLES = {
 	"years_in_business": {"label": "Years in business", "numeric": True},
 }
 
-# ---------------------------------------------------------------- Resolve result
 
 STATUS_RULE_MATCHED = "Rule matched"
 STATUS_LOAN_TYPE_DEFAULT = "Loan type default"

@@ -182,7 +182,6 @@ def _parse_docstring(fn):
 
 
 def _split_keys(node) -> List[str]:
-	"""Keys like 'or a temporary one' with no value: an unquoted comma inside YAML's {...} form."""
 	found = []
 	if isinstance(node, dict):
 		for key, value in node.items():

@@ -24,7 +24,7 @@ def get_product_assignment():
 		return handle_api_error(e, "Get LOS Product Assignment Error")
 
 
-@frappe.whitelist(methods=["PUT", "POST"])
+@frappe.whitelist(methods=["PUT"])
 def save_product_assignment():
 	"""
 	Save Product Assignment Page
@@ -98,7 +98,7 @@ def get_settings():
 		return handle_api_error(e, "Get LOS Product Assignment Settings Error")
 
 
-@frappe.whitelist(methods=["PUT", "PATCH"])
+@frappe.whitelist(methods=["PUT"])
 def update_settings():
 	"""
 	Update Product Assignment Settings
@@ -170,7 +170,7 @@ def create_rule():
 		return handle_api_error(e, "Create LOS Product Assignment Rule API Error")
 
 
-@frappe.whitelist(methods=["PUT", "PATCH"])
+@frappe.whitelist(methods=["PUT"])
 def update_rule(id=None):
 	"""
 	Update Product Assignment Rule
@@ -302,7 +302,7 @@ def delete_rule(id=None):
 		return handle_api_error(e, "Delete LOS Product Assignment Rule Error")
 
 
-@frappe.whitelist(methods=["PUT", "PATCH"])
+@frappe.whitelist(methods=["PUT"])
 def enable_rule(id=None):
 	"""
 	Enable Product Assignment Rule
@@ -328,7 +328,7 @@ def enable_rule(id=None):
 		return handle_api_error(e, "Enable LOS Product Assignment Rule API Error")
 
 
-@frappe.whitelist(methods=["PUT", "PATCH"])
+@frappe.whitelist(methods=["PUT"])
 def disable_rule(id=None):
 	"""
 	Disable Product Assignment Rule

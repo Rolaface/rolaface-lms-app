@@ -82,20 +82,28 @@ def get_settings() -> Dict[str, Any]:
 
 
 def update_settings(data: Dict[str, Any], refs: Optional[Dict] = None) -> Dict[str, Any]:
-	settings = _read_settings()
-	stored_defaults = dict(settings["default_product"])
+	_write_settings(data, refs or load_references())
+	return get_settings()
+
+
+def _write_settings(data: Dict[str, Any], refs: Dict) -> bool:
+	"""Validates and saves the settings. Returns False (and writes nothing) when nothing changed."""
+	stored = _read_settings()
+	settings = dict(stored, default_product=dict(stored["default_product"]))
 	for field in SETTINGS_FIELDS:
 		if data.get(field) is not None:
 			settings[field] = data.get(field)
 
-	settings = validate_settings(settings, refs or load_references(), stored_defaults)
+	settings = validate_settings(settings, refs, stored["default_product"])
+	if all(settings[field] == stored[field] for field in SETTINGS_FIELDS):
+		return False
 
 	settings_doc = frappe.get_single(SETTINGS_DOCTYPE)
 	settings_doc.several_match = settings["several_match"]
 	settings_doc.no_match = settings["no_match"]
 	settings_doc.default_product = dump_json(settings["default_product"])
 	settings_doc.save(ignore_permissions=True)
-	return get_settings()
+	return True
 
 
 # ---------------------------------------------------------------- Rules
@@ -145,6 +153,12 @@ def _save_rule(rule_id: Optional[str], values: Dict[str, Any], priority: Optiona
 	return rule_doc.name
 
 
+def _rule_changed(current: Dict[str, Any], values: Dict[str, Any], priority: Optional[int]) -> bool:
+	if priority and priority != current.get("priority"):
+		return True
+	return any(values[field] != current.get(field) for field in ("rule_name", "product", "sources", "loan_types", "condition"))
+
+
 def _delete_rule(rule_id: str):
 	frappe.delete_doc(RULE_DOCTYPE, rule_id, ignore_permissions=True)
 
@@ -169,7 +183,9 @@ def update_rule(rule_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
 
 	# Validate the rule as it will look after the change, so partial updates stay consistent.
 	merged = {**current, **{k: v for k, v in data.items() if k in ALLOWED_RULE_FIELDS}}
-	_save_rule(rule_id, validate_rule(merged, load_references(), current=current), _clean_priority(data.get("priority")))
+	values, priority = validate_rule(merged, load_references(), current=current), _clean_priority(data.get("priority"))
+	if _rule_changed(current, values, priority):
+		_save_rule(rule_id, values, priority)
 	return get_rule_by_id(rule_id)
 
 
@@ -259,10 +275,10 @@ def get_product_assignment() -> Dict[str, Any]:
 
 def save_product_assignment(data: Dict[str, Any]) -> Dict[str, Any]:
 	"""
-	Saves the screen in one go: settings plus the full ordered rule list.
-	Rules with an existing "name" are updated, rules without one are created (active),
-	and stored rules missing from the list are deleted. A rule keeps its active/inactive status.
-	Nothing is written if any rule is invalid, or if a version was sent and the page changed since.
+	Saves the screen in one go: settings plus the full ordered rule list. Only what changed is written:
+	rules without a "name" are created (active), rules whose fields or position changed are updated,
+	stored rules missing from the list are deleted, and the rest are left alone. A rule keeps its status.
+	Nothing is written if anything is invalid, or if a version was sent and the page changed since.
 	"""
 	check_version(data.get("version"), _page_version())
 	refs = load_references()
@@ -270,16 +286,10 @@ def save_product_assignment(data: Dict[str, Any]) -> Dict[str, Any]:
 	if rules_payload is not None and not isinstance(rules_payload, list):
 		raise frappe.ValidationError("rules must be a list.")
 
-	settings_payload = {field: data.get(field) for field in SETTINGS_FIELDS if data.get(field) is not None}
-	if settings_payload:
-		update_settings(settings_payload, refs)
-
-	if rules_payload is None:
-		return get_product_assignment()
-
-	existing = {rule.name: rule for rule in _all_rules()}
+	# Validate every rule before writing anything.
+	existing = {rule.name: rule for rule in _all_rules()} if rules_payload is not None else {}
 	cleaned = []
-	for index, rule in enumerate(rules_payload):
+	for index, rule in enumerate(rules_payload or []):
 		if not isinstance(rule, dict):
 			raise frappe.ValidationError(f"Rule {index + 1}: must be an object.")
 		rule_id = rule.get("name")
@@ -289,14 +299,28 @@ def save_product_assignment(data: Dict[str, Any]) -> Dict[str, Any]:
 			raise frappe.ValidationError(f"Rule {index + 1}: '{rule_id}' appears twice.")
 		cleaned.append((rule_id, validate_rule(rule, refs, index, current=existing.get(rule_id))))
 
-	kept = {rule_id for rule_id, _ in cleaned if rule_id}
-	for rule_id in set(existing) - kept:
-		_delete_rule(rule_id)
+	summary = {"settings_updated": False, "created": 0, "updated": 0, "deleted": 0, "unchanged": 0}
+	settings_payload = {field: data.get(field) for field in SETTINGS_FIELDS if data.get(field) is not None}
+	if settings_payload:
+		summary["settings_updated"] = _write_settings(settings_payload, refs)
 
-	for position, (rule_id, values) in enumerate(cleaned, start=1):
-		_save_rule(rule_id, values, position)
+	if rules_payload is not None:
+		kept = {rule_id for rule_id, _ in cleaned if rule_id}
+		for rule_id in set(existing) - kept:
+			_delete_rule(rule_id)
+			summary["deleted"] += 1
 
-	return get_product_assignment()
+		for position, (rule_id, values) in enumerate(cleaned, start=1):
+			if not rule_id:
+				_save_rule(None, values, position)
+				summary["created"] += 1
+			elif _rule_changed(existing[rule_id], values, position):
+				_save_rule(rule_id, values, position)
+				summary["updated"] += 1
+			else:
+				summary["unchanged"] += 1
+
+	return {**get_product_assignment(), "summary": summary}
 
 
 # ---------------------------------------------------------------- Resolve

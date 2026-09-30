@@ -1,0 +1,175 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "ELR-.#####",
+ "creation": "2026-09-30 09:31:27.482710",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "rule_name",
+  "loan_product",
+  "column_break_1",
+  "version",
+  "status",
+  "effective_from",
+  "effective_to",
+  "assessment_section",
+  "income_sources",
+  "obligation_sources",
+  "limits_section",
+  "credit_bands",
+  "internal_bands",
+  "collateral_items",
+  "formula_params",
+  "decision_section",
+  "hard_stops",
+  "manual_reviews"
+ ],
+ "fields": [
+  {
+   "fieldname": "rule_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Rule Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "loan_product",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Loan Product",
+   "options": "Loan Product",
+   "reqd": 1,
+   "search_index": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "version",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Version",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nActive\nInactive\nArchived",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "description": "Defaults to the day the version is activated",
+   "fieldname": "effective_from",
+   "fieldtype": "Date",
+   "label": "Effective From"
+  },
+  {
+   "description": "Defaults to the day a newer version replaces it",
+   "fieldname": "effective_to",
+   "fieldtype": "Date",
+   "label": "Effective To"
+  },
+  {
+   "fieldname": "assessment_section",
+   "fieldtype": "Section Break",
+   "label": "Assessment"
+  },
+  {
+   "description": "[{name, recognition_pct, verification_required, included}]",
+   "fieldname": "income_sources",
+   "fieldtype": "JSON",
+   "label": "Income Sources"
+  },
+  {
+   "description": "[{name, pct, verification_required, included}]",
+   "fieldname": "obligation_sources",
+   "fieldtype": "JSON",
+   "label": "Obligation Sources"
+  },
+  {
+   "fieldname": "limits_section",
+   "fieldtype": "Section Break",
+   "label": "Limits"
+  },
+  {
+   "description": "[{grade, min_score, multiple, basis, decision}]",
+   "fieldname": "credit_bands",
+   "fieldtype": "JSON",
+   "label": "Credit Bands"
+  },
+  {
+   "description": "[{grade, min_score, multiple, basis, decision}]",
+   "fieldname": "internal_bands",
+   "fieldtype": "JSON",
+   "label": "Internal Bands"
+  },
+  {
+   "description": "[{type, haircut_pct, max_ltv_pct}]. Market value comes from the loan application",
+   "fieldname": "collateral_items",
+   "fieldtype": "JSON",
+   "label": "Collateral Items"
+  },
+  {
+   "description": "{other_income_recognition, salary_multiple, max_emi_ratio, max_dti_ratio, affordability_buffer, product_max}",
+   "fieldname": "formula_params",
+   "fieldtype": "JSON",
+   "label": "Formula Params"
+  },
+  {
+   "fieldname": "decision_section",
+   "fieldtype": "Section Break",
+   "label": "Decision Rules"
+  },
+  {
+   "fieldname": "hard_stops",
+   "fieldtype": "JSON",
+   "label": "Hard Stops"
+  },
+  {
+   "fieldname": "manual_reviews",
+   "fieldtype": "JSON",
+   "label": "Manual Reviews"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-30 15:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Rolaface Lms App",
+ "name": "Custom LOS Eligibility Rule",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "rule_name",
+ "track_changes": 1
+}

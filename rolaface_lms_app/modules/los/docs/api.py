@@ -5,9 +5,9 @@ from rolaface_lms_app.utils.api_response import handle_api_error, send_response
 from rolaface_lms_app.utils.openapi import build_spec
 
 LOS_PACKAGES = ["rolaface_lms_app.modules.los"]
-TAG_ORDER = ["LOS Loan Type Tree", "LOS Product Assignment", "LOS Pre-Screening", "LOS Channel", "LOS API Docs"]
+TAG_ORDER = ["LOS Loan Type Tree", "LOS Product Assignment", "LOS Pre-Screening", "LOS Eligibility", "LOS Channel", "LOS API Docs"]
 DESCRIPTION = (
-	"Loan Origination setup: loan type tree, product assignment, pre-screening and channels.\n\n"
+	"Loan Origination setup: loan type tree, product assignment, pre-screening, eligibility and channels.\n\n"
 	"Built from the code on every request, so it always matches what is deployed. "
 	"Click **Authorize** and paste a session ID to try the endpoints."
 )

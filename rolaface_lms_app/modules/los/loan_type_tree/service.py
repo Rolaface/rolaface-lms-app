@@ -27,7 +27,6 @@ from .utils import (
 
 
 def _add_names(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-	"""Adds parent, loan type and sub-type names with one extra query for the whole page."""
 	ids = set()
 	for row in rows:
 		ids.update(filter(None, (row.get("parent_node"), row.get("loan_type"), row.get("sub_type"))))
@@ -46,19 +45,13 @@ def _active_filter(filters: Dict[str, Any], include_inactive) -> Dict[str, Any]:
 
 
 def _require_parent(node_id: str, level: int, include_inactive) -> Dict[str, Any]:
-	"""The node a lookup lists children of. Inactive is an error unless inactive items were asked for."""
 	node = require_node(node_id, expected_level=level)
 	if not node.is_active and not frappe.utils.cint(include_inactive):
 		raise frappe.ValidationError(f"{LEVEL_LABELS[level]} '{node.node_name}' is inactive.")
 	return node
 
 
-# ---------------------------------------------------------------- Writes shared by every endpoint
-# The per-node endpoints and the whole-setup save both go through these, so the tree rules live in one place.
-
-
 def _insert_node(node_name: str, applicant_type: Optional[str], parent_id: Optional[str], is_active: int = 1) -> str:
-	"""Creates a node. Level, applicant type and ancestors come from the parent."""
 	node_name = clean_node_name(node_name)
 	hierarchy = resolve_hierarchy({"applicant_type": applicant_type, "parent_node": parent_id})
 	ensure_unique_name(node_name, hierarchy["applicant_type"], hierarchy["parent"])
@@ -81,10 +74,6 @@ def _insert_node(node_name: str, applicant_type: Optional[str], parent_id: Optio
 
 
 def _update_node_fields(node_id: str, node_name: Optional[str] = None, is_active: Optional[int] = None) -> int:
-	"""
-	Renames and/or enables/disables a node in one save. Disabling cascades to everything under it.
-	Returns how many nodes under it were disabled too.
-	"""
 	node = require_node(node_id)
 	node_doc = frappe.get_doc(TREE_DOCTYPE, node_id)
 	has_changes = False
@@ -109,7 +98,6 @@ def _update_node_fields(node_id: str, node_name: Optional[str] = None, is_active
 
 
 def _delete_block_reason(node: Dict[str, Any]) -> Optional[str]:
-	"""Why a node can't be deleted, or None. Frappe's own link checks (e.g. applications) are caught on delete."""
 	children = frappe.db.count(TREE_DOCTYPE, {PARENT_FIELD: node.name})
 	if children:
 		return f"'{node.node_name}' has {children} item(s) under it."
@@ -146,9 +134,6 @@ def _deactivate_descendants(node: Dict[str, Any]) -> int:
 	return len(descendants)
 
 
-# ---------------------------------------------------------------- Per-node endpoints
-
-
 def create_node(data: Dict[str, Any]) -> Dict[str, Any]:
 	is_active = 1 if data.get("is_active") is None else parse_flag(data.get("is_active"), "is_active")
 	node_id = _insert_node(data.get("node_name"), data.get("applicant_type"), data.get("parent_node"), is_active)
@@ -156,7 +141,6 @@ def create_node(data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def update_node(node_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-	"""Renames a node. Parent and applicant type are fixed; status goes through toggle_node_status."""
 	node = require_node(node_id)
 	validate_update_payload(node, data)
 	_update_node_fields(node_id, node_name=data["node_name"])
@@ -201,9 +185,6 @@ def toggle_node_status(node_id: str, is_active: int) -> Dict[str, Any]:
 	}
 
 
-# ---------------------------------------------------------------- Lookups
-
-
 def get_loan_types(applicant_type: Optional[str] = None, include_inactive=0) -> List[Dict[str, Any]]:
 	filters = _active_filter({"level": LEVEL_LOAN_TYPE}, include_inactive)
 	if applicant_type:
@@ -228,7 +209,6 @@ def get_purposes(
 	search: Optional[str] = None,
 	include_inactive=0,
 ) -> List[Dict[str, Any]]:
-	"""Purposes under a sub-type, under a whole loan type, or across an applicant type, with their path."""
 	filters = _active_filter({"level": LEVEL_PURPOSE}, include_inactive)
 	if sub_type:
 		_require_parent(sub_type, LEVEL_SUB_TYPE, include_inactive)
@@ -252,20 +232,14 @@ def get_purposes(
 	return rows
 
 
-# ---------------------------------------------------------------- Whole setup (Loan Type Setup screen)
-# Same shape as LoanSetupConfig in the frontend:
-# {"Individual": [{id, name, subTypes: [{id, name, purposes: [{id, name}]}]}], "Business": [...]}
-
 _SETUP_CHILD_KEY = {LEVEL_LOAN_TYPE: "subTypes", LEVEL_SUB_TYPE: "purposes"}
 
 
 def get_setup_page(include_inactive=0) -> Dict[str, Any]:
-	"""The setup plus the version the save must send back."""
 	return {"setup": get_setup(include_inactive), "version": table_version(TREE_DOCTYPE)}
 
 
 def get_setup(include_inactive=0) -> Dict[str, List[Dict[str, Any]]]:
-	"""The whole tree for both applicant types, in the screen's shape. One query."""
 	filters = _active_filter({}, include_inactive)
 	rows = frappe.get_all(
 		TREE_DOCTYPE,
@@ -291,18 +265,12 @@ def get_setup(include_inactive=0) -> Dict[str, List[Dict[str, Any]]]:
 			parent = by_id[row.get(PARENT_FIELD)]
 			parent["item"][_SETUP_CHILD_KEY[parent["level"]]].append(item)
 		else:
-			continue  # parent is inactive, so the branch stays hidden
+			continue
 		by_id[row.name] = {"item": item, "level": row.level}
 	return setup
 
 
 def save_setup(config: Dict[str, Any], version=None) -> Dict[str, Any]:
-	"""
-	Saves the Loan Type Setup screen in one call. For each applicant type in config:
-	unknown IDs are created, changed names renamed, and nodes left out are deleted,
-	or deactivated when something still uses them. Nothing is written if any part is invalid,
-	or if a version was sent and the tree changed since.
-	"""
 	check_version(version, table_version(TREE_DOCTYPE))
 	applicant_types = _validate_setup_shape(config)
 
@@ -349,7 +317,6 @@ def _validate_setup_shape(config) -> List[str]:
 
 
 def _plan_level(items, level, applicant_type, parent_id, parent_path, existing, children_of, plan, parent_ref=None):
-	"""Walks one level of the payload and records what to create, rename or reactivate."""
 	label = LEVEL_LABELS[level]
 	if not isinstance(items, list):
 		raise frappe.ValidationError(f"{parent_path or applicant_type}: {_SETUP_CHILD_KEY[level - 1]} must be a list.")
@@ -369,8 +336,9 @@ def _plan_level(items, level, applicant_type, parent_id, parent_path, existing, 
 		if node:
 			plan["kept"].add(node.name)
 			rename = name if node.node_name != name else None
-			if rename or not node.is_active:
-				plan["updates"].append((node.name, rename, not node.is_active))
+			reactivate = not node.is_active and item.get("id") != node.name
+			if rename or reactivate:
+				plan["updates"].append((node.name, rename, reactivate))
 			ref = {"id": node.name}
 		else:
 			ref = {"id": None, "name": name, "level": level, "applicant_type": applicant_type, "parent": parent_ref or parent_id}
@@ -387,7 +355,6 @@ def _plan_level(items, level, applicant_type, parent_id, parent_path, existing, 
 
 
 def _match_existing(item_id, name, level, applicant_type, parent_id, path, existing, children_of, plan):
-	"""Finds the stored node for a payload item: by ID, or by name among removed siblings (re-added items)."""
 	if item_id and item_id in existing:
 		node = existing[item_id]
 		if node.level != level or node.applicant_type != applicant_type or (node.get(PARENT_FIELD) or None) != parent_id:
@@ -399,7 +366,6 @@ def _match_existing(item_id, name, level, applicant_type, parent_id, path, exist
 	if item_id and frappe.db.exists(TREE_DOCTYPE, item_id):
 		raise frappe.ValidationError(f"{path}: '{item_id}' belongs to another applicant type.")
 
-	# New in the payload. If a sibling with this name exists and isn't kept, reuse it instead of duplicating.
 	if parent_id is not None or level == LEVEL_LOAN_TYPE:
 		for sibling in children_of.get(parent_id, []):
 			if (
@@ -424,14 +390,11 @@ def _check_renames_against_omitted(plan, omitted, existing):
 
 
 def _apply_plan(plan, summary):
-	# Renames and re-enables go first (parents before children), so a new item can take a name
-	# another item is giving up in the same save.
 	for node_id, new_name, reactivate in plan["updates"]:
 		_update_node_fields(node_id, new_name, 1 if reactivate else None)
 		summary["renamed"] += 1 if new_name else 0
 		summary["reactivated"] += 1 if reactivate else 0
 
-	# Parents come before their children in plan["create"], so their IDs are known in time.
 	for ref in plan["create"]:
 		parent = ref["parent"]
 		parent_id = parent["id"] if isinstance(parent, dict) else parent
@@ -440,7 +403,6 @@ def _apply_plan(plan, summary):
 
 
 def _remove_omitted(omitted, summary):
-	"""Purposes first, then sub-types, then loan types. Anything still in use is deactivated instead."""
 	for row in sorted(omitted, key=lambda r: -r.level):
 		node = require_node(row.name)
 		if _delete_block_reason(node):

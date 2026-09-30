@@ -52,7 +52,7 @@ def create_node():
 		return handle_api_error(e, "Create LOS Loan Type Tree Node API Error")
 
 
-@frappe.whitelist(methods=["PUT", "PATCH"])
+@frappe.whitelist(methods=["PUT"])
 def update_node(id=None):
 	"""
 	Update Loan Type Tree Node
@@ -139,7 +139,7 @@ def delete_node(id=None):
 		return handle_api_error(e, "Delete LOS Loan Type Tree Node Error")
 
 
-@frappe.whitelist(methods=["PUT", "PATCH"])
+@frappe.whitelist(methods=["PUT"])
 def enable_node(id=None):
 	"""
 	Enable Loan Type Tree Node
@@ -165,7 +165,7 @@ def enable_node(id=None):
 		return handle_api_error(e, "Enable LOS Loan Type Tree Node API Error")
 
 
-@frappe.whitelist(methods=["PUT", "PATCH"])
+@frappe.whitelist(methods=["PUT"])
 def disable_node(id=None):
 	"""
 	Disable Loan Type Tree Node
@@ -305,7 +305,7 @@ def get_loan_type_setup(include_inactive=0):
 		return handle_api_error(e, "Get LOS Loan Type Setup Error")
 
 
-@frappe.whitelist(methods=["PUT", "POST"])
+@frappe.whitelist(methods=["PUT"])
 def save_loan_type_setup():
 	"""
 	Save Loan Type Setup

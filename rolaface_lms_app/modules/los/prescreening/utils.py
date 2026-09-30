@@ -8,7 +8,6 @@ from .constant import (
 	ACTIONS,
 	DATE_UNITS,
 	FIELDS,
-	FIRST_VERSION,
 	LOGICS,
 	OPERATORS,
 	SEVERITIES,
@@ -17,9 +16,6 @@ from .constant import (
 	VERDICT_REVIEW,
 	VERDICT_WARNINGS,
 )
-
-# ---------------------------------------------------------------- Rule groups
-# A draft may hold unfinished rules (Save Draft). Activation needs every rule complete (complete=True).
 
 
 def normalize_groups(value, complete: bool = False) -> List[Dict[str, Any]]:
@@ -93,7 +89,6 @@ def _normalize_rule(rule, where: str, complete: bool) -> Dict[str, Any]:
 
 
 def _values(rule: Dict[str, Any], field: Dict[str, Any], operator: str, where: str, complete: bool) -> Dict[str, Any]:
-	"""Checks and cleans value / value2 / values / date_unit for the field type and operator."""
 	kind = field["type"]
 
 	if operator in ("in", "not_in"):
@@ -176,23 +171,6 @@ def count_rules(groups) -> int:
 	return sum(len(group.get("rules") or []) for group in load_json(groups, []) or [])
 
 
-# ---------------------------------------------------------------- Versions
-
-
-def next_version(versions: List[str]) -> str:
-	"""One step (0.1) above the highest version so far. Tenths are counted as integers to avoid float drift."""
-	published = [_tenths(v) for v in versions if v]
-	if not published:
-		return FIRST_VERSION
-	nxt = max(published) + 1
-	return f"{nxt // 10}.{nxt % 10}"
-
-
-def _tenths(version: str) -> int:
-	major, _, minor = str(version).partition(".")
-	return int(major or 0) * 10 + int((minor or "0")[:1])
-
-
 def clean_ruleset_name(value, max_length: int) -> str:
 	name = str(value or "").strip()
 	if not name:
@@ -200,27 +178,6 @@ def clean_ruleset_name(value, max_length: int) -> str:
 	if len(name) > max_length:
 		raise frappe.ValidationError(f"Rule Set Name cannot be longer than {max_length} characters.")
 	return name
-
-
-def clean_dates(effective_from, effective_to):
-	"""Effective From / To as YYYY-MM-DD (or None). To may not be before From."""
-	dates = []
-	for value, label in ((effective_from, "Effective From"), (effective_to, "Effective To")):
-		if _empty(value):
-			dates.append(None)
-			continue
-		try:
-			dates.append(getdate(value).isoformat())
-		except Exception:
-			raise frappe.ValidationError(f"{label} must be a date (YYYY-MM-DD).")
-	if dates[0] and dates[1] and dates[1] < dates[0]:
-		raise frappe.ValidationError("Effective To cannot be before Effective From.")
-	return dates
-
-
-# ---------------------------------------------------------------- Evaluation (Test tab, later the loan application)
-# A rule gives True (met), False (not met) or None (no value supplied for its field, or the rule is unfinished).
-# Only failures inside a failed group count towards the verdict.
 
 
 def evaluate(groups: List[Dict[str, Any]], facts: Dict[str, Any]) -> Dict[str, Any]:
@@ -280,7 +237,6 @@ def _is_complete(rule: Dict[str, Any]) -> bool:
 
 
 def _compare(kind: str, rule: Dict[str, Any], actual) -> bool:
-	"""Compares the applicant's value with the rule. The rule's values are already clean (see normalize_groups)."""
 	operator, where = rule["operator"], f"facts.{rule['field']}"
 	value, value2 = rule.get("value"), rule.get("value2")
 
@@ -290,7 +246,7 @@ def _compare(kind: str, rule: Dict[str, Any], actual) -> bool:
 		actual = _boolean(actual, where, complete=True)
 	elif kind == "date":
 		actual = _date(actual, where, complete=True)
-	else:  # text and dropdown: compared without case
+	else:
 		actual = str(actual).strip().lower()
 		value = str(value).strip().lower() if value is not None else None
 
@@ -321,7 +277,6 @@ def _compare(kind: str, rule: Dict[str, Any], actual) -> bool:
 
 
 def _ago(amount, unit: str):
-	"""The date `amount` days, months or years before today."""
 	amount = int(amount)
 	if unit == "days":
 		return getdate(add_days(nowdate(), -amount))

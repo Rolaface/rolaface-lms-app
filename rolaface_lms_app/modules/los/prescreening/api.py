@@ -175,7 +175,7 @@ def create_ruleset():
 		return handle_api_error(e, "Create LOS Pre-Screening Rule Set API Error")
 
 
-@frappe.whitelist(methods=["PUT", "PATCH"])
+@frappe.whitelist(methods=["PUT"])
 def update_ruleset(id=None):
 	"""
 	Update Pre-Screening Rule Set (Save Draft)
@@ -210,7 +210,7 @@ def update_ruleset(id=None):
 		return handle_api_error(e, "Update LOS Pre-Screening Rule Set API Error")
 
 
-@frappe.whitelist(methods=["PUT", "PATCH"])
+@frappe.whitelist(methods=["PUT"])
 def set_ruleset_status(id=None):
 	"""
 	Set Pre-Screening Rule Set Status

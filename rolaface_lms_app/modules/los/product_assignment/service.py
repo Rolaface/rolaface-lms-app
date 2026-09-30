@@ -50,8 +50,6 @@ from .utils import (
 	validate_settings,
 )
 
-# ---------------------------------------------------------------- Settings
-
 
 def _read_settings() -> Dict[str, Any]:
 	stored = frappe.db.get_singles_dict(SETTINGS_DOCTYPE)
@@ -87,7 +85,6 @@ def update_settings(data: Dict[str, Any], refs: Optional[Dict] = None) -> Dict[s
 
 
 def _write_settings(data: Dict[str, Any], refs: Dict) -> bool:
-	"""Validates and saves the settings. Returns False (and writes nothing) when nothing changed."""
 	stored = _read_settings()
 	settings = dict(stored, default_product=dict(stored["default_product"]))
 	for field in SETTINGS_FIELDS:
@@ -106,9 +103,6 @@ def _write_settings(data: Dict[str, Any], refs: Dict) -> bool:
 	return True
 
 
-# ---------------------------------------------------------------- Rules
-
-
 def _next_priority() -> int:
 	highest = frappe.get_all(RULE_DOCTYPE, fields=["priority"], order_by="priority desc", limit_page_length=1)
 	return (highest[0].priority or 0) + 1 if highest else 1
@@ -123,7 +117,6 @@ def _set_rule_values(rule_doc, values: Dict[str, Any]):
 
 
 def _add_rule_names(rules: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-	"""Adds product, channel and loan type names, with 3 queries for any number of rules."""
 	products = name_map(LOAN_PRODUCT_DOCTYPE, [r["product"] for r in rules], "product_name")
 	channels = name_map(CHANNEL_DOCTYPE, [s for r in rules for s in r["sources"]], "channel_name")
 	loan_types = name_map(TREE_DOCTYPE, [lt for r in rules for lt in r["loan_types"]], "node_name")
@@ -135,11 +128,7 @@ def _add_rule_names(rules: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 	return rules
 
 
-# The per-rule endpoints and the whole-page save both write through these two.
-
-
 def _save_rule(rule_id: Optional[str], values: Dict[str, Any], priority: Optional[int], is_active: int = 1) -> str:
-	"""Inserts (rule_id None) or updates a rule with already validated values. Status is only set on insert."""
 	rule_doc = frappe.get_doc(RULE_DOCTYPE, rule_id) if rule_id else frappe.new_doc(RULE_DOCTYPE)
 	_set_rule_values(rule_doc, values)
 	if not rule_id:
@@ -181,7 +170,6 @@ def update_rule(rule_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
 	current = _stored_rule(rule_id)
 	validate_update_fields(data, ALLOWED_RULE_FIELDS, "rule")
 
-	# Validate the rule as it will look after the change, so partial updates stay consistent.
 	merged = {**current, **{k: v for k, v in data.items() if k in ALLOWED_RULE_FIELDS}}
 	values, priority = validate_rule(merged, load_references(), current=current), _clean_priority(data.get("priority"))
 	if _rule_changed(current, values, priority):
@@ -194,7 +182,6 @@ def toggle_rule_status(rule_id: str, is_active: int) -> Dict[str, Any]:
 	label = f"Rule '{rule.rule_name}'" if rule.rule_name else f"Rule {rule.name}"
 	ensure_status_change(rule.is_active, is_active, label)
 
-	# Save the document (not db.set_value) so the change shows in the rule's version history.
 	rule_doc = frappe.get_doc(RULE_DOCTYPE, rule_id)
 	rule_doc.is_active = is_active
 	rule_doc.save(ignore_permissions=True)
@@ -254,15 +241,11 @@ def delete_rule(rule_id: str):
 	_delete_rule(rule_id)
 
 
-# ---------------------------------------------------------------- Whole page
-
-
 def _page_version() -> str:
 	return table_version(RULE_DOCTYPE, single_modified(SETTINGS_DOCTYPE))
 
 
 def get_product_assignment() -> Dict[str, Any]:
-	"""Everything the Product Assignment screen needs, in one call, plus the version the save must send back."""
 	rules = _add_rule_names(_all_rules())
 	return {
 		"settings": get_settings(),
@@ -274,19 +257,12 @@ def get_product_assignment() -> Dict[str, Any]:
 
 
 def save_product_assignment(data: Dict[str, Any]) -> Dict[str, Any]:
-	"""
-	Saves the screen in one go: settings plus the full ordered rule list. Only what changed is written:
-	rules without a "name" are created (active), rules whose fields or position changed are updated,
-	stored rules missing from the list are deleted, and the rest are left alone. A rule keeps its status.
-	Nothing is written if anything is invalid, or if a version was sent and the page changed since.
-	"""
 	check_version(data.get("version"), _page_version())
 	refs = load_references()
 	rules_payload = load_json(data.get("rules"), None)
 	if rules_payload is not None and not isinstance(rules_payload, list):
 		raise frappe.ValidationError("rules must be a list.")
 
-	# Validate every rule before writing anything.
 	existing = {rule.name: rule for rule in _all_rules()} if rules_payload is not None else {}
 	cleaned = []
 	for index, rule in enumerate(rules_payload or []):
@@ -323,14 +299,7 @@ def save_product_assignment(data: Dict[str, Any]) -> Dict[str, Any]:
 	return {**get_product_assignment(), "summary": summary}
 
 
-# ---------------------------------------------------------------- Resolve
-
-
 def resolve_product(data: Dict[str, Any]) -> Dict[str, Any]:
-	"""
-	Picks the product for an application: source (channel ID), loan type or purpose (tree ID), and facts
-	for the conditions (customer_type, credit_score, loan_amount, ...). Also powers a test panel.
-	"""
 	source = str(data.get("source") or "").strip()
 	if not source:
 		raise frappe.ValidationError("source is required.")
@@ -350,7 +319,6 @@ def resolve_product(data: Dict[str, Any]) -> Dict[str, Any]:
 
 	settings = _read_settings()
 
-	# Narrow in SQL to active rules for this source and loan type, then check conditions in priority order.
 	candidates = frappe.get_all(
 		RULE_DOCTYPE,
 		filters=[["is_active", "=", 1], json_contains("sources", source), json_contains("loan_types", loan_type)],
@@ -410,7 +378,6 @@ def _resolve_loan_type(data: Dict[str, Any]) -> str:
 
 
 def get_condition_variables() -> List[Dict[str, Any]]:
-	"""The variables a rule condition can use, with their operators and options."""
 	return [
 		{
 			"name": name,

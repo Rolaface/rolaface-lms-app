@@ -43,7 +43,7 @@ def create_channel():
 		return handle_api_error(e, "Create LOS Channel API Error")
 
 
-@frappe.whitelist(methods=["PUT", "PATCH"])
+@frappe.whitelist(methods=["PUT"])
 def update_channel(id=None):
 	"""
 	Update LOS Channel
@@ -173,7 +173,7 @@ def delete_channel(id=None):
 		return handle_api_error(e, "Delete LOS Channel Error")
 
 
-@frappe.whitelist(methods=["PUT", "PATCH"])
+@frappe.whitelist(methods=["PUT"])
 def enable_channel(id=None):
 	"""
 	Enable LOS Channel
@@ -199,7 +199,7 @@ def enable_channel(id=None):
 		return handle_api_error(e, "Enable LOS Channel API Error")
 
 
-@frappe.whitelist(methods=["PUT", "PATCH"])
+@frappe.whitelist(methods=["PUT"])
 def disable_channel(id=None):
 	"""
 	Disable LOS Channel

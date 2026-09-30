@@ -51,7 +51,6 @@ def validate_applicant_type(value) -> str:
 
 
 def ensure_unique_name(node_name: str, applicant_type: str, parent: Optional[str], node_id: Optional[str] = None):
-	# Same name is allowed under different parents ("Other"), never twice under one parent.
 	filters = {
 		"node_name": node_name,
 		"applicant_type": applicant_type,
@@ -64,7 +63,6 @@ def ensure_unique_name(node_name: str, applicant_type: str, parent: Optional[str
 
 
 def resolve_hierarchy(data: Dict[str, Any]) -> Dict[str, Any]:
-	"""Works out level, applicant type and ancestors from the parent, so callers can't send wrong values."""
 	parent_id = str(data.get("parent_node") or "").strip() or None
 
 	if not parent_id:
@@ -86,7 +84,6 @@ def resolve_hierarchy(data: Dict[str, Any]) -> Dict[str, Any]:
 			f"Applicant Type must match the parent ({parent.applicant_type}). Leave it out to copy it from the parent."
 		)
 
-	# Store ancestors only: a sub-type points at its loan type, a purpose at both.
 	if parent.level == LEVEL_LOAN_TYPE:
 		loan_type, sub_type = parent.name, None
 	else:
@@ -123,7 +120,6 @@ def descendant_filters(node: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 
 def count_node_usage(node_id: str) -> Dict[str, int]:
-	"""Where a loan type is referenced by value (JSON), which Frappe's link checks can't see."""
 	rules = frappe.db.count(RULE_DOCTYPE, filters=[json_contains("loan_types", node_id)])
 	defaults = load_json(frappe.db.get_single_value(SETTINGS_DOCTYPE, "default_product"), {}) or {}
 	return {"rules": rules, "default_product": 1 if node_id in defaults else 0}

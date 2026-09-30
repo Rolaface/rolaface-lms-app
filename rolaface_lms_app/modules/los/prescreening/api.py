@@ -20,7 +20,7 @@ def get_rulesets(page=1, page_size=20):
 	---
 	tags:
 	  - LOS Pre-Screening
-	summary: One line per loan product, showing its live version (else its draft), with rules_count and the draft ID if there is one.
+	summary: One line per loan product, showing its live version (else its draft), with rules_count and draft_id (the unpublished draft waiting behind the live version, null if none).
 	parameters:
 	  - {in: query, name: page, schema: {type: integer, default: 1}}
 	  - {in: query, name: page_size, schema: {type: integer, default: 20, maximum: 500}}
@@ -48,7 +48,7 @@ def get_ruleset(id=None):
 	---
 	tags:
 	  - LOS Pre-Screening
-	summary: One version with its rule groups. draft is the ID of the product's draft, if another version is shown.
+	summary: One version with its rule groups. draft_id is the product's unpublished draft when this version is not it (null if none).
 	parameters:
 	  - {in: query, name: id, required: true, schema: {type: string}}
 	"""
@@ -144,6 +144,9 @@ def create_ruleset():
 	tags:
 	  - LOS Pre-Screening
 	summary: New rule set for a loan product, as version 1.0 Draft. One rule set per loan product.
+	description: >
+	  groups is optional. Send only name, product and description from the New Rule Set modal, then fill the rules
+	  with update_ruleset; or send groups here to create it in one call.
 	requestBody:
 	  required: true
 	  content:
@@ -155,7 +158,9 @@ def create_ruleset():
 	          ruleset_name: {type: string}
 	          loan_product: {type: string}
 	          description: {type: string}
-	          groups: {type: array, items: {type: object}}
+	          effective_from: {type: string, format: date, description: Optional. Defaults to the activation day.}
+	          effective_to: {type: string, format: date, description: Optional. Not before effective_from.}
+	          groups: {type: array, items: {type: object}, description: Optional. Same shape as in update_ruleset.}
 	responses:
 	  201:
 	    description: Rule set created as a draft.
@@ -190,10 +195,12 @@ def update_ruleset(id=None):
 	        properties:
 	          ruleset_name: {type: string}
 	          description: {type: string}
+	          effective_from: {type: string, format: date}
+	          effective_to: {type: string, format: date}
 	          groups: {type: array, items: {type: object}}
 	responses:
 	  400:
-	    description: Nothing to update, an archived version, status / version / loan_product / effective_from sent, or an invalid rule.
+	    description: Nothing to update, an archived version, status / version / loan_product sent, bad dates, or an invalid rule.
 	"""
 	try:
 		result = service.update_ruleset(require_id(id, "Rule Set"), request_args())
@@ -212,8 +219,8 @@ def set_ruleset_status(id=None):
 	  - LOS Pre-Screening
 	summary: Active publishes a draft (or switches an inactive version back on); Inactive switches the active version off.
 	description: >
-	  Publishing needs every rule complete. The draft goes live today (Effective From is set to today)
-	  and the previous version is archived (Effective To is set to today).
+	  Publishing needs every rule complete. The previous version is archived. Effective From defaults to today
+	  if empty, and the archived version's Effective To defaults to today if empty.
 	parameters:
 	  - {in: query, name: id, required: true, schema: {type: string}}
 	requestBody:

@@ -22,7 +22,7 @@ from .constant import (
 	STATUS_DRAFT,
 	STATUS_INACTIVE,
 )
-from .utils import clean_ruleset_name, count_rules, evaluate, next_version, normalize_groups
+from .utils import clean_dates, clean_ruleset_name, count_rules, evaluate, next_version, normalize_groups
 
 # Each row is one version of one loan product's rule set. A product has at most one Draft
 # and one live (Active or Inactive) version; older ones are Archived.
@@ -67,7 +67,7 @@ def _add_product_names(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 def get_ruleset(ruleset_id: str) -> Dict[str, Any]:
 	row = _present(_get_row(ruleset_id))
 	draft = _product_rows(row.loan_product, [STATUS_DRAFT])
-	row["draft"] = draft[0].name if draft and draft[0].name != row.name else None
+	row["draft_id"] = draft[0].name if draft and draft[0].name != row.name else None
 	return _add_product_names([row])[0]
 
 
@@ -92,8 +92,8 @@ def get_rulesets(args: Dict[str, Any], page: int, page_size: int) -> Tuple[List[
 	summaries = []
 	for product_rows in by_product.values():
 		shown = min(product_rows, key=lambda r: LIST_STATUS_ORDER.index(r.status))
-		draft = next((r.name for r in product_rows if r.status == STATUS_DRAFT and r.name != shown.name), None)
-		summaries.append({**_present(shown, with_groups=False), "draft": draft})
+		draft_id = next((r.name for r in product_rows if r.status == STATUS_DRAFT and r.name != shown.name), None)
+		summaries.append({**_present(shown, with_groups=False), "draft_id": draft_id})
 
 	if args.get("status"):
 		summaries = [s for s in summaries if s["status"] == args.get("status")]
@@ -156,6 +156,7 @@ def create_ruleset(data: Dict[str, Any]) -> Dict[str, Any]:
 	if frappe.db.exists(RULESET_DOCTYPE, {"loan_product": loan_product}):
 		raise frappe.DuplicateEntryError(f"Loan Product '{loan_product}' already has a pre-screening rule set.")
 
+	effective_from, effective_to = clean_dates(data.get("effective_from"), data.get("effective_to"))
 	doc = frappe.new_doc(RULESET_DOCTYPE)
 	doc.update(
 		{
@@ -164,6 +165,8 @@ def create_ruleset(data: Dict[str, Any]) -> Dict[str, Any]:
 			"description": data.get("description"),
 			"version": next_version([]),
 			"status": STATUS_DRAFT,
+			"effective_from": effective_from,
+			"effective_to": effective_to,
 			"groups": dump_json(normalize_groups(data.get("groups"))),
 		}
 	)
@@ -177,9 +180,9 @@ def update_ruleset(ruleset_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
 	creating it from that version first if there isn't one. The response is the Draft.
 	"""
 	row = _get_row(ruleset_id)
-	fixed = [field for field in ("status", "version", "loan_product", "effective_from") if field in data]
+	fixed = [field for field in ("status", "version", "loan_product") if field in data]
 	if fixed:
-		raise frappe.ValidationError(f"{', '.join(fixed)} cannot be changed here; status and effective date are set by set_ruleset_status.")
+		raise frappe.ValidationError(f"{', '.join(fixed)} cannot be changed here. Use set_ruleset_status for status.")
 	if not any(field in data for field in ALLOWED_UPDATE_FIELDS):
 		raise frappe.ValidationError(f"Nothing to update. Send at least one of: {', '.join(sorted(ALLOWED_UPDATE_FIELDS))}.")
 	if row.status == STATUS_ARCHIVED:
@@ -190,6 +193,11 @@ def update_ruleset(ruleset_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
 		doc.ruleset_name = clean_ruleset_name(data.get("ruleset_name"), RULESET_NAME_MAX_LENGTH)
 	if "description" in data:
 		doc.description = data.get("description")
+	if "effective_from" in data or "effective_to" in data:
+		doc.effective_from, doc.effective_to = clean_dates(
+			data.get("effective_from") if "effective_from" in data else doc.effective_from,
+			data.get("effective_to") if "effective_to" in data else doc.effective_to,
+		)
 	if "groups" in data:
 		doc.groups = dump_json(normalize_groups(data.get("groups")))
 	doc.save(ignore_permissions=True)
@@ -244,12 +252,12 @@ def set_ruleset_status(ruleset_id: str, status) -> Dict[str, Any]:
 
 
 def _publish(row: Dict[str, Any]):
-	"""The draft goes live today; the previous live version is archived."""
+	"""The draft goes live; the previous live version is archived. Empty effective dates default to today."""
 	doc = frappe.get_doc(RULESET_DOCTYPE, row.name)
 	doc.groups = dump_json(normalize_groups(doc.groups, complete=True))
 	_archive_live(row.loan_product)
 	doc.status = STATUS_ACTIVE
-	doc.effective_from = nowdate()
+	doc.effective_from = doc.effective_from or nowdate()
 	doc.published_by = frappe.session.user
 	doc.published_on = now_datetime()
 	doc.save(ignore_permissions=True)
@@ -267,7 +275,7 @@ def _archive_live(loan_product: str):
 	for live in _product_rows(loan_product, [STATUS_ACTIVE, STATUS_INACTIVE]):
 		doc = frappe.get_doc(RULESET_DOCTYPE, live.name)
 		doc.status = STATUS_ARCHIVED
-		doc.effective_to = nowdate()
+		doc.effective_to = doc.effective_to or nowdate()
 		doc.save(ignore_permissions=True)
 
 

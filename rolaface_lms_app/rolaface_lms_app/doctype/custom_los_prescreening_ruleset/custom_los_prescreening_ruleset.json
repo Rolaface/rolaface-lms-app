@@ -73,15 +73,13 @@
    "fieldname": "effective_from",
    "fieldtype": "Date",
    "label": "Effective From",
-   "read_only": 1,
-   "description": "Set to the day the version is activated"
+   "description": "Defaults to the day the version is activated"
   },
   {
    "fieldname": "effective_to",
    "fieldtype": "Date",
    "label": "Effective To",
-   "read_only": 1,
-   "description": "Set to the day a newer version replaced it"
+   "description": "Defaults to the day a newer version replaces it"
   },
   {
    "fieldname": "rules_section",
@@ -120,7 +118,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-29 18:00:00.000000",
+ "modified": "2026-09-30 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom LOS Prescreening Ruleset",

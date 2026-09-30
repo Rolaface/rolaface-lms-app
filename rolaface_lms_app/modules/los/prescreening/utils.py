@@ -202,6 +202,22 @@ def clean_ruleset_name(value, max_length: int) -> str:
 	return name
 
 
+def clean_dates(effective_from, effective_to):
+	"""Effective From / To as YYYY-MM-DD (or None). To may not be before From."""
+	dates = []
+	for value, label in ((effective_from, "Effective From"), (effective_to, "Effective To")):
+		if _empty(value):
+			dates.append(None)
+			continue
+		try:
+			dates.append(getdate(value).isoformat())
+		except Exception:
+			raise frappe.ValidationError(f"{label} must be a date (YYYY-MM-DD).")
+	if dates[0] and dates[1] and dates[1] < dates[0]:
+		raise frappe.ValidationError("Effective To cannot be before Effective From.")
+	return dates
+
+
 # ---------------------------------------------------------------- Evaluation (Test tab, later the loan application)
 # A rule gives True (met), False (not met) or None (no value supplied for its field, or the rule is unfinished).
 # Only failures inside a failed group count towards the verdict.

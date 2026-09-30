@@ -15,7 +15,7 @@ LIST_STATUS_ORDER = (STATUS_ACTIVE, STATUS_INACTIVE, STATUS_DRAFT)
 
 FIRST_VERSION = "1.0"
 
-ALLOWED_UPDATE_FIELDS = {"ruleset_name", "description", "groups"}
+ALLOWED_UPDATE_FIELDS = {"ruleset_name", "description", "effective_from", "effective_to", "groups"}
 
 RETURN_FIELDS = [
 	"name",

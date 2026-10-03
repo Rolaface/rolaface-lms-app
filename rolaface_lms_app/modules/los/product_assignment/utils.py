@@ -3,8 +3,9 @@ from typing import Any, Dict, List, Optional
 import frappe
 from frappe.utils import flt
 
-from ..common import add_date_range, as_bool_flag, int_arg, json_contains, load_json, parse_id_list
+from ..common import add_date_range, as_bool_flag, json_contains, load_json, parse_id_list, validate_update_fields
 from .constant import (
+	ALLOWED_UPDATE_FIELDS,
 	CHANNEL_DOCTYPE,
 	JOINERS,
 	LEVEL_LOAN_TYPE,
@@ -13,7 +14,7 @@ from .constant import (
 	NO_MATCH_DEFAULT_PRODUCT,
 	NO_MATCH_OPTIONS,
 	NUMBER_OPERATORS,
-	RULE_NAME_MAX_LENGTH,
+	RULE_DOCTYPE,
 	SEVERAL_MATCH_OPTIONS,
 	TREE_DOCTYPE,
 	VARIABLES,
@@ -37,10 +38,6 @@ def load_references() -> Dict[str, Dict[str, str]]:
 			frappe.get_all(LOAN_PRODUCT_DOCTYPE, filters={"disabled": 0}, fields=["name", "product_name"], as_list=True)
 		),
 	}
-
-
-def _prefix(index: Optional[int]) -> str:
-	return f"Rule {index + 1}: " if index is not None else ""
 
 
 def validate_settings(
@@ -73,71 +70,67 @@ def validate_settings(
 	return settings
 
 
-def validate_rule(
-	data: Dict[str, Any],
-	refs: Dict[str, Dict[str, str]],
-	index: Optional[int] = None,
-	current: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-	prefix = _prefix(index)
-	current = current or {}
+def validate_new_product(data: Dict[str, Any], refs: Dict[str, Dict[str, str]]) -> str:
+	product = str(data.get("product") or "").strip()
+	if not product:
+		raise frappe.ValidationError("Choose a product.")
+	if product not in refs["products"]:
+		raise frappe.ValidationError(f"'{product}' is not an enabled loan product.")
+	if frappe.db.exists(RULE_DOCTYPE, product):
+		raise frappe.DuplicateEntryError(f"Loan Product '{product}' already has a rule. Update it instead.")
+	return product
 
-	rule_name = str(data.get("rule_name") or "").strip()
-	if len(rule_name) > RULE_NAME_MAX_LENGTH:
-		raise frappe.ValidationError(f"{prefix}Rule Name cannot be longer than {RULE_NAME_MAX_LENGTH} characters.")
+
+def validate_update_payload(data: Dict[str, Any], rule_id: str):
+	product = data.get("product")
+	if product not in (None, "") and str(product).strip() != rule_id:
+		raise frappe.ValidationError("product cannot be changed. Delete this rule and create one for the other product.")
+	validate_update_fields(data, ALLOWED_UPDATE_FIELDS, "rule")
+
+
+def validate_rule(data: Dict[str, Any], refs: Dict[str, Dict[str, str]], current: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+	current = current or {}
 
 	sources = parse_id_list(data.get("sources"))
 	if not sources:
-		raise frappe.ValidationError(f"{prefix}Choose at least one source.")
+		raise frappe.ValidationError("Choose at least one source.")
 	unknown = [s for s in sources if s not in refs["channels"] and s not in (current.get("sources") or [])]
 	if unknown:
-		raise frappe.ValidationError(f"{prefix}Not an active channel: {', '.join(unknown)}.")
+		raise frappe.ValidationError(f"Not an active channel: {', '.join(unknown)}.")
 
 	loan_types = parse_id_list(data.get("loan_types"))
 	if not loan_types:
-		raise frappe.ValidationError(f"{prefix}Choose at least one loan type.")
+		raise frappe.ValidationError("Choose at least one loan type.")
 	unknown = [lt for lt in loan_types if lt not in refs["loan_types"] and lt not in (current.get("loan_types") or [])]
 	if unknown:
-		raise frappe.ValidationError(f"{prefix}Not an active loan type: {', '.join(unknown)}.")
+		raise frappe.ValidationError(f"Not an active loan type: {', '.join(unknown)}.")
 
-	product = str(data.get("product") or "").strip()
-	if not product:
-		raise frappe.ValidationError(f"{prefix}Choose a product.")
-	if product not in refs["products"] and product != current.get("product"):
-		raise frappe.ValidationError(f"{prefix}'{product}' is not an enabled loan product.")
-
-	return {
-		"rule_name": rule_name or None,
-		"sources": sources,
-		"loan_types": loan_types,
-		"condition": normalize_condition(data.get("condition"), prefix),
-		"product": product,
-	}
+	return {"sources": sources, "loan_types": loan_types, "condition": normalize_condition(data.get("condition"))}
 
 
-def normalize_condition(value, prefix: str = "") -> Optional[Dict[str, Any]]:
+def normalize_condition(value) -> Optional[Dict[str, Any]]:
 	condition = load_json(value, None)
 	if not condition:
 		return None
 	if not isinstance(condition, dict):
-		raise frappe.ValidationError(f"{prefix}condition must be an object.")
+		raise frappe.ValidationError("condition must be an object.")
 
 	groups = []
-	for group in _objects(condition.get("groups"), f"{prefix}condition.groups"):
-		clauses = [_normalize_clause(clause, prefix) for clause in _objects(group.get("clauses"), f"{prefix}clauses")]
+	for group in _objects(condition.get("groups"), "condition.groups"):
+		clauses = [_normalize_clause(clause) for clause in _objects(group.get("clauses"), "clauses")]
 		if clauses:
 			groups.append(
 				{
 					"id": group.get("id"),
 					"name": str(group.get("name") or "").strip(),
-					"join": _joiner(group.get("join"), prefix),
+					"join": _joiner(group.get("join")),
 					"clauses": clauses,
 				}
 			)
 
 	if not groups:
 		return None
-	return {"join": _joiner(condition.get("join"), prefix), "groups": groups}
+	return {"join": _joiner(condition.get("join")), "groups": groups}
 
 
 def _objects(value, label: str) -> List[Dict[str, Any]]:
@@ -147,33 +140,33 @@ def _objects(value, label: str) -> List[Dict[str, Any]]:
 	return items
 
 
-def _joiner(value, prefix: str) -> str:
+def _joiner(value) -> str:
 	joiner = str(value or "AND").upper()
 	if joiner not in JOINERS:
-		raise frappe.ValidationError(f"{prefix}join must be AND or OR.")
+		raise frappe.ValidationError("join must be AND or OR.")
 	return joiner
 
 
-def _normalize_clause(clause: Dict[str, Any], prefix: str) -> Dict[str, Any]:
+def _normalize_clause(clause: Dict[str, Any]) -> Dict[str, Any]:
 	variable = VARIABLES.get(clause.get("variable"))
 	if not variable:
-		raise frappe.ValidationError(f"{prefix}Choose a variable for every condition.")
+		raise frappe.ValidationError("Choose a variable for every condition.")
 
 	operator = clause.get("operator") or "="
 	allowed = NUMBER_OPERATORS if variable["numeric"] else LIST_OPERATORS
 	if operator not in allowed:
-		raise frappe.ValidationError(f"{prefix}'{operator}' cannot be used with {variable['label']}.")
+		raise frappe.ValidationError(f"'{operator}' cannot be used with {variable['label']}.")
 
 	value = str(clause.get("value") if clause.get("value") is not None else "").strip()
 	if not value:
-		raise frappe.ValidationError(f"{prefix}Enter a value for {variable['label']}.")
+		raise frappe.ValidationError(f"Enter a value for {variable['label']}.")
 	if variable["numeric"]:
 		try:
 			float(value)
 		except ValueError:
-			raise frappe.ValidationError(f"{prefix}{variable['label']} must be a number.")
+			raise frappe.ValidationError(f"{variable['label']} must be a number.")
 	elif value not in variable["options"]:
-		raise frappe.ValidationError(f"{prefix}{variable['label']} must be one of: {', '.join(variable['options'])}.")
+		raise frappe.ValidationError(f"{variable['label']} must be one of: {', '.join(variable['options'])}.")
 
 	return {"id": clause.get("id"), "variable": clause["variable"], "operator": operator, "value": value}
 
@@ -183,27 +176,6 @@ def parse_rule_row(row: Dict[str, Any]) -> Dict[str, Any]:
 	row["loan_types"] = load_json(row.get("loan_types"), []) or []
 	row["condition"] = load_json(row.get("condition"), None)
 	return row
-
-
-def find_shadowed(rules: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-	warnings = []
-	for i, rule in enumerate(rules):
-		if not rule.get("is_active", 1):
-			continue
-		for earlier in rules[:i]:
-			if earlier.get("condition") or not earlier.get("is_active", 1):
-				continue
-			if set(rule["sources"]) <= set(earlier["sources"]) and set(rule["loan_types"]) <= set(earlier["loan_types"]):
-				warnings.append(
-					{
-						"rule": rule.get("name"),
-						"priority": i + 1,
-						"message": f"Rule {i + 1} never matches: rule {rules.index(earlier) + 1} has no condition "
-						"and already covers all its sources and loan types.",
-					}
-				)
-				break
-	return warnings
 
 
 def build_rule_filters(args: Dict[str, Any]) -> Dict[str, Any]:
@@ -223,17 +195,6 @@ def build_rule_filters(args: Dict[str, Any]) -> Dict[str, Any]:
 	has_condition = as_bool_flag(args, "has_condition")
 	if has_condition is not None:
 		filters["condition"] = ["is", "set" if has_condition else "not set"]
-
-	if args.get("rule_name"):
-		filters["rule_name"] = ["like", f"%{str(args.get('rule_name')).strip()}%"]
-
-	priority_from, priority_to = int_arg(args, "priority_from"), int_arg(args, "priority_to")
-	if priority_from is not None and priority_to is not None:
-		filters["priority"] = ["between", [priority_from, priority_to]]
-	elif priority_from is not None:
-		filters["priority"] = [">=", priority_from]
-	elif priority_to is not None:
-		filters["priority"] = ["<=", priority_to]
 
 	ids = parse_id_list(args.get("ids"))
 	if ids:

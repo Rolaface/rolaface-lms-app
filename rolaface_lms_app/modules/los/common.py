@@ -1,9 +1,10 @@
 import hashlib
 import json
+from datetime import datetime, time
 from typing import Any, Dict, List, Optional, Tuple
 
 import frappe
-from frappe.utils import cint
+from frappe.utils import cint, getdate
 
 from rolaface_lms_app.utils.api_request import parse_api_payload
 
@@ -87,7 +88,14 @@ def add_date_range(filters: Dict[str, Any], args: Dict[str, Any], field: str = "
 	elif from_date:
 		filters[field] = [">=", from_date]
 	elif to_date:
-		filters[field] = ["<=", to_date]
+		filters[field] = ["<=", _end_of_day(to_date)]
+
+
+def _end_of_day(value) -> datetime:
+	try:
+		return datetime.combine(getdate(value), time.max)
+	except Exception:
+		raise frappe.ValidationError("to_date must be a date (YYYY-MM-DD).")
 
 
 def parse_flag(value, label: str) -> int:

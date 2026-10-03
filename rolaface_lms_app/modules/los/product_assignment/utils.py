@@ -123,8 +123,8 @@ def normalize_condition(value, prefix: str = "") -> Optional[Dict[str, Any]]:
 		raise frappe.ValidationError(f"{prefix}condition must be an object.")
 
 	groups = []
-	for group in condition.get("groups") or []:
-		clauses = [_normalize_clause(clause, prefix) for clause in (group.get("clauses") or [])]
+	for group in _objects(condition.get("groups"), f"{prefix}condition.groups"):
+		clauses = [_normalize_clause(clause, prefix) for clause in _objects(group.get("clauses"), f"{prefix}clauses")]
 		if clauses:
 			groups.append(
 				{
@@ -138,6 +138,13 @@ def normalize_condition(value, prefix: str = "") -> Optional[Dict[str, Any]]:
 	if not groups:
 		return None
 	return {"join": _joiner(condition.get("join"), prefix), "groups": groups}
+
+
+def _objects(value, label: str) -> List[Dict[str, Any]]:
+	items = value or []
+	if not isinstance(items, list) or not all(isinstance(item, dict) for item in items):
+		raise frappe.ValidationError(f"{label} must be a list of objects.")
+	return items
 
 
 def _joiner(value, prefix: str) -> str:

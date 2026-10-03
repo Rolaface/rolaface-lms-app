@@ -134,4 +134,13 @@ def _insert_addresses(application_id: str, addresses: List[Dict[str, Any]]):
 
 def _delete_addresses(application_id: str):
 	for name in _address_names(application_id):
-		frappe.delete_doc(ADDRESS_DOCTYPE, name, ignore_permissions=True)
+		address_doc = frappe.get_doc(ADDRESS_DOCTYPE, name)
+		if len(address_doc.links) == 1:
+			frappe.delete_doc(ADDRESS_DOCTYPE, name, ignore_permissions=True)
+			continue
+		address_doc.links = [
+			link
+			for link in address_doc.links
+			if not (link.link_doctype == APPLICATION_DOCTYPE and link.link_name == application_id)
+		]
+		address_doc.save(ignore_permissions=True)

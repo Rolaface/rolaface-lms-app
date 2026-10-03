@@ -326,11 +326,21 @@ def resolve_product(data: Dict[str, Any]) -> Dict[str, Any]:
 		order_by="priority asc, creation asc",
 		limit_page_length=0,
 	)
+	products = {c.product for c in candidates} | set(settings["default_product"].values())
+	enabled_products = (
+		set(frappe.get_all(LOAN_PRODUCT_DOCTYPE, filters={"disabled": 0, "name": ["in", list(products)]}, pluck="name"))
+		if products
+		else set()
+	)
 	matches = [
 		rule
 		for rule in map(parse_rule_row, candidates)
-		if source in rule["sources"] and loan_type in rule["loan_types"] and evaluate_condition(rule["condition"], facts)
+		if source in rule["sources"]
+		and loan_type in rule["loan_types"]
+		and rule["product"] in enabled_products
+		and evaluate_condition(rule["condition"], facts)
 	]
+	default_product = settings["default_product"].get(loan_type)
 
 	result = {"source": source, "loan_type": loan_type, "matched_rules": [], "product": None, "rule": None}
 
@@ -340,10 +350,10 @@ def resolve_product(data: Dict[str, Any]) -> Dict[str, Any]:
 			result.update(status=STATUS_RULE_MATCHED, product=matches[0].product, rule=matches[0].name)
 		else:
 			result.update(status=STATUS_MANUAL_REVIEW, reason="Several rules match; a reviewer picks the product.")
-	elif settings["no_match"] == NO_MATCH_DEFAULT_PRODUCT and settings["default_product"].get(loan_type):
-		result.update(status=STATUS_LOAN_TYPE_DEFAULT, product=settings["default_product"][loan_type])
+	elif settings["no_match"] == NO_MATCH_DEFAULT_PRODUCT and default_product in enabled_products:
+		result.update(status=STATUS_LOAN_TYPE_DEFAULT, product=default_product)
 	else:
-		result.update(status=STATUS_MANUAL_REVIEW, reason="No rule matches and this loan type has no default product.")
+		result.update(status=STATUS_MANUAL_REVIEW, reason="No rule matches and this loan type has no enabled default product.")
 
 	result["product_name"] = (
 		frappe.db.get_value(LOAN_PRODUCT_DOCTYPE, result["product"], "product_name") if result["product"] else None

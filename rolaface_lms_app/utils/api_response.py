@@ -81,6 +81,8 @@ def handle_api_error(e: Exception, context_message: str):
     
     if not isinstance(e, (frappe.ValidationError, frappe.DuplicateEntryError, frappe.DoesNotExistError)):
         frappe.log_error(frappe.get_traceback(), context_message)
+        # Frappe rolls back GET requests at the end; commit so the Error Log is kept.
+        frappe.local.flags.commit = True
 
     error_message = str(e).strip()
     import re
@@ -104,6 +106,8 @@ def handle_api_error(e: Exception, context_message: str):
     elif isinstance(e, frappe.ValidationError):
         status_code = 400
         status_type = "fail"
+    else:
+        error_message = "Something went wrong. Please try again or contact support."
     
     return send_response(
         status=status_type,

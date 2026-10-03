@@ -23,11 +23,17 @@ def get_row(doctype: str, name: str, fields: List[str], label: str) -> Dict[str,
 	return row
 
 
-def product_rows(doctype: str, loan_product: str, statuses=None) -> List[Dict[str, Any]]:
+def product_rows(doctype: str, loan_product: str, statuses=None, for_update: bool = False) -> List[Dict[str, Any]]:
 	filters = {"loan_product": loan_product}
 	if statuses:
 		filters["status"] = ["in", list(statuses)]
-	return frappe.get_all(doctype, filters=filters, fields=["name", "version", "status"], order_by="creation desc")
+	return frappe.db.get_values(
+		doctype, filters, ["name", "version", "status"], as_dict=True, order_by="creation desc", for_update=for_update
+	)
+
+
+def lock_product(loan_product: str):
+	frappe.db.get_value(LOAN_PRODUCT_DOCTYPE, loan_product, "name", for_update=True)
 
 
 def draft_id(doctype: str, row: Dict[str, Any]) -> Optional[str]:
@@ -88,38 +94,43 @@ def ensure_new_product(doctype: str, loan_product, label: str) -> str:
 		raise frappe.DoesNotExistError(f"Loan Product '{loan_product}' does not exist.")
 	if product.disabled:
 		raise frappe.ValidationError(f"Loan Product '{loan_product}' is disabled.")
-	if frappe.db.exists(doctype, {"loan_product": loan_product}):
+	lock_product(loan_product)
+	if product_rows(doctype, loan_product, for_update=True):
 		raise frappe.DuplicateEntryError(f"Loan Product '{loan_product}' already has {label}.")
 	return loan_product
 
 
-def editable_draft(doctype: str, row: Dict[str, Any], copy_fields: List[str]) -> str:
+def editable_draft(doctype: str, row: Dict[str, Any], copy_fields: List[str]):
 	if row["status"] == DRAFT:
-		return row["name"]
+		return frappe.get_doc(doctype, row["name"], for_update=True)
 	if row["status"] == ARCHIVED:
 		raise frappe.ValidationError(f"Version {row['version']} is archived and cannot be edited.")
 
-	existing = product_rows(doctype, row["loan_product"], [DRAFT])
+	lock_product(row["loan_product"])
+	versions = product_rows(doctype, row["loan_product"], for_update=True)
+	existing = [r for r in versions if r.status == DRAFT]
 	if existing:
-		return existing[0].name
+		return frappe.get_doc(doctype, existing[0].name, for_update=True)
 
 	draft = frappe.new_doc(doctype)
 	draft.update({field: row.get(field) for field in copy_fields})
 	draft.update(
 		{
 			"loan_product": row["loan_product"],
-			"version": next_version([r.version for r in product_rows(doctype, row["loan_product"])]),
+			"version": next_version([r.version for r in versions]),
 			"status": DRAFT,
 		}
 	)
 	draft.insert(ignore_permissions=True)
-	return draft.name
+	return draft
 
 
 def set_status(doctype: str, row: Dict[str, Any], status, before_publish: Optional[Callable] = None):
 	if status not in SETTABLE_STATUSES:
 		raise frappe.ValidationError(f"status must be one of: {', '.join(SETTABLE_STATUSES)}.")
-	current, version = row["status"], row["version"]
+	lock_product(row["loan_product"])
+	current = frappe.db.get_value(doctype, row["name"], "status", for_update=True)
+	version = row["version"]
 	if current == status:
 		raise frappe.ValidationError(f"Version {version} is already {status.lower()}.")
 
@@ -145,7 +156,7 @@ def _publish(doctype: str, row: Dict[str, Any], before_publish: Optional[Callabl
 	doc = frappe.get_doc(doctype, row["name"])
 	if before_publish:
 		before_publish(doc)
-	for live in product_rows(doctype, row["loan_product"], [ACTIVE, INACTIVE]):
+	for live in product_rows(doctype, row["loan_product"], [ACTIVE, INACTIVE], for_update=True):
 		old = frappe.get_doc(doctype, live.name)
 		old.status = ARCHIVED
 		old.effective_to = old.effective_to or nowdate()

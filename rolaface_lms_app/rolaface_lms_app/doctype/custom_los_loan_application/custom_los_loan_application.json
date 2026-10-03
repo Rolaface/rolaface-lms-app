@@ -1,0 +1,757 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "LA-.YYYY.-.#####",
+ "creation": "2026-10-02 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "application_tab",
+  "application_date",
+  "company",
+  "channel",
+  "column_break_3",
+  "status",
+  "stage",
+  "loan",
+  "customer_section",
+  "customer_type",
+  "column_break_4",
+  "customer",
+  "loan_section",
+  "applicant_type",
+  "loan_type",
+  "loan_sub_type",
+  "loan_purpose",
+  "column_break_5",
+  "loan_product",
+  "requested_amount",
+  "tenure_months",
+  "repayment_frequency",
+  "applicant_tab",
+  "first_name",
+  "middle_name",
+  "last_name",
+  "nrc",
+  "date_of_birth",
+  "position",
+  "column_break_6",
+  "phone",
+  "email",
+  "gender",
+  "marital_status",
+  "nationality",
+  "address_section",
+  "address_html",
+  "kin_section",
+  "kin_name",
+  "kin_relationship",
+  "column_break_7",
+  "kin_phone",
+  "kin_email",
+  "employment_section",
+  "employment_status",
+  "employment_type",
+  "employer_name",
+  "column_break_8",
+  "designation",
+  "experience_years",
+  "business_tab",
+  "company_name",
+  "registration_number",
+  "tpin",
+  "column_break_9",
+  "business_type",
+  "established_date",
+  "nature_of_business",
+  "directors_section",
+  "directors",
+  "financials_tab",
+  "financials",
+  "collateral_section",
+  "collaterals",
+  "documents_tab",
+  "documents",
+  "prescreening_tab",
+  "prescreening_status",
+  "prescreening_ruleset",
+  "eligibility_rule",
+  "column_break_10",
+  "credit_score",
+  "monthly_obligations",
+  "eligible_amount",
+  "prescreening_data_section",
+  "prescreening_data",
+  "appraisal_tab",
+  "appraisal_status",
+  "interest_rate",
+  "column_break_11",
+  "approved_amount",
+  "approved_tenure_months",
+  "approved_frequency",
+  "appraisal_data_section",
+  "appraisal_data",
+  "underwriting_tab",
+  "underwriting_status",
+  "underwriting_decision",
+  "column_break_12",
+  "final_amount",
+  "underwriting_data_section",
+  "underwriting_data",
+  "offer_tab",
+  "offer_status",
+  "contract_status",
+  "column_break_13",
+  "signing_method",
+  "first_payment_date",
+  "offer_data_section",
+  "offer_data"
+ ],
+ "fields": [
+  {
+   "fieldname": "application_tab",
+   "fieldtype": "Tab Break",
+   "label": "Application"
+  },
+  {
+   "default": "Today",
+   "fieldname": "application_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Application Date",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "channel",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Channel",
+   "options": "Custom LOS Channel",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nSubmitted\nApproved\nRejected\nCancelled",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "default": "Application",
+   "fieldname": "stage",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Stage",
+   "options": "Application\nPre-screening\nAppraisal\nUnderwriting\nOffer\nBooked",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "depends_on": "loan",
+   "fieldname": "loan",
+   "fieldtype": "Link",
+   "label": "Loan",
+   "options": "Loan",
+   "read_only": 1
+  },
+  {
+   "fieldname": "customer_section",
+   "fieldtype": "Section Break",
+   "label": "Customer"
+  },
+  {
+   "fieldname": "customer_type",
+   "fieldtype": "Select",
+   "label": "Customer Type",
+   "options": "\nNew\nExisting",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.customer_type=='Existing'",
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Customer",
+   "mandatory_depends_on": "eval:doc.customer_type=='Existing'",
+   "options": "Customer",
+   "search_index": 1
+  },
+  {
+   "fieldname": "loan_section",
+   "fieldtype": "Section Break",
+   "label": "Loan Request"
+  },
+  {
+   "fieldname": "applicant_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Applicant Type",
+   "options": "\nIndividual\nBusiness",
+   "reqd": 1
+  },
+  {
+   "fieldname": "loan_type",
+   "fieldtype": "Link",
+   "label": "Loan Type",
+   "options": "Custom LOS Loan Type Tree",
+   "reqd": 1
+  },
+  {
+   "fieldname": "loan_sub_type",
+   "fieldtype": "Link",
+   "label": "Loan Sub-type",
+   "options": "Custom LOS Loan Type Tree",
+   "reqd": 1
+  },
+  {
+   "fieldname": "loan_purpose",
+   "fieldtype": "Link",
+   "label": "Loan Purpose",
+   "options": "Custom LOS Loan Type Tree",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Set by product assignment",
+   "fieldname": "loan_product",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Loan Product",
+   "options": "Loan Product",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "requested_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Requested Amount",
+   "reqd": 1
+  },
+  {
+   "fieldname": "tenure_months",
+   "fieldtype": "Int",
+   "label": "Tenure (months)",
+   "reqd": 1
+  },
+  {
+   "default": "Monthly",
+   "fieldname": "repayment_frequency",
+   "fieldtype": "Select",
+   "label": "Repayment Frequency",
+   "options": "Monthly\nBi-weekly",
+   "reqd": 1
+  },
+  {
+   "fieldname": "applicant_tab",
+   "fieldtype": "Tab Break",
+   "label": "Applicant"
+  },
+  {
+   "fieldname": "first_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "First Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "middle_name",
+   "fieldtype": "Data",
+   "label": "Middle Name"
+  },
+  {
+   "fieldname": "last_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Last Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "nrc",
+   "fieldtype": "Data",
+   "label": "NRC",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "date_of_birth",
+   "fieldtype": "Date",
+   "label": "Date of Birth",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.applicant_type=='Business'",
+   "fieldname": "position",
+   "fieldtype": "Data",
+   "label": "Position",
+   "mandatory_depends_on": "eval:doc.applicant_type=='Business'"
+  },
+  {
+   "fieldname": "column_break_6",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "phone",
+   "fieldtype": "Data",
+   "label": "Phone",
+   "options": "Phone",
+   "reqd": 1
+  },
+  {
+   "fieldname": "email",
+   "fieldtype": "Data",
+   "label": "Email",
+   "options": "Email",
+   "reqd": 1
+  },
+  {
+   "fieldname": "gender",
+   "fieldtype": "Select",
+   "label": "Gender",
+   "options": "\nMale\nFemale\nOther",
+   "reqd": 1
+  },
+  {
+   "fieldname": "marital_status",
+   "fieldtype": "Select",
+   "label": "Marital Status",
+   "options": "\nSingle\nMarried\nDivorced\nWidowed\nSeparated",
+   "reqd": 1
+  },
+  {
+   "fieldname": "nationality",
+   "fieldtype": "Link",
+   "label": "Nationality",
+   "options": "Country",
+   "reqd": 1
+  },
+  {
+   "fieldname": "address_section",
+   "fieldtype": "Section Break",
+   "label": "Addresses"
+  },
+  {
+   "fieldname": "address_html",
+   "fieldtype": "HTML",
+   "label": "Address HTML"
+  },
+  {
+   "depends_on": "eval:doc.applicant_type=='Individual'",
+   "fieldname": "kin_section",
+   "fieldtype": "Section Break",
+   "label": "Next of Kin"
+  },
+  {
+   "fieldname": "kin_name",
+   "fieldtype": "Data",
+   "label": "Next of Kin Name",
+   "mandatory_depends_on": "eval:doc.applicant_type=='Individual'"
+  },
+  {
+   "fieldname": "kin_relationship",
+   "fieldtype": "Select",
+   "label": "Next of Kin Relationship",
+   "mandatory_depends_on": "eval:doc.applicant_type=='Individual'",
+   "options": "\nSpouse\nParent\nSibling\nChild\nGrandparent\nGrandchild\nUncle/Aunt\nNephew/Niece\nCousin\nGuardian\nFriend\nOther"
+  },
+  {
+   "fieldname": "column_break_7",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "kin_phone",
+   "fieldtype": "Data",
+   "label": "Next of Kin Phone",
+   "mandatory_depends_on": "eval:doc.applicant_type=='Individual'",
+   "options": "Phone"
+  },
+  {
+   "fieldname": "kin_email",
+   "fieldtype": "Data",
+   "label": "Next of Kin Email",
+   "mandatory_depends_on": "eval:doc.applicant_type=='Individual'",
+   "options": "Email"
+  },
+  {
+   "depends_on": "eval:doc.applicant_type=='Individual'",
+   "fieldname": "employment_section",
+   "fieldtype": "Section Break",
+   "label": "Employment"
+  },
+  {
+   "fieldname": "employment_status",
+   "fieldtype": "Select",
+   "label": "Employment Status",
+   "mandatory_depends_on": "eval:doc.applicant_type=='Individual'",
+   "options": "\nSalaried\nSelf Employed\nPensioner\nOthers"
+  },
+  {
+   "fieldname": "employment_type",
+   "fieldtype": "Select",
+   "label": "Employment Type",
+   "mandatory_depends_on": "eval:doc.applicant_type=='Individual'",
+   "options": "\nGovernment\nPrivate\nSelf-Employed\nOthers"
+  },
+  {
+   "fieldname": "employer_name",
+   "fieldtype": "Data",
+   "label": "Employer Name",
+   "mandatory_depends_on": "eval:doc.applicant_type=='Individual'"
+  },
+  {
+   "fieldname": "column_break_8",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Data",
+   "label": "Designation",
+   "mandatory_depends_on": "eval:doc.applicant_type=='Individual'"
+  },
+  {
+   "fieldname": "experience_years",
+   "fieldtype": "Float",
+   "label": "Experience (years)",
+   "mandatory_depends_on": "eval:doc.applicant_type=='Individual'"
+  },
+  {
+   "depends_on": "eval:doc.applicant_type=='Business'",
+   "fieldname": "business_tab",
+   "fieldtype": "Tab Break",
+   "label": "Business"
+  },
+  {
+   "fieldname": "company_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Company Name",
+   "mandatory_depends_on": "eval:doc.applicant_type=='Business'"
+  },
+  {
+   "fieldname": "registration_number",
+   "fieldtype": "Data",
+   "label": "Registration Number (PACRA)",
+   "mandatory_depends_on": "eval:doc.applicant_type=='Business'"
+  },
+  {
+   "fieldname": "tpin",
+   "fieldtype": "Data",
+   "label": "TPIN",
+   "mandatory_depends_on": "eval:doc.applicant_type=='Business'"
+  },
+  {
+   "fieldname": "column_break_9",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "business_type",
+   "fieldtype": "Select",
+   "label": "Type of Business",
+   "mandatory_depends_on": "eval:doc.applicant_type=='Business'",
+   "options": "\nSole Proprietorship\nPartnership\nPrivate Limited Company\nPublic Limited Company\nCooperative\nOther"
+  },
+  {
+   "fieldname": "established_date",
+   "fieldtype": "Date",
+   "label": "Established Date",
+   "mandatory_depends_on": "eval:doc.applicant_type=='Business'"
+  },
+  {
+   "fieldname": "nature_of_business",
+   "fieldtype": "Data",
+   "label": "Nature of Business",
+   "mandatory_depends_on": "eval:doc.applicant_type=='Business'"
+  },
+  {
+   "fieldname": "directors_section",
+   "fieldtype": "Section Break",
+   "label": "Directors"
+  },
+  {
+   "fieldname": "directors",
+   "fieldtype": "Table",
+   "label": "Directors",
+   "options": "Custom LOS Application Director"
+  },
+  {
+   "fieldname": "financials_tab",
+   "fieldtype": "Tab Break",
+   "label": "Financials & Collateral"
+  },
+  {
+   "description": "{\"income\": [{\"source\", \"monthly_amount\"}], \"obligations\": [...], \"expenses\": [...]}",
+   "fieldname": "financials",
+   "fieldtype": "JSON",
+   "label": "Financials"
+  },
+  {
+   "fieldname": "collateral_section",
+   "fieldtype": "Section Break",
+   "label": "Collateral"
+  },
+  {
+   "fieldname": "collaterals",
+   "fieldtype": "Table",
+   "label": "Collaterals",
+   "options": "Custom LOS Application Collateral"
+  },
+  {
+   "fieldname": "documents_tab",
+   "fieldtype": "Tab Break",
+   "label": "Documents"
+  },
+  {
+   "fieldname": "documents",
+   "fieldtype": "Table",
+   "label": "Documents",
+   "options": "Custom LOS Application Document"
+  },
+  {
+   "fieldname": "prescreening_tab",
+   "fieldtype": "Tab Break",
+   "label": "Pre-screening"
+  },
+  {
+   "fieldname": "prescreening_status",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Pre-screening Status",
+   "options": "\nPending\nPassed\nFailed"
+  },
+  {
+   "fieldname": "prescreening_ruleset",
+   "fieldtype": "Link",
+   "label": "Ruleset Used",
+   "options": "Custom LOS Prescreening Ruleset",
+   "read_only": 1
+  },
+  {
+   "fieldname": "eligibility_rule",
+   "fieldtype": "Link",
+   "label": "Eligibility Rule Used",
+   "options": "Custom LOS Eligibility Rule",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_10",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "credit_score",
+   "fieldtype": "Int",
+   "label": "Credit Score"
+  },
+  {
+   "fieldname": "monthly_obligations",
+   "fieldtype": "Currency",
+   "label": "Monthly Obligations"
+  },
+  {
+   "fieldname": "eligible_amount",
+   "fieldtype": "Currency",
+   "label": "Eligible Amount"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "prescreening_data_section",
+   "fieldtype": "Section Break",
+   "label": "Pre-screening Details"
+  },
+  {
+   "description": "Bureau summary, liabilities, income source, risk band, limit breakdown",
+   "fieldname": "prescreening_data",
+   "fieldtype": "JSON",
+   "label": "Pre-screening Data"
+  },
+  {
+   "fieldname": "appraisal_tab",
+   "fieldtype": "Tab Break",
+   "label": "Appraisal"
+  },
+  {
+   "fieldname": "appraisal_status",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Appraisal Status",
+   "options": "\nPending\nAppraised\nFailed"
+  },
+  {
+   "fieldname": "interest_rate",
+   "fieldtype": "Percent",
+   "label": "Interest Rate"
+  },
+  {
+   "fieldname": "column_break_11",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "approved_amount",
+   "fieldtype": "Currency",
+   "label": "Approved Amount"
+  },
+  {
+   "fieldname": "approved_tenure_months",
+   "fieldtype": "Int",
+   "label": "Approved Tenure (months)"
+  },
+  {
+   "fieldname": "approved_frequency",
+   "fieldtype": "Select",
+   "label": "Approved Frequency",
+   "options": "\nMonthly\nBi-weekly"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "appraisal_data_section",
+   "fieldtype": "Section Break",
+   "label": "Appraisal Details"
+  },
+  {
+   "description": "Charges, interest type and calculation, effective date, override reason",
+   "fieldname": "appraisal_data",
+   "fieldtype": "JSON",
+   "label": "Appraisal Data"
+  },
+  {
+   "fieldname": "underwriting_tab",
+   "fieldtype": "Tab Break",
+   "label": "Underwriting"
+  },
+  {
+   "fieldname": "underwriting_status",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Underwriting Status",
+   "options": "\nNot Started\nIn Progress\nReady for Decision\nCompleted"
+  },
+  {
+   "fieldname": "underwriting_decision",
+   "fieldtype": "Select",
+   "label": "Decision",
+   "options": "\nApproved\nApproved with Conditions\nReferred\nRejected"
+  },
+  {
+   "fieldname": "column_break_12",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "final_amount",
+   "fieldtype": "Currency",
+   "label": "Final Amount"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "underwriting_data_section",
+   "fieldtype": "Section Break",
+   "label": "Underwriting Details"
+  },
+  {
+   "description": "Decision reason, conditions, notes",
+   "fieldname": "underwriting_data",
+   "fieldtype": "JSON",
+   "label": "Underwriting Data"
+  },
+  {
+   "fieldname": "offer_tab",
+   "fieldtype": "Tab Break",
+   "label": "Offer & Signing"
+  },
+  {
+   "fieldname": "offer_status",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Offer Status",
+   "options": "\nAwaiting Decision\nAccepted\nRejected\nAmendment Requested"
+  },
+  {
+   "fieldname": "contract_status",
+   "fieldtype": "Select",
+   "label": "Contract Status",
+   "options": "\nNot Generated\nSigning in Progress\nExecuted"
+  },
+  {
+   "fieldname": "column_break_13",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "signing_method",
+   "fieldtype": "Select",
+   "label": "Signing Method",
+   "options": "\nE-signature\nPhysical Signature"
+  },
+  {
+   "fieldname": "first_payment_date",
+   "fieldtype": "Date",
+   "label": "First Payment Date"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "offer_data_section",
+   "fieldtype": "Section Break",
+   "label": "Offer Details"
+  },
+  {
+   "description": "Rejection reason, amendment request, dispatch status, signed copy received",
+   "fieldname": "offer_data",
+   "fieldtype": "JSON",
+   "label": "Offer Data"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-10-02 17:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Rolaface Lms App",
+ "name": "Custom LOS Loan Application",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "first_name,last_name,company_name,nrc",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

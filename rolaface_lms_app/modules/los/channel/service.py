@@ -42,11 +42,10 @@ def update_channel(channel_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
 		return get_channel_by_id(channel_id)
 
 	rename_doc(doctype=CHANNEL_DOCTYPE, old=channel_id, new=new_name, ignore_permissions=True, show_alert=False)
-	_replace_channel_in_rules(channel_id, new_name)
 	return get_channel_by_id(new_name)
 
 
-def _replace_channel_in_rules(old_id: str, new_id: str):
+def replace_channel_in_rules(old_id: str, new_id: str):
 	for rule_id in frappe.get_all(RULE_DOCTYPE, filters=[json_contains("sources", old_id)], pluck="name"):
 		rule_doc = frappe.get_doc(RULE_DOCTYPE, rule_id)
 		rule_doc.sources = dump_json([new_id if s == old_id else s for s in load_json(rule_doc.sources, [])])

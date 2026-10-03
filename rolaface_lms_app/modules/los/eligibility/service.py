@@ -61,7 +61,7 @@ def update_eligibility_rule(rule_id: str, data: Dict[str, Any]) -> Dict[str, Any
 	if not any(field in data for field in ALLOWED_UPDATE_FIELDS):
 		raise frappe.ValidationError(f"Nothing to update. Send at least one of: {', '.join(sorted(ALLOWED_UPDATE_FIELDS))}.")
 
-	doc = frappe.get_doc(RULE_DOCTYPE, versioned.editable_draft(RULE_DOCTYPE, row, COPY_TO_DRAFT_FIELDS))
+	doc = versioned.editable_draft(RULE_DOCTYPE, row, COPY_TO_DRAFT_FIELDS)
 	if "rule_name" in data:
 		doc.rule_name = clean_rule_name(data.get("rule_name"))
 	doc.update(sections_to_save(data))

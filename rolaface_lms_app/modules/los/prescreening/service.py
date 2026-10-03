@@ -101,7 +101,7 @@ def update_ruleset(ruleset_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
 	if not any(field in data for field in ALLOWED_UPDATE_FIELDS):
 		raise frappe.ValidationError(f"Nothing to update. Send at least one of: {', '.join(sorted(ALLOWED_UPDATE_FIELDS))}.")
 
-	doc = frappe.get_doc(RULESET_DOCTYPE, versioned.editable_draft(RULESET_DOCTYPE, row, COPY_TO_DRAFT_FIELDS))
+	doc = versioned.editable_draft(RULESET_DOCTYPE, row, COPY_TO_DRAFT_FIELDS)
 	if "ruleset_name" in data:
 		doc.ruleset_name = clean_ruleset_name(data.get("ruleset_name"), RULESET_NAME_MAX_LENGTH)
 	if "description" in data:

@@ -1,16 +1,15 @@
 {
  "actions": [],
- "allow_rename": 1,
- "autoname": "PAR-.#####",
+ "allow_rename": 0,
+ "autoname": "field:product",
  "creation": "2026-09-28 23:55:49.849126",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "rule_name",
-  "priority",
-  "column_break_1",
   "product",
+  "product_name",
+  "column_break_1",
   "is_active",
   "matching_section",
   "sources",
@@ -19,30 +18,25 @@
  ],
  "fields": [
   {
-   "fieldname": "rule_name",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Rule Name"
-  },
-  {
-   "description": "1 is checked first",
-   "fieldname": "priority",
-   "fieldtype": "Int",
-   "in_list_view": 1,
-   "label": "Priority",
-   "reqd": 1
-  },
-  {
-   "fieldname": "column_break_1",
-   "fieldtype": "Column Break"
-  },
-  {
    "fieldname": "product",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Product",
    "options": "Loan Product",
-   "reqd": 1
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fetch_from": "product.product_name",
+   "fieldname": "product_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Product Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
   },
   {
    "default": "1",
@@ -82,11 +76,11 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-29 12:00:00.000000",
+ "modified": "2026-10-03 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom LOS Product Assignment Rule",
- "naming_rule": "Expression",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
@@ -104,9 +98,9 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
- "sort_field": "priority",
+ "sort_field": "modified",
  "sort_order": "ASC",
  "states": [],
- "title_field": "rule_name",
+ "title_field": "product_name",
  "track_changes": 1
 }

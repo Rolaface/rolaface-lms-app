@@ -1,10 +1,9 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 import frappe
 
 from ..common import (
 	build_order_by,
-	check_version,
 	count_records,
 	dump_json,
 	ensure_status_change,
@@ -13,27 +12,23 @@ from ..common import (
 	name_map,
 	parse_flag,
 	search_or_filters,
-	single_modified,
-	table_version,
-	validate_update_fields,
 )
 from .constant import (
-	ALLOWED_RULE_FIELDS,
-	ALLOWED_SORT_FIELDS_RULE,
+	ALLOWED_SORT_FIELDS,
 	CHANNEL_DOCTYPE,
 	LEVEL_LOAN_TYPE,
-	LIST_OPERATORS,
 	LEVEL_PURPOSE,
+	LIST_OPERATORS,
 	LOAN_PRODUCT_DOCTYPE,
-	MATCH_FIRST,
 	NO_MATCH_DEFAULT_PRODUCT,
 	NUMBER_OPERATORS,
-	RETURN_FIELDS_GET_ALL_RULE,
-	RETURN_FIELDS_GET_BY_ID_RULE,
+	RETURN_FIELDS_GET_ALL,
+	RETURN_FIELDS_GET_BY_ID,
 	RULE_DOCTYPE,
-	SEARCH_FIELDS_RULE,
+	SEARCH_FIELDS,
 	SETTINGS_DOCTYPE,
 	SETTINGS_FIELDS,
+	STATUS_CONFLICT,
 	STATUS_LOAN_TYPE_DEFAULT,
 	STATUS_MANUAL_REVIEW,
 	STATUS_RULE_MATCHED,
@@ -43,11 +38,12 @@ from .constant import (
 from .utils import (
 	build_rule_filters,
 	evaluate_condition,
-	find_shadowed,
 	load_references,
 	parse_rule_row,
+	validate_new_product,
 	validate_rule,
 	validate_settings,
+	validate_update_payload,
 )
 
 
@@ -79,227 +75,114 @@ def get_settings() -> Dict[str, Any]:
 	return settings
 
 
-def update_settings(data: Dict[str, Any], refs: Optional[Dict] = None) -> Dict[str, Any]:
-	_write_settings(data, refs or load_references())
-	return get_settings()
-
-
-def _write_settings(data: Dict[str, Any], refs: Dict) -> bool:
+def update_settings(data: Dict[str, Any]) -> Dict[str, Any]:
 	stored = _read_settings()
 	settings = dict(stored, default_product=dict(stored["default_product"]))
 	for field in SETTINGS_FIELDS:
 		if data.get(field) is not None:
 			settings[field] = data.get(field)
 
-	settings = validate_settings(settings, refs, stored["default_product"])
-	if all(settings[field] == stored[field] for field in SETTINGS_FIELDS):
-		return False
-
-	settings_doc = frappe.get_single(SETTINGS_DOCTYPE)
-	settings_doc.several_match = settings["several_match"]
-	settings_doc.no_match = settings["no_match"]
-	settings_doc.default_product = dump_json(settings["default_product"])
-	settings_doc.save(ignore_permissions=True)
-	return True
+	settings = validate_settings(settings, load_references(), stored["default_product"])
+	if any(settings[field] != stored[field] for field in SETTINGS_FIELDS):
+		settings_doc = frappe.get_single(SETTINGS_DOCTYPE)
+		settings_doc.several_match = settings["several_match"]
+		settings_doc.no_match = settings["no_match"]
+		settings_doc.default_product = dump_json(settings["default_product"])
+		settings_doc.save(ignore_permissions=True)
+	return get_settings()
 
 
-def _next_priority() -> int:
-	highest = frappe.get_all(RULE_DOCTYPE, fields=["priority"], order_by="priority desc", limit_page_length=1)
-	return (highest[0].priority or 0) + 1 if highest else 1
+def _ensure_exists(rule_id: str) -> Dict[str, Any]:
+	row = frappe.db.get_value(RULE_DOCTYPE, rule_id, RETURN_FIELDS_GET_ALL, as_dict=True)
+	if not row:
+		raise frappe.DoesNotExistError(f"Loan Product '{rule_id}' has no assignment rule.")
+	return parse_rule_row(row)
 
 
 def _set_rule_values(rule_doc, values: Dict[str, Any]):
-	rule_doc.rule_name = values["rule_name"]
-	rule_doc.product = values["product"]
 	rule_doc.sources = dump_json(values["sources"])
 	rule_doc.loan_types = dump_json(values["loan_types"])
 	rule_doc.condition = dump_json(values["condition"])
 
 
 def _add_rule_names(rules: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-	products = name_map(LOAN_PRODUCT_DOCTYPE, [r["product"] for r in rules], "product_name")
 	channels = name_map(CHANNEL_DOCTYPE, [s for r in rules for s in r["sources"]], "channel_name")
 	loan_types = name_map(TREE_DOCTYPE, [lt for r in rules for lt in r["loan_types"]], "node_name")
 	for rule in rules:
-		rule["product_name"] = products.get(rule["product"])
 		rule["source_names"] = [channels.get(s) for s in rule["sources"]]
 		rule["loan_type_names"] = [loan_types.get(lt) for lt in rule["loan_types"]]
 		rule["has_condition"] = 1 if rule.get("condition") else 0
 	return rules
 
 
-def _save_rule(rule_id: Optional[str], values: Dict[str, Any], priority: Optional[int], is_active: int = 1) -> str:
-	rule_doc = frappe.get_doc(RULE_DOCTYPE, rule_id) if rule_id else frappe.new_doc(RULE_DOCTYPE)
-	_set_rule_values(rule_doc, values)
-	if not rule_id:
-		rule_doc.is_active = is_active
-	if priority:
-		rule_doc.priority = priority
-	if rule_id:
-		rule_doc.save(ignore_permissions=True)
-	else:
-		rule_doc.insert(ignore_permissions=True)
-	return rule_doc.name
-
-
-def _rule_changed(current: Dict[str, Any], values: Dict[str, Any], priority: Optional[int]) -> bool:
-	if priority and priority != current.get("priority"):
-		return True
-	return any(values[field] != current.get(field) for field in ("rule_name", "product", "sources", "loan_types", "condition"))
-
-
-def _delete_rule(rule_id: str):
-	frappe.delete_doc(RULE_DOCTYPE, rule_id, ignore_permissions=True)
-
-
-def _stored_rule(rule_id: str) -> Dict[str, Any]:
-	row = frappe.db.get_value(RULE_DOCTYPE, rule_id, RETURN_FIELDS_GET_ALL_RULE, as_dict=True)
-	if not row:
-		raise frappe.DoesNotExistError(f"Product assignment rule '{rule_id}' does not exist.")
-	return parse_rule_row(row)
-
-
 def create_rule(data: Dict[str, Any]) -> Dict[str, Any]:
-	values = validate_rule(data, load_references())
-	is_active = 1 if data.get("is_active") is None else parse_flag(data.get("is_active"), "is_active")
-	rule_id = _save_rule(None, values, _clean_priority(data.get("priority")) or _next_priority(), is_active)
-	return get_rule_by_id(rule_id)
+	refs = load_references()
+	product = validate_new_product(data, refs)
+	values = validate_rule(data, refs)
+
+	rule_doc = frappe.new_doc(RULE_DOCTYPE)
+	rule_doc.product = product
+	rule_doc.is_active = 1 if data.get("is_active") is None else parse_flag(data.get("is_active"), "is_active")
+	_set_rule_values(rule_doc, values)
+	rule_doc.insert(ignore_permissions=True)
+	return get_rule_by_id(rule_doc.name)
 
 
 def update_rule(rule_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-	current = _stored_rule(rule_id)
-	validate_update_fields(data, ALLOWED_RULE_FIELDS, "rule")
+	current = _ensure_exists(rule_id)
+	validate_update_payload(data, rule_id)
 
-	merged = {**current, **{k: v for k, v in data.items() if k in ALLOWED_RULE_FIELDS}}
-	values, priority = validate_rule(merged, load_references(), current=current), _clean_priority(data.get("priority"))
-	if _rule_changed(current, values, priority):
-		_save_rule(rule_id, values, priority)
+	merged = {**current, **{field: data[field] for field in ("sources", "loan_types", "condition") if field in data}}
+	values = validate_rule(merged, load_references(), current=current)
+	if any(values[field] != current.get(field) for field in values):
+		rule_doc = frappe.get_doc(RULE_DOCTYPE, rule_id)
+		_set_rule_values(rule_doc, values)
+		rule_doc.save(ignore_permissions=True)
 	return get_rule_by_id(rule_id)
 
 
-def toggle_rule_status(rule_id: str, is_active: int) -> Dict[str, Any]:
-	rule = _stored_rule(rule_id)
-	label = f"Rule '{rule.rule_name}'" if rule.rule_name else f"Rule {rule.name}"
-	ensure_status_change(rule.is_active, is_active, label)
-
-	rule_doc = frappe.get_doc(RULE_DOCTYPE, rule_id)
-	rule_doc.is_active = is_active
-	rule_doc.save(ignore_permissions=True)
-	return {"name": rule.name, "rule_name": rule.rule_name, "priority": rule.priority, "is_active": is_active}
-
-
-def _clean_priority(value) -> Optional[int]:
-	if value is None or value == "":
-		return None
-	try:
-		priority = int(value)
-	except (TypeError, ValueError):
-		raise frappe.ValidationError("priority must be a whole number.")
-	if priority < 1:
-		raise frappe.ValidationError("priority must be 1 or more.")
-	return priority
-
-
 def get_rule_by_id(rule_id: str) -> Dict[str, Any]:
-	rule = frappe.db.get_value(RULE_DOCTYPE, rule_id, RETURN_FIELDS_GET_BY_ID_RULE, as_dict=True)
+	rule = frappe.db.get_value(RULE_DOCTYPE, rule_id, RETURN_FIELDS_GET_BY_ID, as_dict=True)
 	if not rule:
-		raise frappe.DoesNotExistError(f"Product assignment rule '{rule_id}' does not exist.")
+		raise frappe.DoesNotExistError(f"Loan Product '{rule_id}' has no assignment rule.")
 	return _add_rule_names([parse_rule_row(rule)])[0]
 
 
 def get_rules(
 	args: Dict[str, Any], page: int, page_size: int, sort_by: str, sort_order: str
-) -> Tuple[List[Dict[str, Any]], int, int]:
+) -> Tuple[List[Dict[str, Any]], int]:
 	filters = build_rule_filters(args)
-	or_filters = search_or_filters(args.get("search"), SEARCH_FIELDS_RULE)
-	order_by = build_order_by(RULE_DOCTYPE, sort_by, sort_order, ALLOWED_SORT_FIELDS_RULE, tie_breaker="creation")
+	or_filters = search_or_filters(args.get("search"), SEARCH_FIELDS)
+	order_by = build_order_by(RULE_DOCTYPE, sort_by, sort_order, ALLOWED_SORT_FIELDS)
 
 	rules = frappe.get_all(
 		RULE_DOCTYPE,
 		filters=filters,
 		or_filters=or_filters or None,
-		fields=RETURN_FIELDS_GET_ALL_RULE,
+		fields=RETURN_FIELDS_GET_ALL,
 		order_by=order_by,
 		limit_start=(page - 1) * page_size,
 		limit_page_length=page_size,
 	)
-
-	total_records = count_records(RULE_DOCTYPE, filters, or_filters)
-	total_pages = (total_records + page_size - 1) // page_size
-	return _add_rule_names([parse_rule_row(r) for r in rules]), total_records, total_pages
-
-
-def _all_rules() -> List[Dict[str, Any]]:
-	rows = frappe.get_all(
-		RULE_DOCTYPE, fields=RETURN_FIELDS_GET_ALL_RULE, order_by="priority asc, creation asc", limit_page_length=0
-	)
-	return [parse_rule_row(r) for r in rows]
+	return _add_rule_names([parse_rule_row(r) for r in rules]), count_records(RULE_DOCTYPE, filters, or_filters)
 
 
 def delete_rule(rule_id: str):
-	_stored_rule(rule_id)
-	_delete_rule(rule_id)
+	_ensure_exists(rule_id)
+	frappe.delete_doc(RULE_DOCTYPE, rule_id, ignore_permissions=True)
 
 
-def _page_version() -> str:
-	return table_version(RULE_DOCTYPE, single_modified(SETTINGS_DOCTYPE))
+def toggle_rule_status(rule_id: str, is_active: int) -> Dict[str, Any]:
+	rule = _ensure_exists(rule_id)
+	ensure_status_change(rule.is_active, is_active, f"The rule for '{rule.product_name or rule.name}'")
+
+	rule_doc = frappe.get_doc(RULE_DOCTYPE, rule_id)
+	rule_doc.is_active = is_active
+	rule_doc.save(ignore_permissions=True)
+	return {"name": rule.name, "product_name": rule.product_name, "is_active": is_active}
 
 
-def get_product_assignment() -> Dict[str, Any]:
-	rules = _add_rule_names(_all_rules())
-	return {
-		"settings": get_settings(),
-		"rules": rules,
-		"warnings": find_shadowed(rules),
-		"total_rules": len(rules),
-		"version": _page_version(),
-	}
-
-
-def save_product_assignment(data: Dict[str, Any]) -> Dict[str, Any]:
-	check_version(data.get("version"), _page_version())
-	refs = load_references()
-	rules_payload = load_json(data.get("rules"), None)
-	if rules_payload is not None and not isinstance(rules_payload, list):
-		raise frappe.ValidationError("rules must be a list.")
-
-	existing = {rule.name: rule for rule in _all_rules()} if rules_payload is not None else {}
-	cleaned = []
-	for index, rule in enumerate(rules_payload or []):
-		if not isinstance(rule, dict):
-			raise frappe.ValidationError(f"Rule {index + 1}: must be an object.")
-		rule_id = rule.get("name")
-		if rule_id and rule_id not in existing:
-			raise frappe.ValidationError(f"Rule {index + 1}: '{rule_id}' does not exist.")
-		if rule_id and any(rule_id == seen for seen, _ in cleaned):
-			raise frappe.ValidationError(f"Rule {index + 1}: '{rule_id}' appears twice.")
-		cleaned.append((rule_id, validate_rule(rule, refs, index, current=existing.get(rule_id))))
-
-	summary = {"settings_updated": False, "created": 0, "updated": 0, "deleted": 0, "unchanged": 0}
-	settings_payload = {field: data.get(field) for field in SETTINGS_FIELDS if data.get(field) is not None}
-	if settings_payload:
-		summary["settings_updated"] = _write_settings(settings_payload, refs)
-
-	if rules_payload is not None:
-		kept = {rule_id for rule_id, _ in cleaned if rule_id}
-		for rule_id in set(existing) - kept:
-			_delete_rule(rule_id)
-			summary["deleted"] += 1
-
-		for position, (rule_id, values) in enumerate(cleaned, start=1):
-			if not rule_id:
-				_save_rule(None, values, position)
-				summary["created"] += 1
-			elif _rule_changed(existing[rule_id], values, position):
-				_save_rule(rule_id, values, position)
-				summary["updated"] += 1
-			else:
-				summary["unchanged"] += 1
-
-	return {**get_product_assignment(), "summary": summary}
-
-
-def resolve_product(data: Dict[str, Any]) -> Dict[str, Any]:
+def test_rules(data: Dict[str, Any]) -> Dict[str, Any]:
 	source = str(data.get("source") or "").strip()
 	if not source:
 		raise frappe.ValidationError("source is required.")
@@ -318,33 +201,42 @@ def resolve_product(data: Dict[str, Any]) -> Dict[str, Any]:
 		raise frappe.ValidationError(f"Unknown facts: {', '.join(unknown)}. Allowed: {', '.join(VARIABLES)}.")
 
 	settings = _read_settings()
-
 	candidates = frappe.get_all(
 		RULE_DOCTYPE,
 		filters=[["is_active", "=", 1], json_contains("sources", source), json_contains("loan_types", loan_type)],
-		fields=RETURN_FIELDS_GET_ALL_RULE,
-		order_by="priority asc, creation asc",
+		fields=RETURN_FIELDS_GET_ALL,
 		limit_page_length=0,
+	)
+	products = {c.product for c in candidates} | set(settings["default_product"].values())
+	enabled_products = (
+		set(frappe.get_all(LOAN_PRODUCT_DOCTYPE, filters={"disabled": 0, "name": ["in", list(products)]}, pluck="name"))
+		if products
+		else set()
 	)
 	matches = [
 		rule
 		for rule in map(parse_rule_row, candidates)
-		if source in rule["sources"] and loan_type in rule["loan_types"] and evaluate_condition(rule["condition"], facts)
+		if source in rule["sources"]
+		and loan_type in rule["loan_types"]
+		and rule["product"] in enabled_products
+		and evaluate_condition(rule["condition"], facts)
 	]
+	default_product = settings["default_product"].get(loan_type)
 
-	result = {"source": source, "loan_type": loan_type, "matched_rules": [], "product": None, "rule": None}
-
-	if matches:
-		result["matched_rules"] = [{"name": r.name, "rule_name": r.rule_name, "product": r.product} for r in matches]
-		if settings["several_match"] == MATCH_FIRST or len(matches) == 1:
-			result.update(status=STATUS_RULE_MATCHED, product=matches[0].product, rule=matches[0].name)
-		else:
-			result.update(status=STATUS_MANUAL_REVIEW, reason="Several rules match; a reviewer picks the product.")
-	elif settings["no_match"] == NO_MATCH_DEFAULT_PRODUCT and settings["default_product"].get(loan_type):
-		result.update(status=STATUS_LOAN_TYPE_DEFAULT, product=settings["default_product"][loan_type])
+	result = {"source": source, "loan_type": loan_type, "matched_rules": [], "product": None}
+	if len(matches) == 1:
+		result.update(status=STATUS_RULE_MATCHED, product=matches[0].product)
+	elif matches:
+		result.update(
+			status=STATUS_CONFLICT,
+			reason="More than one product's rule matches. Change the rules so only one product matches.",
+		)
+	elif settings["no_match"] == NO_MATCH_DEFAULT_PRODUCT and default_product in enabled_products:
+		result.update(status=STATUS_LOAN_TYPE_DEFAULT, product=default_product)
 	else:
-		result.update(status=STATUS_MANUAL_REVIEW, reason="No rule matches and this loan type has no default product.")
+		result.update(status=STATUS_MANUAL_REVIEW, reason="No rule matches and this loan type has no enabled default product.")
 
+	result["matched_rules"] = [{"product": r.product, "product_name": r.product_name} for r in matches]
 	result["product_name"] = (
 		frappe.db.get_value(LOAN_PRODUCT_DOCTYPE, result["product"], "product_name") if result["product"] else None
 	)

@@ -1,0 +1,119 @@
+{
+ "actions": [],
+ "creation": "2026-10-02 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "collateral_type",
+  "estimated_value",
+  "ownership_date",
+  "column_break_1",
+  "description",
+  "valuation_section",
+  "valuation_amount",
+  "forced_sale_value",
+  "column_break_2",
+  "valuation_status",
+  "legal_status",
+  "valuation_details_section",
+  "valuation_details"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "fieldname": "collateral_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Collateral Type",
+   "options": "Loan Security Type",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "estimated_value",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Estimated Value",
+   "reqd": 1
+  },
+  {
+   "fieldname": "ownership_date",
+   "fieldtype": "Date",
+   "label": "Ownership Date"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "valuation_section",
+   "fieldtype": "Section Break",
+   "label": "Valuation"
+  },
+  {
+   "columns": 2,
+   "fieldname": "valuation_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Valuation Amount"
+  },
+  {
+   "fieldname": "forced_sale_value",
+   "fieldtype": "Currency",
+   "label": "Forced Sale Value"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "columns": 2,
+   "fieldname": "valuation_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Valuation Status",
+   "options": "\nPending\nPassed\nFailed\nException"
+  },
+  {
+   "columns": 2,
+   "fieldname": "legal_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Legal Status",
+   "options": "\nPending\nPassed\nUnresolved"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "valuation_details_section",
+   "fieldtype": "Section Break",
+   "label": "Valuation Details"
+  },
+  {
+   "description": "Asset fields, valuer, market value, method, date, status reason, legal checklist, documents",
+   "fieldname": "valuation_details",
+   "fieldtype": "JSON",
+   "label": "Valuation Details"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-02 17:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Rolaface Lms App",
+ "name": "Custom LOS Application Collateral",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

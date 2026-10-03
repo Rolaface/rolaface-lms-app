@@ -19,19 +19,19 @@ NO_MATCH_OPTIONS = (NO_MATCH_MANUAL_REVIEW, NO_MATCH_DEFAULT_PRODUCT)
 SETTINGS_FIELDS = ("several_match", "no_match", "default_product")
 
 
-ALLOWED_RULE_FIELDS = {"rule_name", "priority", "product", "sources", "loan_types", "condition"}
+ALLOWED_UPDATE_FIELDS = {"sources", "loan_types", "condition"}
 
-ALLOWED_SORT_FIELDS_RULE = {"name", "rule_name", "priority", "product", "is_active", "creation", "modified"}
-DEFAULT_SORT_BY = "priority"
+ALLOWED_SORT_FIELDS = {"name", "product_name", "is_active", "creation", "modified"}
+
+DEFAULT_SORT_BY = "product_name"
 DEFAULT_SORT_ORDER = "asc"
 
-SEARCH_FIELDS_RULE = ["name", "rule_name", "product"]
+SEARCH_FIELDS = ["name", "product_name"]
 
-RETURN_FIELDS_GET_ALL_RULE = [
+RETURN_FIELDS_GET_ALL = [
 	"name",
-	"rule_name",
-	"priority",
 	"product",
+	"product_name",
 	"sources",
 	"loan_types",
 	"condition",
@@ -39,9 +39,7 @@ RETURN_FIELDS_GET_ALL_RULE = [
 	"creation",
 	"modified",
 ]
-RETURN_FIELDS_GET_BY_ID_RULE = RETURN_FIELDS_GET_ALL_RULE + ["owner", "modified_by"]
-
-RULE_NAME_MAX_LENGTH = 140
+RETURN_FIELDS_GET_BY_ID = RETURN_FIELDS_GET_ALL + ["owner", "modified_by"]
 
 
 JOINERS = ("AND", "OR")
@@ -68,3 +66,4 @@ VARIABLES = {
 STATUS_RULE_MATCHED = "Rule matched"
 STATUS_LOAN_TYPE_DEFAULT = "Loan type default"
 STATUS_MANUAL_REVIEW = "Manual review"
+STATUS_CONFLICT = "Conflict"

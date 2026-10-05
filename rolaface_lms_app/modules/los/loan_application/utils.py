@@ -31,23 +31,34 @@ from .constant import (
 	LOAN_PRODUCT_DOCTYPE,
 	MAX_TEXT_LENGTH,
 	REQUIRED_ADDRESS_TYPE,
+	STAGE_DATE_FIELDS,
+	STAGE_FIELDS,
+	STAGE_JSON_FIELDS,
+	STAGE_NUMBER_FIELDS,
+	STAGE_SELECT_FIELDS,
 	TABLE_FIELDS,
+	VALUATION_NUMBER_FIELDS,
+	VALUATION_SELECT_FIELDS,
 )
 
 APPLICANT_FIELDS = {INDIVIDUAL: INDIVIDUAL_FIELDS, BUSINESS: BUSINESS_FIELDS}
 
 
 def validate_create_payload(data: Dict[str, Any]):
-	meta = frappe.get_meta(APPLICATION_DOCTYPE)
-	fixed = sorted(field for field in data if field not in ALLOWED_UPDATE_FIELDS and meta.has_field(field))
-	if fixed:
-		raise frappe.ValidationError(f"{', '.join(fixed)} cannot be sent here. The pipeline stages set them.")
+	_reject_fixed_fields(data, ALLOWED_UPDATE_FIELDS)
 
 
 def validate_update_payload(data: Dict[str, Any]):
-	validate_create_payload(data)
-	if not any(field in data for field in ALLOWED_UPDATE_FIELDS):
-		raise frappe.ValidationError("Nothing to update. Send at least one application field.")
+	_reject_fixed_fields(data, ALLOWED_UPDATE_FIELDS | STAGE_FIELDS)
+	if not any(field in data for field in ALLOWED_UPDATE_FIELDS | STAGE_FIELDS):
+		raise frappe.ValidationError("Nothing to update. Send at least one application or stage field.")
+
+
+def _reject_fixed_fields(data: Dict[str, Any], allowed: set):
+	meta = frappe.get_meta(APPLICATION_DOCTYPE)
+	fixed = sorted(field for field in data if field not in allowed and (meta.has_field(field) or field in STAGE_FIELDS))
+	if fixed:
+		raise frappe.ValidationError(f"{', '.join(fixed)} cannot be sent here.")
 
 
 def set_application_values(application_doc, data: Dict[str, Any]):
@@ -69,6 +80,42 @@ def set_application_values(application_doc, data: Dict[str, Any]):
 		application_doc.update({field: None for field in INDIVIDUAL_FIELDS})
 	if application_doc.customer_type != EXISTING_CUSTOMER:
 		application_doc.customer = None
+
+
+def set_stage_values(application_doc, data: Dict[str, Any]):
+	for field, rules in STAGE_NUMBER_FIELDS.items():
+		if field in data:
+			application_doc.set(field, _number(data[field], application_doc.meta.get_label(field), **rules))
+	for field in STAGE_SELECT_FIELDS:
+		if field in data:
+			application_doc.set(field, _text(data[field]) or "")
+	for field in STAGE_DATE_FIELDS:
+		if field in data:
+			application_doc.set(field, _date(data[field], application_doc.meta.get_label(field)))
+	for field in STAGE_JSON_FIELDS:
+		if field in data:
+			application_doc.set(field, dump_json(_object(data[field], field)))
+	if "collateral_valuations" in data:
+		_set_valuations(application_doc, data["collateral_valuations"])
+
+
+def _set_valuations(application_doc, value):
+	rows = {row.name: row for row in application_doc.collaterals}
+	for index, valuation in enumerate(_list_of_objects(value, "collateral_valuations"), start=1):
+		row = rows.get(valuation.get("row_id"))
+		if not row:
+			raise frappe.ValidationError(
+				f"collateral_valuations row {index}: row_id '{valuation.get('row_id')}' is not a collateral of this application."
+			)
+		label = f"collateral_valuations row {index}"
+		for field in VALUATION_NUMBER_FIELDS:
+			if field in valuation:
+				row.set(field, _number(valuation[field], f"{label}: {field}", allow_zero=True))
+		for field in VALUATION_SELECT_FIELDS:
+			if field in valuation:
+				row.set(field, _text(valuation[field]) or "")
+		if "valuation_details" in valuation:
+			row.valuation_details = dump_json(_object(valuation["valuation_details"], f"{label}: valuation_details"))
 
 
 def validate_application(application_doc, address_types: List[str]):
@@ -137,7 +184,7 @@ def validate_addresses(value) -> List[Dict[str, Any]]:
 def parse_application(application_doc) -> Dict[str, Any]:
 	result = {"name": application_doc.name, **_values(application_doc)}
 	for table in TABLE_FIELDS:
-		result[table] = [_values(row) for row in application_doc.get(table)]
+		result[table] = [{"row_id": row.name, **_values(row)} for row in application_doc.get(table)]
 	result.update(
 		{field: application_doc.get(field) for field in ("owner", "creation", "modified_by", "modified")}
 	)
@@ -300,6 +347,16 @@ def _values(doc) -> Dict[str, Any]:
 			value = doc.get(df.fieldname)
 			values[df.fieldname] = load_json(value, None) if df.fieldtype == "JSON" else value
 	return values
+
+
+def _object(value, label: str) -> Optional[Dict[str, Any]]:
+	try:
+		value = load_json(value, None)
+	except frappe.ValidationError:
+		value = []
+	if value is not None and not isinstance(value, dict):
+		raise frappe.ValidationError(f"{label} must be an object.")
+	return value
 
 
 def _list_of_objects(value, label: str) -> List[Dict[str, Any]]:

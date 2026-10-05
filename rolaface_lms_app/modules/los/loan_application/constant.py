@@ -76,6 +76,29 @@ ALLOWED_UPDATE_FIELDS = {
 	"addresses",
 }
 
+STAGE_NUMBER_FIELDS = {
+	"credit_score": {"whole": True, "allow_zero": True},
+	"monthly_obligations": {"allow_zero": True},
+	"eligible_amount": {"allow_zero": True},
+	"approved_amount": {},
+	"approved_tenure_months": {"whole": True},
+	"interest_rate": {"allow_zero": True},
+	"final_amount": {},
+}
+STAGE_SELECT_FIELDS = ("approved_frequency", "underwriting_decision", "signing_method")
+STAGE_DATE_FIELDS = ("first_payment_date",)
+STAGE_JSON_FIELDS = ("prescreening_data", "appraisal_data", "underwriting_data", "offer_data")
+STAGE_FIELDS = {
+	*STAGE_NUMBER_FIELDS,
+	*STAGE_SELECT_FIELDS,
+	*STAGE_DATE_FIELDS,
+	*STAGE_JSON_FIELDS,
+	"collateral_valuations",
+}
+
+VALUATION_NUMBER_FIELDS = ("valuation_amount", "forced_sale_value")
+VALUATION_SELECT_FIELDS = ("valuation_status", "legal_status")
+
 ALLOWED_SORT_FIELDS = {"name", "application_date", "requested_amount", "creation", "modified"}
 
 DEFAULT_SORT_BY = "modified"

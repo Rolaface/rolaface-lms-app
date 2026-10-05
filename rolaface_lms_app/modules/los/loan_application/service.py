@@ -8,6 +8,7 @@ from .constant import (
 	ADDRESS_FIELDS,
 	ALLOWED_SORT_FIELDS,
 	APPLICATION_DOCTYPE,
+	ALLOWED_UPDATE_FIELDS,
 	DRAFT,
 	RETURN_FIELDS_GET_ALL,
 	SEARCH_FIELDS,
@@ -17,6 +18,7 @@ from .utils import (
 	build_application_filters,
 	parse_application,
 	set_application_values,
+	set_stage_values,
 	validate_addresses,
 	validate_application,
 	validate_create_payload,
@@ -31,12 +33,10 @@ def _ensure_exists(application_id: str) -> str:
 	return status
 
 
-def _ensure_draft(application_id: str, action: str):
+def _ensure_draft(application_id: str, rule: str):
 	status = _ensure_exists(application_id)
 	if status != DRAFT:
-		raise frappe.LinkExistsError(
-			f"Loan application '{application_id}' is {status.lower()}; only a draft can be {action}."
-		)
+		raise frappe.LinkExistsError(f"Loan application '{application_id}' is {status.lower()}; {rule}.")
 
 
 def create_loan_application(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -52,15 +52,19 @@ def create_loan_application(data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def update_loan_application(application_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-	_ensure_draft(application_id, "edited")
+	_ensure_exists(application_id)
 	validate_update_payload(data)
-	addresses = (
-		validate_addresses(data["addresses"]) if "addresses" in data else _get_addresses(application_id)
-	)
-
 	application_doc = frappe.get_doc(APPLICATION_DOCTYPE, application_id)
-	set_application_values(application_doc, data)
-	validate_application(application_doc, [address["address_type"] for address in addresses])
+
+	if any(field in data for field in ALLOWED_UPDATE_FIELDS):
+		_ensure_draft(application_id, "only a draft's application details can be edited")
+		addresses = (
+			validate_addresses(data["addresses"]) if "addresses" in data else _get_addresses(application_id)
+		)
+		set_application_values(application_doc, data)
+		validate_application(application_doc, [address["address_type"] for address in addresses])
+
+	set_stage_values(application_doc, data)
 	application_doc.save(ignore_permissions=True)
 	if "addresses" in data:
 		_delete_addresses(application_id)
@@ -95,7 +99,7 @@ def get_loan_applications(
 
 
 def delete_loan_application(application_id: str):
-	_ensure_draft(application_id, "deleted")
+	_ensure_draft(application_id, "only a draft can be deleted")
 	_delete_addresses(application_id)
 	frappe.delete_doc(APPLICATION_DOCTYPE, application_id, ignore_permissions=True)
 

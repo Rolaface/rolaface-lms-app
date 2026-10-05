@@ -97,25 +97,62 @@ def update_loan_application(id=None):
 	---
 	tags:
 	  - LOS Loan Application
-	summary: Changes a Draft application. Send only what changed.
+	summary: One update for every stage modal. Send only what changed; fields left out are kept.
 	description: >
-	  Fields left out are kept. A list sent (directors, collaterals, documents, addresses) replaces that whole list.
-	  The result must still be a complete application. Only Draft applications can be edited.
+	  Application details (any create_loan_application field) can only change while the application is a Draft;
+	  a list sent (directors, collaterals, documents, addresses) replaces that whole list, and the result must
+	  still be a complete application. Stage fields can be saved at any time - pre-screening: credit_score,
+	  monthly_obligations, eligible_amount, prescreening_data; appraisal: approved_amount, approved_tenure_months,
+	  approved_frequency, interest_rate, appraisal_data; underwriting: final_amount, underwriting_decision,
+	  underwriting_data, collateral_valuations; offer: signing_method, first_payment_date, offer_data.
+	  collateral_valuations updates collateral rows by row_id (from get_loan_application_by_id) and only changes
+	  the valuation fields sent. Send null to clear a field. status, stage and the stage statuses are not sent here.
 	parameters:
 	  - {in: query, name: id, required: true, schema: {type: string}}
 	requestBody:
 	  required: true
 	  content:
 	    application/json:
-	      example: {"requested_amount": 30000, "tenure_months": 24, "collaterals": [{"collateral_type": "Vehicle", "estimated_value": 40000, "ownership_date": "2021-06-15", "description": "Toyota Corolla 2019, ABC 1234"}]}
+	      examples:
+	        application:
+	          summary: Application details (Draft only)
+	          value: {"requested_amount": 30000, "tenure_months": 24, "collaterals": [{"collateral_type": "Vehicle", "estimated_value": 40000, "ownership_date": "2021-06-15", "description": "Toyota Corolla 2019, ABC 1234"}]}
+	        prescreening:
+	          summary: Pre-screening
+	          value: {"credit_score": 742, "monthly_obligations": 1200, "eligible_amount": 30000, "prescreening_data": {"bureau": {"risk_band": "Low", "active_accounts": 2, "delinquent_accounts": 0, "recent_enquiries": 1, "source": "bureau"}, "liabilities": [{"institution": "Zanaco", "facility_type": "Personal Loan", "outstanding": 12500, "monthly_payment": 850, "status": "Active", "source": "bureau"}], "income": [{"source": "Net Salary", "monthly_amount": 13100, "source_kind": "hrms"}]}}
+	        appraisal:
+	          summary: Appraisal
+	          value: {"approved_amount": 30000, "approved_tenure_months": 18, "approved_frequency": "Monthly", "interest_rate": 22, "appraisal_data": {"interest_type": "Fixed", "interest_calculation": "Reducing Balance", "effective_date": "2026-10-10", "override_reason": null, "charges": [{"name": "Processing Fee", "basis": "%", "value": 2, "account": "Processing Fee Income", "treatment": "Deduct from disbursement"}]}}
+	        underwriting:
+	          summary: Underwriting
+	          value: {"final_amount": 30000, "underwriting_decision": "Approved with Conditions", "collateral_valuations": [{"row_id": "<row_id from get_loan_application_by_id>", "valuation_amount": 38000, "forced_sale_value": 30000, "valuation_status": "Passed", "legal_status": "Passed", "valuation_details": {"method": "Market comparison", "market_value": 40000, "valuation_date": "2026-10-08", "valuer": {"name": "A. Banda", "company": "Banda Valuers", "license": "VAL-221"}}}], "underwriting_data": {"conditions": [{"condition": "Comprehensive insurance on vehicle", "responsible": "Customer", "due_before": "Disbursement"}], "notes": "Stable salaried applicant."}}
+	        offer:
+	          summary: Offer & Signing
+	          value: {"signing_method": "E-signature", "first_payment_date": "2026-11-30", "offer_data": {"dispatch_status": "Dispatched", "signed_copy_received": false}}
 	      schema:
 	        type: object
-	        description: Any field from create_loan_application.
+	        properties:
+	          credit_score: {type: integer}
+	          monthly_obligations: {type: number}
+	          eligible_amount: {type: number}
+	          prescreening_data: {type: object}
+	          approved_amount: {type: number}
+	          approved_tenure_months: {type: integer}
+	          approved_frequency: {type: string, enum: [Monthly, Bi-weekly]}
+	          interest_rate: {type: number}
+	          appraisal_data: {type: object}
+	          final_amount: {type: number}
+	          underwriting_decision: {type: string, enum: [Approved, Approved with Conditions, Referred, Rejected]}
+	          underwriting_data: {type: object}
+	          collateral_valuations: {type: array, items: {type: object}, description: '[{row_id, valuation_amount, forced_sale_value, valuation_status (Pending, Passed, Failed, Exception), legal_status (Pending, Passed, Unresolved), valuation_details}]'}
+	          signing_method: {type: string, enum: [E-signature, Physical Signature]}
+	          first_payment_date: {type: string, format: date}
+	          offer_data: {type: object}
 	responses:
 	  400:
-	    description: Nothing to update, a pipeline field sent, or the result is incomplete or invalid.
+	    description: Nothing to update, a field that cannot be sent here, an unknown collateral row_id, or invalid values.
 	  409:
-	    description: The application is no longer a Draft.
+	    description: Application details sent for an application that is no longer a Draft.
 	"""
 	try:
 		result = service.update_loan_application(require_id(id, "Loan Application"), request_args())

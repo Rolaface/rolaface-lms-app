@@ -157,7 +157,18 @@ def _normalize_clause(clause: Dict[str, Any]) -> Dict[str, Any]:
 	if operator not in allowed:
 		raise frappe.ValidationError(f"'{operator}' cannot be used with {variable['label']}.")
 
-	value = str(clause.get("value") if clause.get("value") is not None else "").strip()
+	value = _clause_value(clause.get("value"), variable)
+	normalized = {"id": clause.get("id"), "variable": clause["variable"], "operator": operator, "value": value}
+	if operator == "between":
+		value2 = _clause_value(clause.get("value2"), variable)
+		if float(value2) < float(value):
+			raise frappe.ValidationError(f"{variable['label']}: the second value must not be lower than the first.")
+		normalized["value2"] = value2
+	return normalized
+
+
+def _clause_value(raw, variable: Dict[str, Any]) -> str:
+	value = str(raw if raw is not None else "").strip()
 	if not value:
 		raise frappe.ValidationError(f"Enter a value for {variable['label']}.")
 	if variable["numeric"]:
@@ -167,8 +178,7 @@ def _normalize_clause(clause: Dict[str, Any]) -> Dict[str, Any]:
 			raise frappe.ValidationError(f"{variable['label']} must be a number.")
 	elif value not in variable["options"]:
 		raise frappe.ValidationError(f"{variable['label']} must be one of: {', '.join(variable['options'])}.")
-
-	return {"id": clause.get("id"), "variable": clause["variable"], "operator": operator, "value": value}
+	return value
 
 
 def parse_rule_row(row: Dict[str, Any]) -> Dict[str, Any]:
@@ -222,6 +232,8 @@ def _evaluate_clause(clause: Dict[str, Any], facts: Dict[str, Any]) -> bool:
 		return False
 
 	operator, expected = clause["operator"], clause["value"]
+	if operator == "between":
+		return flt(expected) <= flt(actual) <= flt(clause["value2"])
 	if VARIABLES[clause["variable"]]["numeric"]:
 		actual, expected = flt(actual), flt(expected)
 	else:

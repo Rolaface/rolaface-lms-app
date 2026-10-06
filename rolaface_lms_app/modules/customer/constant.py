@@ -36,7 +36,8 @@ BASIC_DETAILS_FIELDS = CHILD_ROW_NAME_FIELD | {
     "net_worth",
     "existing_monthly_obligations",
     "annual_revenue",
-    "number_of_employees"
+    "number_of_employees",
+    "is_investor"
 }
 
 EXTENDED_DETAILS_FIELDS = CHILD_ROW_NAME_FIELD | {
@@ -176,7 +177,7 @@ RETURN_FIELDS_GET_ALL = [
     "email_id",
     "mobile_no",
     "account_manager",
-    "disabled"
+    "disabled",
 ]
 
 RETURN_FIELDS_GET_BY_ID = list(ALLOWED_CUSTOMER_FIELDS) + [

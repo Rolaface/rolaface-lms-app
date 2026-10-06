@@ -172,11 +172,27 @@ def get_customers(
     total_customers = int(count_result[0].get("count") or 0) if count_result else 0
     
     total_pages = (total_customers + page_size - 1) // page_size
+    customer_names = [c["name"] for c in customers]
+    investor_map = {}
+
+    if customer_names:
+        rows = frappe.get_all(
+            "Custom Lending Customer Extended Details",
+            filters={
+                "parent": ["in", customer_names],
+                "parenttype": "Customer",
+                "parentfield": TABLE_MAPPING["basic_details"],
+            },
+            fields=["parent", "is_investor"],
+        )
+        for r in rows:
+            investor_map[r["parent"]] = investor_map.get(r["parent"], 0) or r["is_investor"]
 
     clean_customers = []
     for c in customers:
         if "disabled" in c:
             c["status"] = "inactive" if c.pop("disabled") else "active"
+        c["is_investor"] = bool(investor_map.get(c["name"], 0)) 
         clean_customers.append(transform_db_to_payload(c))
 
     return clean_customers, total_customers, total_pages

@@ -18,6 +18,7 @@
   "registered_company_name",
   "registration_number",
   "incorporation_date",
+  "is_investor",
   "section_break_ddrf",
   "education_level",
   "employment_type",
@@ -169,13 +170,19 @@
    "in_preview": 1,
    "in_standard_filter": 1,
    "label": "No of Employees"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_investor",
+   "fieldtype": "Check",
+   "label": "Is Investor"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-09-03 15:47:10.162775",
+ "modified": "2026-10-06 21:34:58.694531",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom Lending Customer Extended Details",

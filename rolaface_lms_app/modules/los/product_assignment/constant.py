@@ -43,7 +43,7 @@ RETURN_FIELDS_GET_BY_ID = RETURN_FIELDS_GET_ALL + ["owner", "modified_by"]
 
 
 JOINERS = ("AND", "OR")
-NUMBER_OPERATORS = ("=", "<>", ">", ">=", "<", "<=")
+NUMBER_OPERATORS = ("=", "<>", ">", ">=", "<", "<=", "between")
 LIST_OPERATORS = ("=", "<>")
 
 VARIABLES = {

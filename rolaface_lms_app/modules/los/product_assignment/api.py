@@ -32,7 +32,7 @@ def create_rule():
 	          loan_types: {type: array, items: {type: string}, description: Level 1 loan type IDs}
 	          condition:
 	            type: object
-	            description: '{join, groups: [{name, join, clauses: [{variable, operator, value}]}]}. Leave out to always match.'
+	            description: '{join, groups: [{name, join, clauses: [{variable, operator, value, value2}]}]}. value2 only for between (both ends included). Leave out to always match.'
 	          is_active: {type: integer, enum: [0, 1], default: 1}
 	responses:
 	  201:

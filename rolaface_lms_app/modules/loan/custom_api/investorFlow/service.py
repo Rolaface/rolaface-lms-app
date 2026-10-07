@@ -14,6 +14,7 @@ from .constant import (
     CONTRACT_STATUS_PAID,
     PAYMENT_MODES,
     PAYMENT_FIELDS,
+    PAYMENT_INPUT_FIELDS,
     PAYMENT_GL_FIELDS,
     RETURN_FIELDS_BANK_ACCOUNT,
     STATUS_RECEIVED,
@@ -23,7 +24,14 @@ from .constant import (
     EARNING_SCHEDULE_ROW_FIELDS,
     EARNING_AMOUNT_FIELDS,
     RETURN_FIELDS_EARNINGS_LIST,
+    EARNING_SCHEDULE_ROW_READ_ONLY_FIELDS,
+    EARNING_STATUSES,
+    STATUS_MATURED,
+    ROW_STATUS_PENDING,
+    ROW_STATUS_ACCRUED,
+    ROW_STATUS_PAID,
 )
+from . import accounting
 from .utils import _validate_investor_flow_payload, _build_investor_flow_filters, _as_list, _parse_date
 from frappe.utils import getdate, add_months, add_days, flt, nowdate, cint, validate_email_address
 
@@ -49,6 +57,17 @@ def update_investor_flow(investor_flow_id: str, data: Dict[str, Any]) -> Dict[st
     investor_flow_doc = frappe.get_doc(DOCTYPE, investor_flow_id)
 
     _validate_investor_flow_payload(data, is_update=True, existing_doc=investor_flow_doc)
+
+    # A renewed investment's amount is the principal carried over; it cannot change.
+    if (
+        investor_flow_doc.get("renewed_from")
+        and data.get("investment_amount") is not None
+        and flt(data.get("investment_amount")) != flt(investor_flow_doc.investment_amount)
+    ):
+        raise frappe.ValidationError(
+            f"Investment Amount is the principal renewed from '{investor_flow_doc.renewed_from}' "
+            f"({investor_flow_doc.investment_amount}) and cannot be changed."
+        )
     has_changes = False
 
     for field in ALLOWED_INVESTOR_FLOW_FIELDS:
@@ -143,6 +162,13 @@ def delete_investor_flow(investor_flow_id: str):
     if not frappe.db.exists(DOCTYPE, investor_flow_id):
         raise frappe.DoesNotExistError(f"Investor Flow '{investor_flow_id}' does not exist.")
 
+    renewed_from = frappe.db.get_value(DOCTYPE, investor_flow_id, "renewed_from")
+    if renewed_from:
+        raise frappe.ValidationError(
+            f"Investor Flow '{investor_flow_id}' carries the principal renewed from '{renewed_from}' "
+            "and cannot be deleted."
+        )
+
     frappe.delete_doc(DOCTYPE, investor_flow_id, ignore_permissions=True)
 
 def update_investor_flow_status(investor_flow_id: str, action: str) -> Dict[str, Any]:
@@ -161,6 +187,12 @@ def update_investor_flow_status(investor_flow_id: str, action: str) -> Dict[str,
     if new_status not in ALLOWED_STATUS_TRANSITIONS.get(current_status, []):
         raise frappe.ValidationError(
             f"Cannot change Investor Flow status from '{current_status}' to '{new_status}'."
+        )
+
+    if new_status == "Cancelled" and investor_flow_doc.get("renewed_from"):
+        raise frappe.ValidationError(
+            f"Investor Flow '{investor_flow_doc.name}' carries the principal renewed from "
+            f"'{investor_flow_doc.renewed_from}' and cannot be cancelled."
         )
 
     investor_flow_doc.status = new_status
@@ -217,7 +249,7 @@ def save_contract(investor_flow_id: str, data: Dict[str, Any]) -> Dict[str, Any]
     if investor_flow_doc.contract_status == CONTRACT_STATUS_PAID:
         raise frappe.ValidationError("Contract is already Paid. It cannot be changed.")
 
-    missing = [f for f in ("to", "subject", "file_id") if not data.get(f)]
+    missing = [f for f in ("to", "subject", "message", "file_id") if not data.get(f)]
     if missing:
         raise frappe.ValidationError(f"Missing required field(s): {', '.join(missing)}")
 
@@ -244,6 +276,7 @@ def save_contract(investor_flow_id: str, data: Dict[str, Any]) -> Dict[str, Any]
 
     investor_flow_doc.mail_sent = to
     investor_flow_doc.subject = data.get("subject")
+    investor_flow_doc.message = data.get("message")
     investor_flow_doc.contract_status = CONTRACT_STATUS_SENT
     investor_flow_doc.save(ignore_permissions=True)
 
@@ -252,6 +285,7 @@ def save_contract(investor_flow_id: str, data: Dict[str, Any]) -> Dict[str, Any]
         "contract_status": investor_flow_doc.contract_status,
         "mail_sent": investor_flow_doc.mail_sent,
         "subject": investor_flow_doc.subject,
+        "message": investor_flow_doc.message,
         "file_id": file_doc.name,
         "file_url": file_doc.file_url,
     }
@@ -260,20 +294,15 @@ def save_contract(investor_flow_id: str, data: Dict[str, Any]) -> Dict[str, Any]
 def receive_payment(investor_flow_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
     investor_flow_doc = _get_existing_investor_flow(investor_flow_id)
 
-    missing = [f for f in PAYMENT_FIELDS if data.get(f) in (None, "")]
+    renewed_from = investor_flow_doc.get("renewed_from")
+    if renewed_from:
+        return _receive_renewal(investor_flow_doc, data)
+
+    missing = [f for f in PAYMENT_INPUT_FIELDS if data.get(f) in (None, "")]
     if missing:
         raise frappe.ValidationError(f"Missing required field(s): {', '.join(missing)}")
 
-    if STATUS_RECEIVED not in ALLOWED_STATUS_TRANSITIONS.get(investor_flow_doc.status or DEFAULT_STATUS, []):
-        raise frappe.ValidationError(
-            f"Payment cannot be received for an Investor Flow in status '{investor_flow_doc.status}'."
-        )
-
-    if investor_flow_doc.contract_status != CONTRACT_STATUS_SENT:
-        raise frappe.ValidationError(
-            f"Payment can be received only when Contract Status is '{CONTRACT_STATUS_SENT}' "
-            f"(current: '{investor_flow_doc.contract_status}')."
-        )
+    _check_can_receive(investor_flow_doc)
 
     try:
         amount_paid = float(data.get("amount_paid"))
@@ -288,8 +317,8 @@ def receive_payment(investor_flow_id: str, data: Dict[str, Any]) -> Dict[str, An
 
     payment_date = getdate(data.get("payment_date"))
 
-    # Paid From is the investor's Bank Account; its GL account goes in the Journal Entry.
-    paid_from, paid_to = data.get("paid_from"), data.get("paid_to")
+    # Paid From = the investor's Bank Account. It is only a reference: their bank is not in our books.
+    paid_from = data.get("paid_from")
     bank_account = frappe.db.get_value(
         "Bank Account", paid_from, ["party_type", "party", "account", "disabled"], as_dict=True
     )
@@ -302,68 +331,21 @@ def receive_payment(investor_flow_id: str, data: Dict[str, Any]) -> Dict[str, An
     if cint(bank_account.disabled):
         raise frappe.ValidationError(f"Bank account '{paid_from}' is disabled.")
 
-    if not bank_account.account:
-        raise frappe.ValidationError(f"Bank account '{paid_from}' has no Company Account.")
-
-    # Journal Entry: credit the Bank Account's Company Account, debit Paid To.
-    credit_account, to_gl = bank_account.account, paid_to
-    if credit_account == to_gl:
-        raise frappe.ValidationError("Paid From and Paid To must be different accounts.")
-
-    accounts = {}
-    for label, account in (("Paid From", credit_account), ("Paid To", to_gl)):
-        account_details = frappe.db.get_value(
-            "Account", account, ["company", "account_type", "is_group"], as_dict=True
-        )
-        if not account_details:
-            raise frappe.DoesNotExistError(f"{label} account '{account}' does not exist.")
-        if cint(account_details.is_group):
-            raise frappe.ValidationError(f"{label} account '{account}' is a group account.")
-        accounts[account] = account_details
-
-    company = accounts[to_gl].company
-    if accounts[credit_account].company != company:
-        raise frappe.ValidationError("Paid From and Paid To accounts must belong to the same company.")
-
-    def _account_row(account, debit, credit):
-        row = {
-            "account": account,
-            "debit_in_account_currency": debit,
-            "credit_in_account_currency": credit,
-        }
-        # ERPNext needs a party on Receivable / Payable accounts.
-        if accounts[account].account_type in ("Receivable", "Payable"):
-            row.update({"party_type": "Customer", "party": investor_flow_doc.investor})
-        return row
-
-    journal_entry = frappe.get_doc({
-        "doctype": "Journal Entry",
-        "voucher_type": "Journal Entry",
-        "company": company,
-        "posting_date": payment_date,
-        "cheque_no": data.get("ref_no"),
-        "cheque_date": payment_date,
-        "user_remark": (
-            f"Investment received for Investor Flow {investor_flow_doc.name} "
-            f"via {data.get('payment_mode')}"
-        ),
-        "accounts": [
-            _account_row(to_gl, amount_paid, 0),
-            _account_row(credit_account, 0, amount_paid),
-        ],
-    })
-    journal_entry.insert(ignore_permissions=True)
-    journal_entry.submit()
+    # Dr Company Bank / Cr Investor Deposits (accounts from Custom Investor Settings).
+    settings = accounting.get_accounting_settings()
+    receive_entry = accounting.post_receive_entry(
+        investor_flow_doc, settings, amount_paid, payment_date, data.get("ref_no")
+    )
 
     investor_flow_doc.payment_date = payment_date
     investor_flow_doc.ref_no = data.get("ref_no")
     investor_flow_doc.payment_mode = data.get("payment_mode")
     investor_flow_doc.amount_paid = amount_paid
     investor_flow_doc.paid_from = paid_from
-    investor_flow_doc.paid_to = paid_to
-    # Paid GL = the Bank Account's Company Account (credited in the Journal Entry).
-    investor_flow_doc.paid_gl = credit_account
-    investor_flow_doc.to_gl = to_gl
+    investor_flow_doc.paid_to = settings["company_bank_account"]
+    investor_flow_doc.paid_gl = bank_account.account
+    investor_flow_doc.to_gl = settings["company_bank_account"]
+    investor_flow_doc.receive_entry = receive_entry
     investor_flow_doc.contract_status = CONTRACT_STATUS_PAID
     investor_flow_doc.status = STATUS_RECEIVED
     _set_earnings(investor_flow_doc, amount_paid)
@@ -373,8 +355,60 @@ def receive_payment(investor_flow_id: str, data: Dict[str, Any]) -> Dict[str, An
         "id": investor_flow_doc.name,
         "status": investor_flow_doc.status,
         "contract_status": investor_flow_doc.contract_status,
-        "journal_entry": journal_entry.name,
+        "journal_entry": receive_entry,
         **{field: investor_flow_doc.get(field) for field in PAYMENT_FIELDS + PAYMENT_GL_FIELDS},
+    }
+
+
+def _check_can_receive(investor_flow_doc):
+    if STATUS_RECEIVED not in ALLOWED_STATUS_TRANSITIONS.get(investor_flow_doc.status or DEFAULT_STATUS, []):
+        raise frappe.ValidationError(
+            f"Payment cannot be received for an Investor Flow in status '{investor_flow_doc.status}'."
+        )
+
+    if investor_flow_doc.contract_status != CONTRACT_STATUS_SENT:
+        raise frappe.ValidationError(
+            f"Payment can be received only when Contract Status is '{CONTRACT_STATUS_SENT}' "
+            f"(current: '{investor_flow_doc.contract_status}')."
+        )
+
+
+def _receive_renewal(investor_flow_doc, data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Renewed investment: the principal was carried over and never left Investor Deposits,
+    so no money arrives and no Journal Entry is posted. Only the start (payment) date is needed.
+    """
+    if not data.get("payment_date"):
+        raise frappe.ValidationError("Missing required field(s): payment_date")
+
+    _check_can_receive(investor_flow_doc)
+
+    amount = int(flt(investor_flow_doc.investment_amount))
+    investor_flow_doc.payment_date = getdate(data.get("payment_date"))
+    investor_flow_doc.ref_no = f"Renewal of {investor_flow_doc.renewed_from}"
+    investor_flow_doc.amount_paid = amount
+    investor_flow_doc.contract_status = CONTRACT_STATUS_PAID
+    investor_flow_doc.status = STATUS_RECEIVED
+    _set_earnings(investor_flow_doc, amount)
+    investor_flow_doc.save(ignore_permissions=True)
+
+    return {
+        "id": investor_flow_doc.name,
+        "status": investor_flow_doc.status,
+        "contract_status": investor_flow_doc.contract_status,
+        "journal_entry": None,
+        **{field: investor_flow_doc.get(field) for field in PAYMENT_FIELDS + PAYMENT_GL_FIELDS},
+    }
+
+
+def get_investor_accounting_settings() -> Dict[str, Any]:
+    """Accounts the Receive Payment screen shows (company bank = Paid To)."""
+    settings = accounting.get_accounting_settings()
+    return {
+        "company": settings["company"],
+        "company_bank_account": settings["company_bank_account"],
+        "company_bank_currency": settings["company_bank_currency"],
+        "investor_deposit_account": settings["investor_deposit_account"],
     }
 
 
@@ -404,21 +438,24 @@ def _set_earnings(investor_flow_doc, amount_paid: int):
             "interest_amount": row["interest"],
             "penalty_amount": 0,
             "total_payment": row["total"],
+            "status": ROW_STATUS_PENDING,
         })
 
 
-def _get_earning_doc(investor_flow_id: str):
+def _get_earning_doc(investor_flow_id: str, for_update: bool = False):
     investor_flow_doc = _get_existing_investor_flow(investor_flow_id)
-    if investor_flow_doc.status != STATUS_RECEIVED:
+    allowed = [STATUS_RECEIVED] if for_update else EARNING_STATUSES
+    if investor_flow_doc.status not in allowed:
         raise frappe.ValidationError(
-            f"Earnings exist only for a Received Investor Flow (current status: '{investor_flow_doc.status}')."
+            f"This action needs an Investor Flow in status {' / '.join(allowed)} "
+            f"(current status: '{investor_flow_doc.status}')."
         )
     return investor_flow_doc
 
 
 def get_investor_earnings(args: Dict[str, Any], page: int, page_size: int) -> Tuple[list, int, int]:
     """Received Investor Flows with the main Earning & Settlement fields."""
-    filters = {"status": STATUS_RECEIVED}
+    filters = {"status": ["in", EARNING_STATUSES]}
     if args.get("investment_product"):
         filters["investment_product"] = ["in", _as_list(args.get("investment_product"))]
 
@@ -484,8 +521,15 @@ def get_investor_earning_by_id(investor_flow_id: str) -> Dict[str, Any]:
             "Custom Investment Product", investor_flow_doc.investment_product, "product_name"
         ) or investor_flow_doc.investment_product,
         "payment_date": investor_flow_doc.payment_date,
+        "receive_entry": investor_flow_doc.get("receive_entry"),
+        "renewed_to": investor_flow_doc.get("renewed_to"),
+        "renewed_from": investor_flow_doc.get("renewed_from"),
         SCHEDULE_TABLE_FIELD: [
-            {"name": row.name, "idx": row.idx, **{f: row.get(f) for f in EARNING_SCHEDULE_ROW_FIELDS}}
+            {
+                "name": row.name,
+                "idx": row.idx,
+                **{f: row.get(f) for f in EARNING_SCHEDULE_ROW_FIELDS + EARNING_SCHEDULE_ROW_READ_ONLY_FIELDS},
+            }
             for row in sorted(investor_flow_doc.get(SCHEDULE_TABLE_FIELD) or [], key=lambda r: r.idx)
         ],
     })
@@ -525,9 +569,54 @@ def _validate_earning_details(data: Dict[str, Any], existing_doc):
         raise frappe.ValidationError("Maturity Date must be after the First Repay Date.")
 
 
+def _row_value_changed(row, field: str, value) -> bool:
+    if field == "payment_date":
+        return bool(value) and getdate(value) != getdate(row.payment_date)
+    try:
+        return flt(value, 2) != flt(row.get(field), 2)
+    except (TypeError, ValueError):
+        return True
+
+
+def pay_investor_earning_row(investor_flow_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    """Pays one schedule row: accrues it first if needed, then posts the payout Journal Entry."""
+    investor_flow_doc = _get_earning_doc(investor_flow_id, for_update=True)
+
+    row_name = data.get("row")
+    row = next((r for r in investor_flow_doc.get(SCHEDULE_TABLE_FIELD) or [] if r.name == row_name), None)
+    if not row:
+        raise frappe.ValidationError(f"Schedule row '{row_name}' does not belong to this Investor Flow.")
+    if row.status == ROW_STATUS_PAID:
+        raise frappe.ValidationError(f"Schedule row {row.idx} is already Paid.")
+
+    posting_date = _parse_date(data.get("payment_date") or nowdate(), "Payment Date")
+    settings = accounting.get_accounting_settings()
+    accounting.pay_row(investor_flow_doc, row, settings, posting_date, data.get("ref_no"))
+    investor_flow_doc.save(ignore_permissions=True)
+
+    return get_investor_earning_by_id(investor_flow_doc.name)
+
+
+def close_investor_flow(investor_flow_id: str) -> Dict[str, Any]:
+    """Maturity: when every schedule row is Paid, nothing is owed: Status -> Matured."""
+    investor_flow_doc = _get_earning_doc(investor_flow_id, for_update=True)
+
+    rows = investor_flow_doc.get(SCHEDULE_TABLE_FIELD) or []
+    unpaid = [str(r.idx) for r in rows if r.status != ROW_STATUS_PAID]
+    if not rows or unpaid:
+        raise frappe.ValidationError(
+            "All schedule rows must be Paid before closing"
+            + (f" (unpaid rows: {', '.join(unpaid)})." if unpaid else ".")
+        )
+
+    investor_flow_doc.status = STATUS_MATURED
+    investor_flow_doc.save(ignore_permissions=True)
+    return {"id": investor_flow_doc.name, "status": investor_flow_doc.status}
+
+
 def update_investor_earning(investor_flow_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
     """Edits the Earning & Settlement details and existing schedule rows (rows cannot be added or removed)."""
-    investor_flow_doc = _get_earning_doc(investor_flow_id)
+    investor_flow_doc = _get_earning_doc(investor_flow_id, for_update=True)
 
     details = {f: data[f] for f in EARNING_DETAIL_FIELDS if f in data}
     _validate_earning_details(details, investor_flow_doc)
@@ -544,6 +633,19 @@ def update_investor_earning(investor_flow_id: str, data: Dict[str, Any]) -> Dict
         if not row:
             raise frappe.ValidationError(
                 f"Schedule row {index}: '{row_data.get('name')}' does not belong to this Investor Flow."
+            )
+        changed = [
+            f for f in EARNING_SCHEDULE_ROW_FIELDS
+            if f in row_data and _row_value_changed(row, f, row_data.get(f))
+        ]
+        # Paid rows are locked; accrued rows keep their date, principal and interest
+        # (penalty can still be added; it is paid through Penalty Expense).
+        if row.status == ROW_STATUS_PAID and changed:
+            raise frappe.ValidationError(f"Schedule row {row.idx} is Paid and cannot be changed.")
+        locked = {"payment_date", "principal_amount", "interest_amount"}
+        if row.status == ROW_STATUS_ACCRUED and locked.intersection(changed):
+            raise frappe.ValidationError(
+                f"Schedule row {row.idx} is Accrued: only Penalty and Total Payment can be changed."
             )
         if "payment_date" in row_data:
             if not row_data.get("payment_date"):

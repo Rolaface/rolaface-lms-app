@@ -21,6 +21,7 @@ from .constant import (
 	BUSINESS_FIELDS,
 	CHANNEL_DOCTYPE,
 	COMMON_FIELDS,
+	CREDIT_SCORE_RANGE,
 	CUSTOMER_DOCTYPE,
 	DATE_FIELDS,
 	EXISTING_CUSTOMER,
@@ -36,6 +37,7 @@ from .constant import (
 	STAGE_JSON_FIELDS,
 	STAGE_NUMBER_FIELDS,
 	STAGE_SELECT_FIELDS,
+	STAGE_TEXT_FIELDS,
 	TABLE_FIELDS,
 	VALUATION_NUMBER_FIELDS,
 	VALUATION_SELECT_FIELDS,
@@ -70,7 +72,9 @@ def set_application_values(application_doc, data: Dict[str, Any]):
 	if "financials" in data:
 		application_doc.financials = dump_json(validate_financials(data["financials"]))
 	for table in TABLE_FIELDS:
-		if table in data:
+		if table == "collaterals" and table in data:
+			_set_collaterals(application_doc, data[table])
+		elif table in data:
 			application_doc.set(table, _clean_rows(table, data[table]))
 
 	if application_doc.applicant_type == INDIVIDUAL:
@@ -89,6 +93,12 @@ def set_stage_values(application_doc, data: Dict[str, Any]):
 	for field in STAGE_SELECT_FIELDS:
 		if field in data:
 			application_doc.set(field, _text(data[field]) or "")
+	for field in STAGE_TEXT_FIELDS:
+		if field in data:
+			value = _text(data[field])
+			if value and len(value) > MAX_TEXT_LENGTH:
+				raise frappe.ValidationError(f"{field} cannot be longer than {MAX_TEXT_LENGTH} characters.")
+			application_doc.set(field, value)
 	for field in STAGE_DATE_FIELDS:
 		if field in data:
 			application_doc.set(field, _date(data[field], application_doc.meta.get_label(field)))
@@ -107,15 +117,36 @@ def _set_valuations(application_doc, value):
 			raise frappe.ValidationError(
 				f"collateral_valuations row {index}: row_id '{valuation.get('row_id')}' is not a collateral of this application."
 			)
-		label = f"collateral_valuations row {index}"
-		for field in VALUATION_NUMBER_FIELDS:
-			if field in valuation:
-				row.set(field, _number(valuation[field], f"{label}: {field}", allow_zero=True))
-		for field in VALUATION_SELECT_FIELDS:
-			if field in valuation:
-				row.set(field, _text(valuation[field]) or "")
-		if "valuation_details" in valuation:
-			row.valuation_details = dump_json(_object(valuation["valuation_details"], f"{label}: valuation_details"))
+		_apply_valuation(row, valuation, f"collateral_valuations row {index}")
+
+
+def _apply_valuation(row, valuation: Dict[str, Any], label: str):
+	for field in VALUATION_NUMBER_FIELDS:
+		if field in valuation:
+			row.set(field, _number(valuation[field], f"{label}: {field}", allow_zero=True))
+	for field in VALUATION_SELECT_FIELDS:
+		if field in valuation:
+			row.set(field, _text(valuation[field]) or "")
+	if "valuation_details" in valuation:
+		row.valuation_details = dump_json(_object(valuation["valuation_details"], f"{label}: valuation_details"))
+
+
+def _set_collaterals(application_doc, value):
+	existing = {row.name: row for row in application_doc.collaterals}
+	rows = []
+	for index, item in enumerate(_list_of_objects(value, "collaterals"), start=1):
+		label = f"collaterals row {index}"
+		row_id = item.get("row_id")
+		if row_id and row_id not in existing:
+			raise frappe.ValidationError(f"{label}: row_id '{row_id}' is not a collateral of this application.")
+		values = _clean_row("collaterals", item, index)
+		row = existing[row_id] if row_id else application_doc.append("collaterals", {})
+		row.update(values)
+		_apply_valuation(row, item, label)
+		rows.append(row)
+	for idx, row in enumerate(rows, start=1):
+		row.idx = idx
+	application_doc.collaterals = rows
 
 
 def validate_application(application_doc, address_types: List[str]):
@@ -229,22 +260,25 @@ def _clean_value(field: str, label: str, value):
 		return _number(value, label, whole=True)
 	if field == "experience_years":
 		return _number(value, label, allow_zero=True)
+	if field == "credit_score":
+		score = _number(value, label, whole=True)
+		low, high = CREDIT_SCORE_RANGE
+		if score is not None and not low <= score <= high:
+			raise frappe.ValidationError(f"{label} must be between {low} and {high}.")
+		return score
 	return _text(value)
 
 
 def _clean_rows(table: str, value) -> List[Dict[str, Any]]:
-	cleaned = []
-	for index, row in enumerate(_list_of_objects(value, table), start=1):
-		values = {field: _text(row.get(field)) for field in TABLE_FIELDS[table]}
-		if table == "collaterals":
-			values["estimated_value"] = _number(
-				row.get("estimated_value"), f"collaterals row {index}: estimated_value"
-			)
-			values["ownership_date"] = _date(
-				row.get("ownership_date"), f"collaterals row {index}: ownership_date"
-			)
-		cleaned.append(values)
-	return cleaned
+	return [_clean_row(table, row, index) for index, row in enumerate(_list_of_objects(value, table), start=1)]
+
+
+def _clean_row(table: str, row: Dict[str, Any], index: int) -> Dict[str, Any]:
+	values = {field: _text(row.get(field)) for field in TABLE_FIELDS[table]}
+	if table == "collaterals":
+		values["estimated_value"] = _number(row.get("estimated_value"), f"collaterals row {index}: estimated_value")
+		values["ownership_date"] = _date(row.get("ownership_date"), f"collaterals row {index}: ownership_date")
+	return values
 
 
 def _check_required(application_doc):
@@ -253,7 +287,7 @@ def _check_required(application_doc):
 		raise frappe.ValidationError(f"applicant_type must be one of: {', '.join(APPLICANT_FIELDS)}.")
 
 	required = [df.fieldname for df in application_doc.meta.fields if df.reqd]
-	required += APPLICANT_FIELDS.get(applicant_type, ())
+	required += [*APPLICANT_FIELDS.get(applicant_type, ()), "credit_score"]
 	if application_doc.customer_type == EXISTING_CUSTOMER:
 		required.append("customer")
 

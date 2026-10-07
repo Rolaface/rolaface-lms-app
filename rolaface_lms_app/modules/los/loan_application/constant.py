@@ -5,6 +5,7 @@ LOAN_PRODUCT_DOCTYPE = "Loan Product"
 ADDRESS_DOCTYPE = "Address"
 
 DRAFT = "Draft"
+CLOSED_STATUSES = ("Approved", "Rejected", "Cancelled")
 INDIVIDUAL = "Individual"
 BUSINESS = "Business"
 EXISTING_CUSTOMER = "Existing"
@@ -32,6 +33,7 @@ COMMON_FIELDS = (
 	"marital_status",
 	"date_of_birth",
 	"nationality",
+	"credit_score",
 )
 BUSINESS_FIELDS = (
 	"position",
@@ -55,6 +57,7 @@ INDIVIDUAL_FIELDS = (
 )
 DATE_FIELDS = {"application_date", "date_of_birth", "established_date"}
 MAX_TEXT_LENGTH = 140
+CREDIT_SCORE_RANGE = (300, 850)
 
 TABLE_FIELDS = {
 	"directors": ("full_name", "nrc", "phone", "email"),
@@ -77,7 +80,7 @@ ALLOWED_UPDATE_FIELDS = {
 }
 
 STAGE_NUMBER_FIELDS = {
-	"credit_score": {"whole": True, "allow_zero": True},
+	"monthly_income": {"allow_zero": True},
 	"monthly_obligations": {"allow_zero": True},
 	"eligible_amount": {"allow_zero": True},
 	"approved_amount": {},
@@ -85,12 +88,14 @@ STAGE_NUMBER_FIELDS = {
 	"interest_rate": {"allow_zero": True},
 	"final_amount": {},
 }
-STAGE_SELECT_FIELDS = ("approved_frequency", "underwriting_decision", "signing_method")
+STAGE_SELECT_FIELDS = ("approved_frequency", "underwriting_decision", "signing_method", "contract_status")
+STAGE_TEXT_FIELDS = ("custom_status",)
 STAGE_DATE_FIELDS = ("first_payment_date",)
 STAGE_JSON_FIELDS = ("prescreening_data", "appraisal_data", "underwriting_data", "offer_data")
 STAGE_FIELDS = {
 	*STAGE_NUMBER_FIELDS,
 	*STAGE_SELECT_FIELDS,
+	*STAGE_TEXT_FIELDS,
 	*STAGE_DATE_FIELDS,
 	*STAGE_JSON_FIELDS,
 	"collateral_valuations",
@@ -108,15 +113,13 @@ SEARCH_FIELDS = ["name", "first_name", "last_name", "company_name", "nrc", "phon
 
 FILTER_FIELDS = (
 	"status",
+	"workflow_state",
 	"stage",
 	"applicant_type",
 	"channel",
 	"customer",
 	"loan_product",
-	"prescreening_status",
-	"appraisal_status",
-	"underwriting_status",
-	"offer_status",
+	"custom_status",
 )
 
 RETURN_FIELDS_GET_ALL = [
@@ -138,18 +141,15 @@ RETURN_FIELDS_GET_ALL = [
 	"requested_amount",
 	"tenure_months",
 	"repayment_frequency",
-	"prescreening_status",
+	"custom_status",
 	"credit_score",
 	"monthly_obligations",
 	"eligible_amount",
-	"appraisal_status",
 	"approved_amount",
 	"approved_tenure_months",
 	"interest_rate",
-	"underwriting_status",
 	"underwriting_decision",
 	"final_amount",
-	"offer_status",
 	"contract_status",
 	"signing_method",
 	"creation",

@@ -14,6 +14,7 @@
   "column_break_3",
   "status",
   "stage",
+  "custom_status",
   "loan",
   "customer_section",
   "customer_type",
@@ -74,17 +75,16 @@
   "documents_tab",
   "documents",
   "prescreening_tab",
-  "prescreening_status",
   "prescreening_ruleset",
   "eligibility_rule",
   "column_break_10",
   "credit_score",
+  "monthly_income",
   "monthly_obligations",
   "eligible_amount",
   "prescreening_data_section",
   "prescreening_data",
   "appraisal_tab",
-  "appraisal_status",
   "interest_rate",
   "column_break_11",
   "approved_amount",
@@ -93,14 +93,12 @@
   "appraisal_data_section",
   "appraisal_data",
   "underwriting_tab",
-  "underwriting_status",
   "underwriting_decision",
   "column_break_12",
   "final_amount",
   "underwriting_data_section",
   "underwriting_data",
   "offer_tab",
-  "offer_status",
   "contract_status",
   "column_break_13",
   "signing_method",
@@ -164,6 +162,16 @@
    "read_only": 1,
    "reqd": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "custom_status",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Custom Status",
+   "read_only": 1,
+   "search_index": 1,
+   "description": "Status within the current workflow stage."
   },
   {
    "depends_on": "loan",
@@ -539,13 +547,6 @@
    "label": "Pre-screening"
   },
   {
-   "fieldname": "prescreening_status",
-   "fieldtype": "Select",
-   "in_standard_filter": 1,
-   "label": "Pre-screening Status",
-   "options": "\nPending\nPassed\nFailed"
-  },
-  {
    "fieldname": "prescreening_ruleset",
    "fieldtype": "Link",
    "label": "Ruleset Used",
@@ -567,6 +568,11 @@
    "fieldname": "credit_score",
    "fieldtype": "Int",
    "label": "Credit Score"
+  },
+  {
+   "fieldname": "monthly_income",
+   "fieldtype": "Currency",
+   "label": "Monthly Income"
   },
   {
    "fieldname": "monthly_obligations",
@@ -594,13 +600,6 @@
    "fieldname": "appraisal_tab",
    "fieldtype": "Tab Break",
    "label": "Appraisal"
-  },
-  {
-   "fieldname": "appraisal_status",
-   "fieldtype": "Select",
-   "in_standard_filter": 1,
-   "label": "Appraisal Status",
-   "options": "\nPending\nAppraised\nFailed"
   },
   {
    "fieldname": "interest_rate",
@@ -645,13 +644,6 @@
    "label": "Underwriting"
   },
   {
-   "fieldname": "underwriting_status",
-   "fieldtype": "Select",
-   "in_standard_filter": 1,
-   "label": "Underwriting Status",
-   "options": "\nNot Started\nIn Progress\nReady for Decision\nCompleted"
-  },
-  {
    "fieldname": "underwriting_decision",
    "fieldtype": "Select",
    "label": "Decision",
@@ -682,13 +674,6 @@
    "fieldname": "offer_tab",
    "fieldtype": "Tab Break",
    "label": "Offer & Signing"
-  },
-  {
-   "fieldname": "offer_status",
-   "fieldtype": "Select",
-   "in_standard_filter": 1,
-   "label": "Offer Status",
-   "options": "\nAwaiting Decision\nAccepted\nRejected\nAmendment Requested"
   },
   {
    "fieldname": "contract_status",

@@ -9,6 +9,7 @@ from .constant import (
 	ALLOWED_SORT_FIELDS,
 	APPLICATION_DOCTYPE,
 	ALLOWED_UPDATE_FIELDS,
+	CLOSED_STATUSES,
 	DRAFT,
 	RETURN_FIELDS_GET_ALL,
 	SEARCH_FIELDS,
@@ -33,6 +34,12 @@ def _ensure_exists(application_id: str) -> str:
 	return status
 
 
+def _ensure_open(application_id: str):
+	status = _ensure_exists(application_id)
+	if status in CLOSED_STATUSES:
+		raise frappe.LinkExistsError(f"Loan application '{application_id}' is {status.lower()}; it can no longer be edited.")
+
+
 def _ensure_draft(application_id: str, rule: str):
 	status = _ensure_exists(application_id)
 	if status != DRAFT:
@@ -52,12 +59,11 @@ def create_loan_application(data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def update_loan_application(application_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-	_ensure_exists(application_id)
+	_ensure_open(application_id)
 	validate_update_payload(data)
 	application_doc = frappe.get_doc(APPLICATION_DOCTYPE, application_id)
 
 	if any(field in data for field in ALLOWED_UPDATE_FIELDS):
-		_ensure_draft(application_id, "only a draft's application details can be edited")
 		addresses = (
 			validate_addresses(data["addresses"]) if "addresses" in data else _get_addresses(application_id)
 		)
@@ -90,12 +96,16 @@ def get_loan_applications(
 		APPLICATION_DOCTYPE,
 		filters=filters,
 		or_filters=or_filters or None,
-		fields=RETURN_FIELDS_GET_ALL,
+		fields=RETURN_FIELDS_GET_ALL + _workflow_state_field(),
 		order_by=order_by,
 		limit_start=(page - 1) * page_size,
 		limit_page_length=page_size,
 	)
 	return add_display_names(applications), count_records(APPLICATION_DOCTYPE, filters, or_filters)
+
+
+def _workflow_state_field() -> List[str]:
+	return ["workflow_state"] if frappe.get_meta(APPLICATION_DOCTYPE).has_field("workflow_state") else []
 
 
 def delete_loan_application(application_id: str):

@@ -96,7 +96,7 @@ def apply_dynamic_workflow_action(
 
     try:
         # Native Frappe validation against the active site's specific workflow table
-        doc = apply_workflow(doc, action)
+        updated_doc = apply_workflow(doc, action)
     except frappe.ValidationError as e:
         frappe.throw(f"Invalid workflow transition: {str(e)}")
 

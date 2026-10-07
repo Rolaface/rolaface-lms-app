@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
- "creation": "2026-10-06 22:17:47.934839",
+ "creation": "2026-10-07 16:20:27.556456",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -27,6 +27,7 @@
   "subject",
   "column_break_ndfb",
   "contract_status",
+  "message",
   "payment_section",
   "payment_date",
   "ref_no",
@@ -39,6 +40,7 @@
   "column_break_kxvn",
   "paid_to",
   "to_gl",
+  "receive_entry",
   "earning_settlement",
   "details_section",
   "amount_invested",
@@ -50,7 +52,9 @@
   "rate_of_penalty",
   "investor_schedule",
   "schedule",
-  "maturity_tab"
+  "maturity_tab",
+  "renewed_from",
+  "renewed_to"
  ],
  "fields": [
   {
@@ -154,7 +158,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Draft\nApproved\nReceived\nCancelled"
+   "options": "Draft\nApproved\nReceived\nCancelled\nMatured\nRenewed"
   },
   {
    "fieldname": "contract_payment",
@@ -300,12 +304,36 @@
    "fieldtype": "Table",
    "label": "Schedule",
    "options": "Custom Investor Earning Schedule"
+  },
+  {
+   "fieldname": "receive_entry",
+   "fieldtype": "Link",
+   "label": "Receive Entry",
+   "options": "Journal Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "renewed_from",
+   "fieldtype": "Link",
+   "label": "Renewed From",
+   "options": "Custom Investor Flow"
+  },
+  {
+   "fieldname": "renewed_to",
+   "fieldtype": "Link",
+   "label": "Renewed To",
+   "options": "Custom Investor Flow"
+  },
+  {
+   "fieldname": "message",
+   "fieldtype": "Long Text",
+   "label": "Message"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-07 16:20:26.734550",
+ "modified": "2026-10-07 23:21:18.211383",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom Investor Flow",

@@ -149,6 +149,12 @@ app_license = "mit"
 # Scheduled Tasks
 # ---------------
 
+scheduler_events = {
+	"daily": [
+		"rolaface_lms_app.modules.loan.custom_api.investorFlow.accounting.accrue_due_rows"
+	],
+}
+
 # scheduler_events = {
 # 	"all": [
 # 		"rolaface_lms_app.tasks.all"

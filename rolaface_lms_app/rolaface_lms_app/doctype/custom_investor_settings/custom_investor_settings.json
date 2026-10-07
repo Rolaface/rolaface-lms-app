@@ -1,0 +1,74 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-10-07 22:54:23.310109",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "investor_deposit_account",
+  "interest_payable_account",
+  "interest_expense_account",
+  "penalty_expense_account",
+  "company_bank_account"
+ ],
+ "fields": [
+  {
+   "fieldname": "investor_deposit_account",
+   "fieldtype": "Link",
+   "label": "Liability GL (Investor Principal)",
+   "options": "Account"
+  },
+  {
+   "fieldname": "interest_payable_account",
+   "fieldtype": "Link",
+   "label": "Payable GL (Investor Payable)",
+   "options": "Account"
+  },
+  {
+   "fieldname": "interest_expense_account",
+   "fieldtype": "Link",
+   "label": "Interest Expense GL",
+   "options": "Account"
+  },
+  {
+   "fieldname": "penalty_expense_account",
+   "fieldtype": "Link",
+   "label": "Penalty Expense GL",
+   "options": "Account"
+  },
+  {
+   "fieldname": "company_bank_account",
+   "fieldtype": "Link",
+   "label": "Company Bank Account",
+   "options": "Account"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-10-08 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Rolaface Lms App",
+ "name": "Custom Investor Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

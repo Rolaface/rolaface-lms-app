@@ -91,6 +91,24 @@ def update_customer(customer_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         raise e
 
 
+def _get_customer_account_map(customer_names: list) -> Dict[str, Any]:
+    """Customer -> receivable Account set in the customer's Accounts table for the default Company."""
+    company = frappe.defaults.get_user_default("Company")
+    if not customer_names or not company:
+        return {}
+
+    rows = frappe.get_all(
+        "Party Account",
+        filters={
+            "parent": ["in", customer_names],
+            "parenttype": "Customer",
+            "company": company,
+        },
+        fields=["parent", "account"],
+    )
+    return {r["parent"]: r["account"] for r in rows}
+
+
 def get_customer_by_id(customer_id: str) -> Dict[str, Any]:
     if not frappe.db.exists("Customer", customer_id):
         raise frappe.DoesNotExistError(f"Customer '{customer_id}' does not exist.")
@@ -108,6 +126,7 @@ def get_customer_by_id(customer_id: str) -> Dict[str, Any]:
         ]
 
     raw_result["status"] = "active" if not doc.disabled else "inactive"
+    raw_result["account"] = _get_customer_account_map([customer_id]).get(customer_id)
     raw_result["addresses"] = [
         {field: value for field, value in address.items() if field in ADDRESS_FIELDS}
         for address in get_linked_addresses("Customer", customer_id)
@@ -188,11 +207,14 @@ def get_customers(
         for r in rows:
             investor_map[r["parent"]] = investor_map.get(r["parent"], 0) or r["is_investor"]
 
+    account_map = _get_customer_account_map(customer_names)
+
     clean_customers = []
     for c in customers:
         if "disabled" in c:
             c["status"] = "inactive" if c.pop("disabled") else "active"
         c["is_investor"] = bool(investor_map.get(c["name"], 0)) 
+        c["account"] = account_map.get(c["name"])
         clean_customers.append(transform_db_to_payload(c))
 
     return clean_customers, total_customers, total_pages

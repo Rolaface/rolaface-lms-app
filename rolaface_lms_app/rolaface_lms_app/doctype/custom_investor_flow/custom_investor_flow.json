@@ -21,7 +21,35 @@
   "interest_rate",
   "first_repayment_date",
   "penalty_rate",
+  "contract_payment",
+  "mail_section",
+  "mail_sent",
+  "subject",
+  "column_break_ndfb",
+  "contract_status",
+  "payment_section",
+  "payment_date",
+  "ref_no",
+  "column_break_hjap",
+  "payment_mode",
+  "amount_paid",
+  "bank_account_section",
+  "paid_from",
+  "paid_gl",
+  "column_break_kxvn",
+  "paid_to",
+  "to_gl",
   "earning_settlement",
+  "details_section",
+  "amount_invested",
+  "frequency",
+  "mat_date",
+  "column_break_hbkc",
+  "rate_of_interest",
+  "first_repay_date",
+  "rate_of_penalty",
+  "investor_schedule",
+  "schedule",
   "maturity_tab"
  ],
  "fields": [
@@ -127,12 +155,157 @@
    "fieldtype": "Select",
    "label": "Status",
    "options": "Draft\nApproved\nReceived\nCancelled"
+  },
+  {
+   "fieldname": "contract_payment",
+   "fieldtype": "Tab Break",
+   "label": "Contract & Payment"
+  },
+  {
+   "fieldname": "payment_section",
+   "fieldtype": "Section Break",
+   "label": "Payment"
+  },
+  {
+   "fieldname": "payment_date",
+   "fieldtype": "Date",
+   "label": "Payment Date"
+  },
+  {
+   "fieldname": "ref_no",
+   "fieldtype": "Data",
+   "label": "Reference No"
+  },
+  {
+   "fieldname": "column_break_hjap",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "payment_mode",
+   "fieldtype": "Select",
+   "label": "Mode of Payment",
+   "options": "Wire Transfer\nCheque\nCash\nBank Draft"
+  },
+  {
+   "fieldname": "bank_account_section",
+   "fieldtype": "Section Break",
+   "label": "Bank Account"
+  },
+  {
+   "fieldname": "paid_from",
+   "fieldtype": "Link",
+   "label": "Paid From",
+   "options": "Bank Account"
+  },
+  {
+   "fieldname": "column_break_kxvn",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "paid_to",
+   "fieldtype": "Link",
+   "label": "Paid To",
+   "options": "Account"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "contract_status",
+   "fieldtype": "Select",
+   "label": "Contract Status",
+   "options": "Pending\nSent\nPaid",
+   "reqd": 1
+  },
+  {
+   "fieldname": "mail_section",
+   "fieldtype": "Section Break",
+   "label": "Mail"
+  },
+  {
+   "fieldname": "mail_sent",
+   "fieldtype": "Data",
+   "label": "To"
+  },
+  {
+   "fieldname": "column_break_ndfb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "subject",
+   "fieldtype": "Long Text",
+   "label": "Subject"
+  },
+  {
+   "fieldname": "amount_paid",
+   "fieldtype": "Int",
+   "label": "Amount Paid"
+  },
+  {
+   "fieldname": "paid_gl",
+   "fieldtype": "Data",
+   "label": "Paid GL"
+  },
+  {
+   "fieldname": "to_gl",
+   "fieldtype": "Data",
+   "label": "To GL"
+  },
+  {
+   "fieldname": "details_section",
+   "fieldtype": "Section Break",
+   "label": "Details"
+  },
+  {
+   "fieldname": "amount_invested",
+   "fieldtype": "Int",
+   "label": "Amount Invested",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "frequency",
+   "fieldtype": "Select",
+   "label": "Frequency",
+   "options": "Monthly\nWeekly\nBi-Weekly\nQuarterly\nYearly"
+  },
+  {
+   "fieldname": "mat_date",
+   "fieldtype": "Date",
+   "label": "Maturity Date"
+  },
+  {
+   "fieldname": "column_break_hbkc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "rate_of_interest",
+   "fieldtype": "Float",
+   "label": "Rate of Interest"
+  },
+  {
+   "fieldname": "first_repay_date",
+   "fieldtype": "Date",
+   "label": "First Repay Date"
+  },
+  {
+   "fieldname": "rate_of_penalty",
+   "fieldtype": "Float",
+   "label": "Rate of Penalty"
+  },
+  {
+   "fieldname": "investor_schedule",
+   "fieldtype": "Section Break",
+   "label": "Investor Schedule"
+  },
+  {
+   "fieldname": "schedule",
+   "fieldtype": "Table",
+   "label": "Schedule",
+   "options": "Custom Investor Earning Schedule"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-06 23:53:09.961589",
+ "modified": "2026-10-07 16:20:26.734550",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom Investor Flow",

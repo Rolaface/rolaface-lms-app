@@ -7,15 +7,23 @@ from .constant import (
     RETURN_FIELDS_GET_BY_ID,
     ALLOWED_SORT_FIELDS,
     DEFAULT_STATUS,
+    DELETABLE_STATUSES,
+    FUND_STATUS_PENDING,
+    FUND_STATUS_PARTIAL,
+    FUND_STATUS_PAID,
+    FUND_LIST_STATUSES,
+    FUND_TABLE_FIELD,
+    FUND_RECORD_DOCTYPE,
+    RECORD_STATUS_DRAFT,
+    RECORD_STATUS_APPROVED,
+    RECORD_STATUS_CANCELLED,
+    STATUS_APPROVED,
+    STATUS_PAID,
     STATUS_ACTION_MAP,
     ALLOWED_STATUS_TRANSITIONS,
     CONTRACT_STATUS_PENDING,
     CONTRACT_STATUS_SENT,
     CONTRACT_STATUS_PAID,
-    PAYMENT_MODES,
-    PAYMENT_FIELDS,
-    PAYMENT_INPUT_FIELDS,
-    PAYMENT_GL_FIELDS,
     RETURN_FIELDS_BANK_ACCOUNT,
     STATUS_RECEIVED,
     REPAYMENT_FREQUENCIES,
@@ -46,6 +54,7 @@ def create_investor_flow(data: Dict[str, Any]) -> Dict[str, Any]:
             investor_flow_doc.set(field, data.get(field))
 
     investor_flow_doc.status = DEFAULT_STATUS
+    investor_flow_doc.fund_status = FUND_STATUS_PENDING
     investor_flow_doc.insert(ignore_permissions=True)
     return get_investor_flow_by_id(investor_flow_doc.name)
 
@@ -162,7 +171,11 @@ def delete_investor_flow(investor_flow_id: str):
     if not frappe.db.exists(DOCTYPE, investor_flow_id):
         raise frappe.DoesNotExistError(f"Investor Flow '{investor_flow_id}' does not exist.")
 
-    renewed_from = frappe.db.get_value(DOCTYPE, investor_flow_id, "renewed_from")
+    status, renewed_from = frappe.db.get_value(DOCTYPE, investor_flow_id, ["status", "renewed_from"])
+    if (status or DEFAULT_STATUS) not in DELETABLE_STATUSES:
+        raise frappe.ValidationError(
+            f"Only {' or '.join(DELETABLE_STATUSES)} investments can be deleted (current status: '{status}')."
+        )
     if renewed_from:
         raise frappe.ValidationError(
             f"Investor Flow '{investor_flow_id}' carries the principal renewed from '{renewed_from}' "
@@ -291,125 +304,330 @@ def save_contract(investor_flow_id: str, data: Dict[str, Any]) -> Dict[str, Any]
     }
 
 
-def receive_payment(investor_flow_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-    investor_flow_doc = _get_existing_investor_flow(investor_flow_id)
+FUND_INPUT_FIELDS = ["paid_date", "mode_of_payment", "reference_number", "amount"]
 
-    renewed_from = investor_flow_doc.get("renewed_from")
-    if renewed_from:
-        return _receive_renewal(investor_flow_doc, data)
+FUND_RECORD_FIELDS = [
+    "name", "parent", "idx", "investor_id", "amount_paid", "mode_of_payment", "reference_number",
+    "debit_gl", "debit_gl_description", "credit_gl", "credit_gl_description", "paid_date",
+    "record_status", "journal_entry",
+]
 
-    missing = [f for f in PAYMENT_INPUT_FIELDS if data.get(f) in (None, "")]
+
+def _fund_rows(investor_flow_doc) -> list:
+    return list(investor_flow_doc.get(FUND_TABLE_FIELD) or [])
+
+
+def _sum_amount(rows, statuses) -> float:
+    return flt(sum(flt(r.amount_paid) for r in rows if (r.get("record_status") or RECORD_STATUS_DRAFT) in statuses), 2)
+
+
+def _fund_summary(investment_amount, rows, fund_status) -> Dict[str, Any]:
+    """Fund received = Approved records; Draft records reserve their amount until approved or cancelled."""
+    investment_amount = flt(investment_amount, 2)
+    received = _sum_amount(rows, (RECORD_STATUS_APPROVED,))
+    drafts = _sum_amount(rows, (RECORD_STATUS_DRAFT,))
+    approved = [r for r in rows if r.get("record_status") == RECORD_STATUS_APPROVED]
+    latest = max(approved, key=lambda r: (getdate(r.paid_date), r.idx)) if approved else None
+    return {
+        "investment_amount": investment_amount,
+        "fund_received": received,
+        "remaining_fund": max(flt(investment_amount - received, 2), 0),
+        "draft_amount": drafts,
+        # What can still be added as a new record (drafts included).
+        "available_to_record": max(flt(investment_amount - received - drafts, 2), 0),
+        "fund_status": fund_status or FUND_STATUS_PENDING,
+        "last_paid_date": latest.paid_date if latest else None,
+        "last_mode_of_payment": latest.mode_of_payment if latest else None,
+    }
+
+
+def _refresh_fund_status(investor_flow_doc):
+    """Fund Status from the Approved records; Status Paid when the full amount is approved."""
+    received = _sum_amount(_fund_rows(investor_flow_doc), (RECORD_STATUS_APPROVED,))
+    investment_amount = flt(investor_flow_doc.investment_amount, 2)
+    if received <= 0:
+        investor_flow_doc.fund_status = FUND_STATUS_PENDING
+    elif received < investment_amount:
+        investor_flow_doc.fund_status = FUND_STATUS_PARTIAL
+    else:
+        investor_flow_doc.fund_status = FUND_STATUS_PAID
+
+    if investor_flow_doc.fund_status == FUND_STATUS_PAID:
+        investor_flow_doc.status = STATUS_PAID
+    elif investor_flow_doc.status == STATUS_PAID:
+        investor_flow_doc.status = STATUS_APPROVED
+
+
+def _get_fund_record(investor_flow_doc, record_name: str):
+    row = next((r for r in _fund_rows(investor_flow_doc) if r.name == record_name), None)
+    if not row:
+        raise frappe.DoesNotExistError(
+            f"Fund record '{record_name}' does not belong to Investor Flow '{investor_flow_doc.name}'."
+        )
+    return row
+
+
+def _validate_fund_input(investor_flow_doc, data: Dict[str, Any], current_row=None) -> Dict[str, Any]:
+    missing = [f for f in FUND_INPUT_FIELDS if data.get(f) in (None, "")]
     if missing:
         raise frappe.ValidationError(f"Missing required field(s): {', '.join(missing)}")
 
-    _check_can_receive(investor_flow_doc)
-
     try:
-        amount_paid = float(data.get("amount_paid"))
+        amount = flt(data.get("amount"), 2)
     except (TypeError, ValueError):
-        raise frappe.ValidationError("Amount Paid must be a number.")
-    if amount_paid <= 0 or amount_paid != int(amount_paid):
-        raise frappe.ValidationError("Amount Paid must be a whole number greater than 0.")
-    amount_paid = int(amount_paid)
+        raise frappe.ValidationError("Amount must be a number.")
+    if amount <= 0:
+        raise frappe.ValidationError("Amount must be greater than 0.")
 
-    if data.get("payment_mode") not in PAYMENT_MODES:
-        raise frappe.ValidationError(f"Mode of Payment must be one of: {', '.join(PAYMENT_MODES)}.")
-
-    payment_date = getdate(data.get("payment_date"))
-
-    # Paid From = the investor's Bank Account. It is only a reference: their bank is not in our books.
-    paid_from = data.get("paid_from")
-    bank_account = frappe.db.get_value(
-        "Bank Account", paid_from, ["party_type", "party", "account", "disabled"], as_dict=True
+    others = [r for r in _fund_rows(investor_flow_doc) if current_row is None or r.name != current_row.name]
+    available = flt(
+        flt(investor_flow_doc.investment_amount, 2)
+        - _sum_amount(others, (RECORD_STATUS_APPROVED, RECORD_STATUS_DRAFT)),
+        2,
     )
-    if not bank_account:
-        raise frappe.DoesNotExistError(f"Paid From bank account '{paid_from}' does not exist.")
-    if bank_account.party_type != "Customer" or bank_account.party != investor_flow_doc.investor:
+    if amount > available:
         raise frappe.ValidationError(
-            f"Bank account '{paid_from}' does not belong to investor '{investor_flow_doc.investor}'."
+            f"Amount cannot be more than {available}: the investment amount minus the approved and draft records."
         )
-    if cint(bank_account.disabled):
-        raise frappe.ValidationError(f"Bank account '{paid_from}' is disabled.")
 
-    # Dr Company Bank / Cr Investor Deposits (accounts from Custom Investor Settings).
-    settings = accounting.get_accounting_settings()
-    receive_entry = accounting.post_receive_entry(
-        investor_flow_doc, settings, amount_paid, payment_date, data.get("ref_no")
-    )
+    # Paid to = the GL set for the Mode of Payment, Paid from = Investor Creditor GL (Investor Settings).
+    fund_accounts = accounting.get_fund_accounts(data.get("mode_of_payment"))
+    return {
+        "amount_paid": amount,
+        "mode_of_payment": data.get("mode_of_payment"),
+        "reference_number": data.get("reference_number"),
+        "paid_date": _parse_date(data.get("paid_date"), "Paid Date"),
+        "debit_gl": fund_accounts["debit_gl"],
+        "debit_gl_description": fund_accounts["debit_gl_description"],
+        "credit_gl": fund_accounts["credit_gl"],
+        "credit_gl_description": fund_accounts["credit_gl_description"],
+    }
 
-    investor_flow_doc.payment_date = payment_date
-    investor_flow_doc.ref_no = data.get("ref_no")
-    investor_flow_doc.payment_mode = data.get("payment_mode")
-    investor_flow_doc.amount_paid = amount_paid
-    investor_flow_doc.paid_from = paid_from
-    investor_flow_doc.paid_to = settings["company_bank_account"]
-    investor_flow_doc.paid_gl = bank_account.account
-    investor_flow_doc.to_gl = settings["company_bank_account"]
-    investor_flow_doc.receive_entry = receive_entry
-    investor_flow_doc.contract_status = CONTRACT_STATUS_PAID
-    investor_flow_doc.status = STATUS_RECEIVED
-    _set_earnings(investor_flow_doc, amount_paid)
+
+def _record_dict(investor_flow_doc, row) -> Dict[str, Any]:
+    return {
+        **{f: row.get(f) for f in FUND_RECORD_FIELDS if f != "parent"},
+        "investment_id": investor_flow_doc.name,
+        "record_status": row.get("record_status") or RECORD_STATUS_DRAFT,
+    }
+
+
+def add_fund_record(investor_flow_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    """Saves a fund received from the investor as a Draft record (no accounting until it is approved)."""
+    investor_flow_doc = _get_existing_investor_flow(investor_flow_id)
+    if investor_flow_doc.status != STATUS_APPROVED:
+        raise frappe.ValidationError(
+            f"Funds can be recorded only for an Approved investment (current status: '{investor_flow_doc.status}')."
+        )
+
+    values = _validate_fund_input(investor_flow_doc, data)
+    row = investor_flow_doc.append(FUND_TABLE_FIELD, {
+        **values,
+        "investor_id": investor_flow_doc.investor,
+        "investment_id": investor_flow_doc.name,
+        "record_status": RECORD_STATUS_DRAFT,
+    })
     investor_flow_doc.save(ignore_permissions=True)
+    return _record_dict(investor_flow_doc, row)
+
+
+def update_fund_record(investor_flow_id: str, record_name: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    investor_flow_doc = _get_existing_investor_flow(investor_flow_id)
+    row = _get_fund_record(investor_flow_doc, record_name)
+    if (row.get("record_status") or RECORD_STATUS_DRAFT) != RECORD_STATUS_DRAFT:
+        raise frappe.ValidationError(f"Only a Draft fund record can be edited (this one is {row.record_status}).")
+
+    for field, value in _validate_fund_input(investor_flow_doc, data, current_row=row).items():
+        row.set(field, value)
+    investor_flow_doc.save(ignore_permissions=True)
+    return _record_dict(investor_flow_doc, row)
+
+
+def delete_fund_record(investor_flow_id: str, record_name: str):
+    investor_flow_doc = _get_existing_investor_flow(investor_flow_id)
+    row = _get_fund_record(investor_flow_doc, record_name)
+    if (row.get("record_status") or RECORD_STATUS_DRAFT) != RECORD_STATUS_DRAFT:
+        raise frappe.ValidationError(f"Only a Draft fund record can be deleted (this one is {row.record_status}).")
+
+    investor_flow_doc.remove(row)
+    investor_flow_doc.save(ignore_permissions=True)
+
+
+def approve_fund_record(investor_flow_id: str, record_name: str) -> Dict[str, Any]:
+    """Posts the record's Journal Entry (Dr Paid to / Cr Paid from, party = investor) and counts it as received."""
+    investor_flow_doc = _get_existing_investor_flow(investor_flow_id)
+    row = _get_fund_record(investor_flow_doc, record_name)
+    if (row.get("record_status") or RECORD_STATUS_DRAFT) != RECORD_STATUS_DRAFT:
+        raise frappe.ValidationError(f"Only a Draft fund record can be approved (this one is {row.record_status}).")
+    if investor_flow_doc.status != STATUS_APPROVED:
+        raise frappe.ValidationError(
+            f"Funds can be approved only for an Approved investment (current status: '{investor_flow_doc.status}')."
+        )
+
+    row.journal_entry = accounting.post_fund_entry(investor_flow_doc, row)
+    row.record_status = RECORD_STATUS_APPROVED
+    _refresh_fund_status(investor_flow_doc)
+    investor_flow_doc.save(ignore_permissions=True)
+    return _record_dict(investor_flow_doc, row)
+
+
+def cancel_fund_record(investor_flow_id: str, record_name: str) -> Dict[str, Any]:
+    """Draft -> Cancelled. Approved -> its Journal Entry is cancelled too and the amount no longer counts."""
+    investor_flow_doc = _get_existing_investor_flow(investor_flow_id)
+    row = _get_fund_record(investor_flow_doc, record_name)
+    status = row.get("record_status") or RECORD_STATUS_DRAFT
+    if status == RECORD_STATUS_CANCELLED:
+        raise frappe.ValidationError("This fund record is already Cancelled.")
+
+    if status == RECORD_STATUS_APPROVED:
+        accounting.cancel_journal_entry(row.journal_entry)
+    row.record_status = RECORD_STATUS_CANCELLED
+    _refresh_fund_status(investor_flow_doc)
+    investor_flow_doc.save(ignore_permissions=True)
+    return _record_dict(investor_flow_doc, row)
+
+
+def get_fund_records(args: Dict[str, Any], page: int, page_size: int) -> Tuple[list, int, int]:
+    """Every fund record (one row per receipt) with its investment and investor."""
+    filters = [["parenttype", "=", DOCTYPE], ["parentfield", "=", FUND_TABLE_FIELD]]
+    if args.get("record_status"):
+        filters.append(["record_status", "in", _as_list(args.get("record_status"))])
+
+    search = args.get("search")
+    if search:
+        search_term = f"%{str(search).strip()}%"
+        investor_ids = frappe.get_all("Customer", filters={"customer_name": ["like", search_term]}, pluck="name")
+        parents = frappe.get_all(
+            DOCTYPE,
+            or_filters=[["name", "like", search_term], ["investor", "like", search_term]]
+            + ([["investor", "in", investor_ids]] if investor_ids else []),
+            pluck="name",
+        )
+        filters.append(["parent", "in", parents or [""]])
+
+    query = dict(filters=filters, parent_doctype=DOCTYPE)
+    rows = frappe.get_all(
+        FUND_RECORD_DOCTYPE,
+        fields=FUND_RECORD_FIELDS,
+        limit_start=(page - 1) * page_size,
+        limit_page_length=page_size,
+        order_by="creation desc",
+        **query,
+    )
+    total_records = len(frappe.get_all(FUND_RECORD_DOCTYPE, pluck="name", **query))
+    total_pages = (total_records + page_size - 1) // page_size
+
+    flows = {
+        f.name: f
+        for f in frappe.get_all(
+            DOCTYPE,
+            filters={"name": ["in", list({r.parent for r in rows}) or [""]]},
+            fields=["name", "investor", "investment_amount", "status", "fund_status"],
+        )
+    }
+    approved_by_flow: Dict[str, float] = {}
+    if flows:
+        for r in frappe.get_all(
+            FUND_RECORD_DOCTYPE,
+            filters={"parent": ["in", list(flows)], "parentfield": FUND_TABLE_FIELD,
+                     "record_status": RECORD_STATUS_APPROVED},
+            fields=["parent", "amount_paid"],
+            parent_doctype=DOCTYPE,
+        ):
+            approved_by_flow[r.parent] = flt(approved_by_flow.get(r.parent, 0) + flt(r.amount_paid), 2)
+
+    investor_names = _get_names("Customer", "customer_name", [f.investor for f in flows.values()])
+    result = []
+    for r in rows:
+        flow = flows.get(r.parent)
+        investment_amount = flt(flow.investment_amount, 2) if flow else 0
+        result.append({
+            **{f: r.get(f) for f in FUND_RECORD_FIELDS if f != "parent"},
+            "record_status": r.record_status or RECORD_STATUS_DRAFT,
+            "investment_id": r.parent,
+            "investor_id": flow.investor if flow else r.investor_id,
+            "investor": investor_names.get(flow.investor) if flow else r.investor_id,
+            "investment_amount": investment_amount,
+            "remaining_fund": max(flt(investment_amount - approved_by_flow.get(r.parent, 0), 2), 0),
+            "investment_status": flow.status if flow else None,
+            "fund_status": (flow.fund_status if flow else None) or FUND_STATUS_PENDING,
+        })
+
+    return result, total_records, total_pages
+
+
+def get_investor_funds(args: Dict[str, Any], page: int, page_size: int) -> Tuple[list, int, int]:
+    """Investments that can receive funds (Approved) and fully funded ones (Paid), with their totals."""
+    filters = [["status", "in", FUND_LIST_STATUSES]]
+    if args.get("status"):
+        filters.append(["status", "in", _as_list(args.get("status"))])
+    if args.get("fund_status"):
+        filters.append(["fund_status", "in", _as_list(args.get("fund_status"))])
+
+    or_filters = None
+    search = args.get("search")
+    if search:
+        search_term = f"%{str(search).strip()}%"
+        investor_ids = frappe.get_all("Customer", filters={"customer_name": ["like", search_term]}, pluck="name")
+        or_filters = [["name", "like", search_term], ["investor", "like", search_term]]
+        if investor_ids:
+            or_filters.append(["investor", "in", investor_ids])
+
+    rows = frappe.get_all(
+        DOCTYPE,
+        filters=filters,
+        or_filters=or_filters,
+        fields=["name", "investor", "investment_amount", "fund_status", "status"],
+        limit_start=(page - 1) * page_size,
+        limit_page_length=page_size,
+        order_by="modified desc",
+    )
+    total_records = len(frappe.get_all(DOCTYPE, filters=filters, or_filters=or_filters, pluck="name"))
+    total_pages = (total_records + page_size - 1) // page_size
+
+    records_by_flow: Dict[str, list] = {}
+    if rows:
+        for r in frappe.get_all(
+            FUND_RECORD_DOCTYPE,
+            filters={"parent": ["in", [x.name for x in rows]], "parentfield": FUND_TABLE_FIELD},
+            fields=["parent", "idx", "amount_paid", "paid_date", "mode_of_payment", "record_status"],
+            parent_doctype=DOCTYPE,
+        ):
+            records_by_flow.setdefault(r.parent, []).append(r)
+
+    investor_names = _get_names("Customer", "customer_name", [r.investor for r in rows])
+    result = []
+    for row in rows:
+        result.append({
+            "name": row.name,
+            "investor_id": row.investor,
+            "investor": investor_names.get(row.investor) or row.investor,
+            "status": row.status,
+            **_fund_summary(row.investment_amount, records_by_flow.get(row.name, []), row.fund_status),
+        })
+
+    return result, total_records, total_pages
+
+
+def get_investor_fund_by_id(investor_flow_id: str) -> Dict[str, Any]:
+    """An investment's fund totals and every fund record."""
+    investor_flow_doc = _get_existing_investor_flow(investor_flow_id)
+    rows = sorted(_fund_rows(investor_flow_doc), key=lambda r: r.idx)
 
     return {
         "id": investor_flow_doc.name,
+        "investor_id": investor_flow_doc.investor,
+        "investor": frappe.db.get_value("Customer", investor_flow_doc.investor, "customer_name")
+        or investor_flow_doc.investor,
         "status": investor_flow_doc.status,
-        "contract_status": investor_flow_doc.contract_status,
-        "journal_entry": receive_entry,
-        **{field: investor_flow_doc.get(field) for field in PAYMENT_FIELDS + PAYMENT_GL_FIELDS},
+        **_fund_summary(investor_flow_doc.investment_amount, rows, investor_flow_doc.fund_status),
+        "funds": [_record_dict(investor_flow_doc, r) for r in rows],
     }
 
 
-def _check_can_receive(investor_flow_doc):
-    if STATUS_RECEIVED not in ALLOWED_STATUS_TRANSITIONS.get(investor_flow_doc.status or DEFAULT_STATUS, []):
-        raise frappe.ValidationError(
-            f"Payment cannot be received for an Investor Flow in status '{investor_flow_doc.status}'."
-        )
-
-    if investor_flow_doc.contract_status != CONTRACT_STATUS_SENT:
-        raise frappe.ValidationError(
-            f"Payment can be received only when Contract Status is '{CONTRACT_STATUS_SENT}' "
-            f"(current: '{investor_flow_doc.contract_status}')."
-        )
-
-
-def _receive_renewal(investor_flow_doc, data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Renewed investment: the principal was carried over and never left Investor Deposits,
-    so no money arrives and no Journal Entry is posted. Only the start (payment) date is needed.
-    """
-    if not data.get("payment_date"):
-        raise frappe.ValidationError("Missing required field(s): payment_date")
-
-    _check_can_receive(investor_flow_doc)
-
-    amount = int(flt(investor_flow_doc.investment_amount))
-    investor_flow_doc.payment_date = getdate(data.get("payment_date"))
-    investor_flow_doc.ref_no = f"Renewal of {investor_flow_doc.renewed_from}"
-    investor_flow_doc.amount_paid = amount
-    investor_flow_doc.contract_status = CONTRACT_STATUS_PAID
-    investor_flow_doc.status = STATUS_RECEIVED
-    _set_earnings(investor_flow_doc, amount)
-    investor_flow_doc.save(ignore_permissions=True)
-
-    return {
-        "id": investor_flow_doc.name,
-        "status": investor_flow_doc.status,
-        "contract_status": investor_flow_doc.contract_status,
-        "journal_entry": None,
-        **{field: investor_flow_doc.get(field) for field in PAYMENT_FIELDS + PAYMENT_GL_FIELDS},
-    }
-
-
-def get_investor_accounting_settings() -> Dict[str, Any]:
-    """Accounts the Receive Payment screen shows (company bank = Paid To)."""
-    settings = accounting.get_accounting_settings()
-    return {
-        "company": settings["company"],
-        "company_bank_account": settings["company_bank_account"],
-        "company_bank_currency": settings["company_bank_currency"],
-        "investor_deposit_account": settings["investor_deposit_account"],
-    }
+def get_record_fund_accounts() -> Dict[str, Any]:
+    """Credit GL and the Debit GL of each Mode of Payment, for the Record Fund screen."""
+    return accounting.get_record_fund_accounts()
 
 
 def _set_earnings(investor_flow_doc, amount_paid: int):
@@ -536,37 +754,16 @@ def get_investor_earning_by_id(investor_flow_id: str) -> Dict[str, Any]:
     return result
 
 
-def _validate_earning_details(data: Dict[str, Any], existing_doc):
-    if "amount_invested" in data:
-        try:
-            value = float(data.get("amount_invested"))
-        except (TypeError, ValueError):
-            raise frappe.ValidationError("Amount Invested must be a number.")
-        if value <= 0 or value != int(value):
-            raise frappe.ValidationError("Amount Invested must be a whole number greater than 0.")
-
-    for field, label in (("rate_of_interest", "Rate of Interest"), ("rate_of_penalty", "Rate of Penalty")):
-        if field in data and data.get(field) not in (None, ""):
-            try:
-                value = float(data.get(field))
-            except (TypeError, ValueError):
-                raise frappe.ValidationError(f"{label} must be a number.")
-            if value < 0 or value > 100:
-                raise frappe.ValidationError(f"{label} must be between 0 and 100.")
-
-    if "frequency" in data and data.get("frequency") not in REPAYMENT_FREQUENCIES:
-        raise frappe.ValidationError(f"Frequency must be one of: {', '.join(REPAYMENT_FREQUENCIES)}.")
-
-    for field, label in (("mat_date", "Maturity Date"), ("first_repay_date", "First Repay Date")):
-        if field in data and not data.get(field):
-            raise frappe.ValidationError(f"{label} is required.")
-
-    first_repay_date = _parse_date(
-        data.get("first_repay_date") or existing_doc.first_repay_date, "First Repay Date"
-    )
-    mat_date = _parse_date(data.get("mat_date") or existing_doc.mat_date, "Maturity Date")
-    if mat_date <= first_repay_date:
-        raise frappe.ValidationError("Maturity Date must be after the First Repay Date.")
+def _detail_value_changed(doc, field: str, value) -> bool:
+    current = doc.get(field)
+    if field in ("mat_date", "first_repay_date"):
+        return (getdate(value) if value else None) != (getdate(current) if current else None)
+    if field == "frequency":
+        return (value or None) != (current or None)
+    try:
+        return flt(value, 2) != flt(current, 2)
+    except (TypeError, ValueError):
+        return True
 
 
 def _row_value_changed(row, field: str, value) -> bool:
@@ -618,10 +815,15 @@ def update_investor_earning(investor_flow_id: str, data: Dict[str, Any]) -> Dict
     """Edits the Earning & Settlement details and existing schedule rows (rows cannot be added or removed)."""
     investor_flow_doc = _get_earning_doc(investor_flow_id, for_update=True)
 
-    details = {f: data[f] for f in EARNING_DETAIL_FIELDS if f in data}
-    _validate_earning_details(details, investor_flow_doc)
-    for field, value in details.items():
-        investor_flow_doc.set(field, value)
+    # The Earning & Settlement details are read-only; only the schedule rows can be edited.
+    changed_details = [
+        f for f in EARNING_DETAIL_FIELDS
+        if f in data and _detail_value_changed(investor_flow_doc, f, data.get(f))
+    ]
+    if changed_details:
+        raise frappe.ValidationError(
+            f"Earning details cannot be edited ({', '.join(changed_details)}); only the schedule rows can."
+        )
 
     rows_by_name = {row.name: row for row in investor_flow_doc.get(SCHEDULE_TABLE_FIELD) or []}
     schedule = data.get(SCHEDULE_TABLE_FIELD) or []

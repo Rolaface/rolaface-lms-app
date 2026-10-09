@@ -3,21 +3,53 @@ DOCTYPE = "Custom Investor Flow"
 REPAYMENT_FREQUENCIES = ["Monthly", "Weekly", "Bi-Weekly", "Quarterly", "Yearly"]
 
 DEFAULT_STATUS = "Draft"
+STATUS_APPROVED = "Approved"
+# Set by record_fund when the full contract amount has been received.
+STATUS_PAID = "Paid"
+# Earlier statuses; Earnings / Maturity still use them and are reworked in a later step.
 STATUS_RECEIVED = "Received"
 STATUS_MATURED = "Matured"
 STATUS_RENEWED = "Renewed"
 
-# action (query param) -> Status value. Received is set only by receive_payment
-# (it posts the Journal Entry); Matured / Renewed only by the maturity APIs.
+# action (query param) -> Status value. Paid is set only by record_fund (it posts the Journal Entries).
 STATUS_ACTION_MAP = {
     "approved": "Approved",
     "cancelled": "Cancelled",
 }
 
+# Fund Status: what has been received against the contract's Investment Amount.
+FUND_STATUS_PENDING = "Pending"
+FUND_STATUS_PARTIAL = "Partial"
+FUND_STATUS_PAID = "Paid"
+
+# Record Fund screen: approved investments, until and after they are fully funded.
+FUND_LIST_STATUSES = ["Approved", "Paid"]
+
+# Child table of received funds (Custom Investor Record Fund).
+FUND_TABLE_FIELD = "details"
+FUND_RECORD_DOCTYPE = "Custom Investor Record Fund"
+
+# Record Status of each fund record: Draft (no accounting) -> Approved (Journal Entry posted) / Cancelled.
+RECORD_STATUS_DRAFT = "Draft"
+RECORD_STATUS_APPROVED = "Approved"
+RECORD_STATUS_CANCELLED = "Cancelled"
+
+# Mode of Payment -> the Custom Investor Settings field with the GL that is debited (where the money lands).
+PAYMENT_MODE_ACCOUNT_FIELDS = {
+    "Cash": "investor_cash_account",
+    "Cheque": "cheque_account",
+    "Bank Draft": "bank_draft_account",
+    "Wire Transfer": "wire_transfer_account",
+}
+
+# Only these can be deleted (no money has moved and no Journal Entry exists).
+DELETABLE_STATUSES = ["Draft", "Cancelled"]
+
 # Status -> the statuses it can move to.
 ALLOWED_STATUS_TRANSITIONS = {
     "Draft": ["Approved", "Cancelled"],
-    "Approved": ["Received", "Cancelled"],
+    "Approved": ["Paid", "Cancelled"],
+    "Paid": [],
     "Received": ["Matured", "Renewed"],
     "Cancelled": [],
     "Matured": [],
@@ -27,11 +59,15 @@ ALLOWED_STATUS_TRANSITIONS = {
 # Custom Investor Settings (Single): the GL accounts used by the Investor Flow entries.
 SETTINGS_DOCTYPE = "Custom Investor Settings"
 SETTINGS_ACCOUNT_FIELDS = {
+    "investor_creditor_account": "Investor Creditor GL",
+    "investor_cash_account": "Cash GL",
+    "cheque_account": "Cheque GL",
+    "bank_draft_account": "Bank Draft GL",
+    "wire_transfer_account": "Wire Transfer GL",
     "company_bank_account": "Company Bank Account",
-    "investor_deposit_account": "Investor Deposit Account",
-    "interest_payable_account": "Interest Payable Account",
-    "interest_expense_account": "Interest Expense Account",
-    "penalty_expense_account": "Penalty Expense Account",
+    "interest_payable_account": "Payable GL (Investor Payable)",
+    "interest_expense_account": "Interest Expense GL",
+    "penalty_expense_account": "Penalty Expense GL",
 }
 
 # Status of a schedule row (Custom Investor Earning Schedule).
@@ -54,17 +90,9 @@ CONTRACT_STATUS_PENDING = "Pending"
 CONTRACT_STATUS_SENT = "Sent"
 CONTRACT_STATUS_PAID = "Paid"
 
-PAYMENT_MODES = ["Wire Transfer", "Cheque", "Cash", "Bank Draft"]
 
-# Sent to receive_payment. paid_from = the investor's Bank Account (reference only).
-PAYMENT_INPUT_FIELDS = ["payment_date", "ref_no", "payment_mode", "amount_paid", "paid_from"]
-
-# Saved by receive_payment. paid_to = Company Bank Account from Custom Investor Settings.
-PAYMENT_FIELDS = PAYMENT_INPUT_FIELDS + ["paid_to"]
-
-# Set by receive_payment: paid_gl = Paid From Bank Account's Company Account, to_gl = paid_to.
-# receive_entry = the Journal Entry; renewed_to / renewed_from link a renewal.
-PAYMENT_GL_FIELDS = ["paid_gl", "to_gl", "receive_entry", "renewed_to", "renewed_from"]
+# Renewal links (set by the maturity Renew step).
+RENEWAL_FIELDS = ["renewed_to", "renewed_from"]
 
 RETURN_FIELDS_BANK_ACCOUNT = [
     "name", "account_name", "bank", "bank_account_no", "iban", "branch_code",
@@ -77,8 +105,8 @@ RETURN_FIELDS_GET_ALL = [
     "first_repayment_date", "penalty_rate", "status", "contract_status", "renewed_from"
 ]
 
-RETURN_FIELDS_GET_BY_ID = list(ALLOWED_INVESTOR_FLOW_FIELDS) + PAYMENT_FIELDS + PAYMENT_GL_FIELDS + [
-    "name", "status", "contract_status", "mail_sent", "subject", "message", "creation", "modified"
+RETURN_FIELDS_GET_BY_ID = list(ALLOWED_INVESTOR_FLOW_FIELDS) + RENEWAL_FIELDS + [
+    "name", "status", "contract_status", "fund_status", "mail_sent", "subject", "message", "creation", "modified"
 ]
 
 # Earning & Settlement tab: detail fields and the "schedule" table (Custom Investor Earning Schedule).

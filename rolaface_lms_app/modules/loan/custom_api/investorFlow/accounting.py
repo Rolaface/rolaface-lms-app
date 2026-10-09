@@ -1,22 +1,24 @@
 """
 Investor Flow accounting (all GL accounts come from Custom Investor Settings).
 
-1. Receive investment : Dr Company Bank            / Cr Investor Deposits (party = investor)
+1. Record Fund        : Dr <Mode of Payment GL> (Cash / Cheque / Bank Draft / Wire Transfer)
+                        / Cr Investor Creditor GL (party = investor)
 2. Accrue a row       : Dr Interest Expense
                         Dr Penalty Expense (if any) / Cr Interest Payable (party = investor)
-3. Pay a row          : Dr Investor Deposits (principal)
+3. Pay a row          : Dr Investor Creditor GL (principal)
                         Dr Interest Payable (accrued interest + penalty)
                         Dr Penalty Expense (penalty added after accrual)
                                                     / Cr Company Bank (total)
 """
 import frappe
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Iterable
 from frappe.utils import flt, getdate, nowdate, cint
 
 from .constant import (
     DOCTYPE,
     SETTINGS_DOCTYPE,
     SETTINGS_ACCOUNT_FIELDS,
+    PAYMENT_MODE_ACCOUNT_FIELDS,
     SCHEDULE_TABLE_FIELD,
     STATUS_RECEIVED,
     ROW_STATUS_PENDING,
@@ -25,24 +27,14 @@ from .constant import (
 )
 
 
-# Which accounts each settings field accepts (also used to fill the settings dropdowns).
-# The investor (a Customer) is the party on the two liability lines. ERPNext allows party type Customer
-# only on Receivable accounts, so those liability accounts must have a blank Account Type.
-SETTINGS_ACCOUNT_RULES = {
-    "company_bank_account": {"root_type": "Asset", "account_type": ["Bank", "Cash"]},
-    "investor_deposit_account": {"root_type": "Liability", "account_type": [""]},
-    "interest_payable_account": {"root_type": "Liability", "account_type": [""]},
-    "interest_expense_account": {"root_type": "Expense"},
-    "penalty_expense_account": {"root_type": "Expense"},
-}
+# Needed to save the settings; the others can be set as they are needed.
+SETTINGS_REQUIRED_ON_SAVE = ["investor_creditor_account"]
 
-SETTINGS_RULE_TEXT = {
-    "company_bank_account": "an Asset account with Account Type Bank or Cash",
-    "investor_deposit_account": "a Liability account with a blank Account Type",
-    "interest_payable_account": "a Liability account with a blank Account Type",
-    "interest_expense_account": "an Expense account",
-    "penalty_expense_account": "an Expense account",
-}
+# Needed by the repayment steps (accrual / payout).
+PAYOUT_ACCOUNT_FIELDS = [
+    "company_bank_account", "investor_creditor_account", "interest_payable_account",
+    "interest_expense_account", "penalty_expense_account",
+]
 
 
 def _ensure_settings_doctype():
@@ -52,94 +44,132 @@ def _ensure_settings_doctype():
         raise frappe.ValidationError(f"DocType '{SETTINGS_DOCTYPE}' must be a Single DocType (tick 'Is Single').")
 
 
-def validate_settings_accounts(accounts: Dict[str, str]) -> Dict[str, Any]:
-    """Checks the five accounts (exist, not group, right kind, one company). Returns their details."""
-    missing = [label for field, label in SETTINGS_ACCOUNT_FIELDS.items() if not accounts.get(field)]
+def validate_settings_accounts(accounts: Dict[str, str], required: Iterable[str]) -> Dict[str, Any]:
+    """
+    Checks the accounts that are set (exist, not group, one company); the user picks the right GL,
+    so the kind of account is not checked. The required ones must be set.
+    Returns the company and the account details.
+    """
+    missing = [SETTINGS_ACCOUNT_FIELDS[f] for f in required if not accounts.get(f)]
     if missing:
         raise frappe.ValidationError(f"Set these accounts in {SETTINGS_DOCTYPE} first: {', '.join(missing)}.")
 
+    selected = {field: account for field, account in accounts.items() if account}
     details = {
         row.name: row
         for row in frappe.get_all(
             "Account",
-            filters={"name": ["in", list(accounts.values())]},
-            fields=["name", "company", "is_group", "account_type", "root_type", "account_currency"],
+            filters={"name": ["in", list(selected.values())]},
+            fields=["name", "account_name", "account_number", "company", "is_group",
+                    "account_type", "root_type", "account_currency"],
         )
     }
 
-    for field, label in SETTINGS_ACCOUNT_FIELDS.items():
-        account = details.get(accounts[field])
+    for field, account_name in selected.items():
+        label = SETTINGS_ACCOUNT_FIELDS[field]
+        account = details.get(account_name)
         if not account:
-            raise frappe.DoesNotExistError(f"{label} '{accounts[field]}' does not exist.")
+            raise frappe.DoesNotExistError(f"{label} '{account_name}' does not exist.")
         if cint(account.is_group):
             raise frappe.ValidationError(f"{label} '{account.name}' is a group account.")
-        rule = SETTINGS_ACCOUNT_RULES[field]
-        if account.root_type != rule["root_type"] or (
-            "account_type" in rule and (account.account_type or "") not in rule["account_type"]
-        ):
-            raise frappe.ValidationError(
-                f"{label} '{account.name}' must be {SETTINGS_RULE_TEXT[field]}."
-            )
 
-    company = details[accounts["company_bank_account"]].company
-    if any(d.company != company for d in details.values()):
+    companies = {d.company for d in details.values()}
+    if len(companies) > 1:
         raise frappe.ValidationError(f"All accounts in {SETTINGS_DOCTYPE} must belong to the same company.")
 
-    return {"company": company, "details": details}
+    return {"company": next(iter(companies), None), "details": details}
+
+
+def _settings_accounts() -> Dict[str, str]:
+    _ensure_settings_doctype()
+    settings = frappe.get_cached_doc(SETTINGS_DOCTYPE)
+    return {field: settings.get(field) for field in SETTINGS_ACCOUNT_FIELDS}
+
+
+def describe_account(account) -> str:
+    """'<Account Name> (<Account Number>)', e.g. 'SBI Current Account (852103641078)'."""
+    return f"{account.account_name} ({account.account_number})" if account.account_number else account.account_name
+
+
+def get_fund_accounts(payment_mode: str) -> Dict[str, Any]:
+    """Record Fund: Debit = the GL set for the Mode of Payment; Credit = Investor Creditor GL."""
+    mode_field = PAYMENT_MODE_ACCOUNT_FIELDS.get(payment_mode)
+    if not mode_field:
+        raise frappe.ValidationError(f"Mode of Payment must be one of: {', '.join(PAYMENT_MODE_ACCOUNT_FIELDS)}.")
+
+    accounts = _settings_accounts()
+    checked = validate_settings_accounts(
+        {f: accounts[f] for f in ("investor_creditor_account", mode_field)},
+        required=("investor_creditor_account", mode_field),
+    )
+    debit = checked["details"][accounts[mode_field]]
+    credit = checked["details"][accounts["investor_creditor_account"]]
+    return {
+        "company": checked["company"],
+        "debit_gl": debit.name,
+        "debit_gl_description": describe_account(debit),
+        "credit_gl": credit.name,
+        "credit_gl_description": describe_account(credit),
+        "party_accounts": {credit.name},
+    }
+
+
+def get_record_fund_accounts() -> Dict[str, Any]:
+    """For the Record Fund screen: the Credit GL and the Debit GL of each Mode of Payment (if set)."""
+    accounts = _settings_accounts()
+    selected = {f: accounts[f] for f in ["investor_creditor_account", *PAYMENT_MODE_ACCOUNT_FIELDS.values()]}
+    checked = validate_settings_accounts(selected, required=("investor_creditor_account",))
+    details = checked["details"]
+
+    def info(account_name):
+        if not account_name:
+            return None
+        account = details[account_name]
+        return {"account": account.name, "description": describe_account(account), "currency": account.account_currency}
+
+    return {
+        "company": checked["company"],
+        "credit": info(accounts["investor_creditor_account"]),
+        "debit_by_mode": {mode: info(accounts[field]) for mode, field in PAYMENT_MODE_ACCOUNT_FIELDS.items()},
+    }
 
 
 def get_accounting_settings() -> Dict[str, Any]:
-    """The five GL accounts from Custom Investor Settings, all in one company."""
-    _ensure_settings_doctype()
-    settings = frappe.get_cached_doc(SETTINGS_DOCTYPE)
-    accounts = {field: settings.get(field) for field in SETTINGS_ACCOUNT_FIELDS}
-    checked = validate_settings_accounts(accounts)
+    """Accounts for the repayment steps (accrual / payout), all in one company."""
+    accounts = _settings_accounts()
+    selected = {f: accounts[f] for f in PAYOUT_ACCOUNT_FIELDS}
+    checked = validate_settings_accounts(selected, required=PAYOUT_ACCOUNT_FIELDS)
 
     return {
-        **accounts,
+        **selected,
         "company": checked["company"],
         "company_bank_currency": checked["details"][accounts["company_bank_account"]].account_currency,
         # Lines on these accounts carry the investor as party (per-investor ledger).
-        "party_accounts": {accounts["investor_deposit_account"], accounts["interest_payable_account"]},
+        "party_accounts": {accounts["investor_creditor_account"], accounts["interest_payable_account"]},
     }
 
 
 def get_settings_for_setup() -> Dict[str, Any]:
-    """Current settings and, per field, the accounts it accepts in the user's default company."""
+    """Current settings (the screen searches accounts itself)."""
     _ensure_settings_doctype()
     settings = frappe.get_single(SETTINGS_DOCTYPE)
-    company = frappe.defaults.get_user_default("Company")
-
-    options = {}
-    for field, rule in SETTINGS_ACCOUNT_RULES.items():
-        filters = {"is_group": 0, "disabled": 0, "root_type": rule["root_type"]}
-        if company:
-            filters["company"] = company
-        rows = frappe.get_all(
-            "Account", filters=filters, fields=["name", "account_type"], order_by="name asc"
-        )
-        if "account_type" in rule:
-            rows = [r for r in rows if (r.account_type or "") in rule["account_type"]]
-        options[field] = [r.name for r in rows]
-
     return {
-        "company": company,
+        "company": frappe.defaults.get_user_default("Company"),
         "accounts": {field: settings.get(field) for field in SETTINGS_ACCOUNT_FIELDS},
         "labels": SETTINGS_ACCOUNT_FIELDS,
-        "rules": SETTINGS_RULE_TEXT,
-        "options": options,
+        "required": SETTINGS_REQUIRED_ON_SAVE,
     }
 
 
 def update_settings(data: Dict[str, Any]) -> Dict[str, Any]:
-    """Saves the five accounts after the same checks the Journal Entries rely on."""
+    """Saves the accounts after the same checks the Journal Entries rely on."""
     _ensure_settings_doctype()
     accounts = {field: (data.get(field) or "").strip() for field in SETTINGS_ACCOUNT_FIELDS}
-    validate_settings_accounts(accounts)
+    validate_settings_accounts(accounts, required=SETTINGS_REQUIRED_ON_SAVE)
 
     settings = frappe.get_single(SETTINGS_DOCTYPE)
     for field, account in accounts.items():
-        settings.set(field, account)
+        settings.set(field, account or None)
     settings.save(ignore_permissions=True)
     frappe.clear_document_cache(SETTINGS_DOCTYPE, SETTINGS_DOCTYPE)
 
@@ -184,19 +214,33 @@ def _make_journal_entry(
     return journal_entry.name
 
 
-def post_receive_entry(investor_flow_doc, settings, amount: float, posting_date, reference_no: str) -> str:
-    """1. Investor invests: Dr Company Bank / Cr Investor Deposits."""
+def post_fund_entry(investor_flow_doc, row) -> str:
+    """
+    1. Approve a fund record: Dr <row.debit_gl> / Cr <row.credit_gl> (party = investor),
+    using the GLs stored on the row when it was saved.
+    """
+    company = frappe.db.get_value("Account", row.debit_gl, "company")
     return _make_journal_entry(
-        settings,
+        {"company": company, "party_accounts": {row.credit_gl}},
         investor_flow_doc.investor,
-        posting_date,
-        f"Investment received for Investor Flow {investor_flow_doc.name}",
+        row.paid_date,
+        f"Fund received for Investor Flow {investor_flow_doc.name} (record {row.idx})",
         [
-            {"account": settings["company_bank_account"], "debit": amount},
-            {"account": settings["investor_deposit_account"], "credit": amount},
+            {"account": row.debit_gl, "debit": flt(row.amount_paid, 2)},
+            {"account": row.credit_gl, "credit": flt(row.amount_paid, 2)},
         ],
-        reference_no=reference_no,
+        reference_no=row.reference_number,
     )
+
+
+def cancel_journal_entry(journal_entry: str):
+    """Cancels a submitted Journal Entry (ERPNext reverses its ledger entries)."""
+    if not journal_entry:
+        return
+    doc = frappe.get_doc("Journal Entry", journal_entry)
+    if doc.docstatus == 1:
+        doc.flags.ignore_permissions = True
+        doc.cancel()
 
 
 def accrue_row(investor_flow_doc, row, settings, posting_date=None) -> str:
@@ -271,7 +315,7 @@ def pay_row(
         posting_date,
         f"Payout for Investor Flow {investor_flow_doc.name}, schedule row {row.idx}",
         [
-            {"account": settings["investor_deposit_account"], "debit": principal_paid},
+            {"account": settings["investor_creditor_account"], "debit": principal_paid},
             {"account": settings["interest_payable_account"], "debit": accrued},
             {"account": settings["penalty_expense_account"], "debit": late_penalty},
             {"account": settings["company_bank_account"], "credit": flt(principal_paid + interest + penalty, 2)},

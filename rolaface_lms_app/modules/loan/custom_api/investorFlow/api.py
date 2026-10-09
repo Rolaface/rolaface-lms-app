@@ -234,7 +234,7 @@ def delete_investor_flow(id=None):
     ---
     tags:
       - Investor Flow
-    summary: Delete an Investor Flow.
+    summary: Delete an Investor Flow (only Draft or Cancelled; not a renewed investment).
     parameters:
       - in: query
         name: id
@@ -414,23 +414,22 @@ def save_contract(id=None):
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
-def receive_payment(id=None):
+def add_fund_record(id=None):
     """
-    Receive Investor Flow Payment
+    Add Fund Record
     ---
     tags:
       - Investor Flow
     summary: >
-      Save the payment and post a submitted Journal Entry: Dr Company Bank Account / Cr Investor Deposit
-      Account (both from Custom Investor Settings; the investor is the party). paid_from (the investor's
-      Bank Account) is saved as a reference. Creates the earning schedule, sets Contract Status to Paid
-      and Status to Received.
+      Save a fund received from the investor as a Draft record (Approved investments). No Journal Entry
+      is posted until the record is approved. Paid to / Paid from GLs come from Custom Investor Settings.
     parameters:
       - in: query
         name: id
         required: true
         schema:
           type: string
+        description: Investor Flow ID.
     requestBody:
       required: true
       content:
@@ -438,48 +437,349 @@ def receive_payment(id=None):
           schema:
             type: object
             required:
-              - payment_date
-              - ref_no
-              - payment_mode
-              - amount_paid
-              - paid_from
+              - paid_date
+              - mode_of_payment
+              - reference_number
+              - amount
             properties:
-              payment_date:
+              paid_date:
                 type: string
                 format: date
-              ref_no:
-                type: string
-              payment_mode:
+              mode_of_payment:
                 type: string
                 enum: [Wire Transfer, Cheque, Cash, Bank Draft]
-              amount_paid:
-                type: integer
-              paid_from:
+              reference_number:
                 type: string
-                description: Bank Account ID of the investor (from get_investor_bank_accounts).
-    responses:
-      200:
-        description: Payment received successfully.
+              amount:
+                type: number
+                description: At most the investment amount minus the approved and draft records.
     """
     try:
         data = parse_api_payload()
         investor_flow_id = id or frappe.request.args.get("id")
         if not investor_flow_id:
             raise frappe.ValidationError("Investor Flow ID is required.")
-
-        result = service.receive_payment(investor_flow_id, data)
+        result = service.add_fund_record(investor_flow_id, data)
         frappe.db.commit()
 
         return send_response(
             status="success",
-            message="Payment received successfully.",
+            message="Fund record saved as Draft.",
             data=result,
             status_code=200,
             http_status=200,
         )
     except Exception as e:
         frappe.db.rollback()
-        return handle_api_error(e, "Receive Investor Flow Payment Error")
+        return handle_api_error(e, "Add Fund Record Error")
+
+@frappe.whitelist(allow_guest=True, methods=["PUT", "PATCH"])
+def update_fund_record(id=None, record=None):
+    """
+    Update Fund Record
+    ---
+    tags:
+      - Investor Flow
+    summary: >
+      Edit a Draft fund record.
+    parameters:
+      - in: query
+        name: id
+        required: true
+        schema:
+          type: string
+        description: Investor Flow ID.
+      - in: query
+        name: record
+        required: true
+        schema:
+          type: string
+        description: Fund record (row) ID.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - paid_date
+              - mode_of_payment
+              - reference_number
+              - amount
+            properties:
+              paid_date:
+                type: string
+                format: date
+              mode_of_payment:
+                type: string
+                enum: [Wire Transfer, Cheque, Cash, Bank Draft]
+              reference_number:
+                type: string
+              amount:
+                type: number
+                description: At most the investment amount minus the approved and draft records.
+    """
+    try:
+        data = parse_api_payload()
+        investor_flow_id = id or frappe.request.args.get("id")
+        if not investor_flow_id:
+            raise frappe.ValidationError("Investor Flow ID is required.")
+        record_name = record or frappe.request.args.get("record")
+        if not record_name:
+            raise frappe.ValidationError("Fund record ID is required.")
+        result = service.update_fund_record(investor_flow_id, record_name, data)
+        frappe.db.commit()
+
+        return send_response(
+            status="success",
+            message="Fund record updated successfully.",
+            data=result,
+            status_code=200,
+            http_status=200,
+        )
+    except Exception as e:
+        frappe.db.rollback()
+        return handle_api_error(e, "Update Fund Record Error")
+
+@frappe.whitelist(allow_guest=True, methods=["DELETE"])
+def delete_fund_record(id=None, record=None):
+    """
+    Delete Fund Record
+    ---
+    tags:
+      - Investor Flow
+    summary: >
+      Delete a Draft fund record.
+    parameters:
+      - in: query
+        name: id
+        required: true
+        schema:
+          type: string
+        description: Investor Flow ID.
+      - in: query
+        name: record
+        required: true
+        schema:
+          type: string
+        description: Fund record (row) ID.
+    """
+    try:
+        investor_flow_id = id or frappe.request.args.get("id")
+        if not investor_flow_id:
+            raise frappe.ValidationError("Investor Flow ID is required.")
+        record_name = record or frappe.request.args.get("record")
+        if not record_name:
+            raise frappe.ValidationError("Fund record ID is required.")
+        result = service.delete_fund_record(investor_flow_id, record_name)
+        frappe.db.commit()
+
+        return send_response(
+            status="success",
+            message="Fund record deleted successfully.",
+            data=result,
+            status_code=200,
+            http_status=200,
+        )
+    except Exception as e:
+        frappe.db.rollback()
+        return handle_api_error(e, "Delete Fund Record Error")
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def approve_fund_record(id=None, record=None):
+    """
+    Approve Fund Record
+    ---
+    tags:
+      - Investor Flow
+    summary: >
+      Post the record's Journal Entry (Dr Paid to GL / Cr Paid from GL, party = investor) and count it
+      in Fund Received. Fund Status becomes Partial, or Paid (Status Paid) once the full amount is approved.
+    parameters:
+      - in: query
+        name: id
+        required: true
+        schema:
+          type: string
+        description: Investor Flow ID.
+      - in: query
+        name: record
+        required: true
+        schema:
+          type: string
+        description: Fund record (row) ID.
+    """
+    try:
+        investor_flow_id = id or frappe.request.args.get("id")
+        if not investor_flow_id:
+            raise frappe.ValidationError("Investor Flow ID is required.")
+        record_name = record or frappe.request.args.get("record")
+        if not record_name:
+            raise frappe.ValidationError("Fund record ID is required.")
+        result = service.approve_fund_record(investor_flow_id, record_name)
+        frappe.db.commit()
+
+        return send_response(
+            status="success",
+            message="Fund record approved successfully.",
+            data=result,
+            status_code=200,
+            http_status=200,
+        )
+    except Exception as e:
+        frappe.db.rollback()
+        return handle_api_error(e, "Approve Fund Record Error")
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def cancel_fund_record(id=None, record=None):
+    """
+    Cancel Fund Record
+    ---
+    tags:
+      - Investor Flow
+    summary: >
+      Cancel a Draft record, or an Approved one together with its Journal Entry (the amount no longer
+      counts in Fund Received).
+    parameters:
+      - in: query
+        name: id
+        required: true
+        schema:
+          type: string
+        description: Investor Flow ID.
+      - in: query
+        name: record
+        required: true
+        schema:
+          type: string
+        description: Fund record (row) ID.
+    """
+    try:
+        investor_flow_id = id or frappe.request.args.get("id")
+        if not investor_flow_id:
+            raise frappe.ValidationError("Investor Flow ID is required.")
+        record_name = record or frappe.request.args.get("record")
+        if not record_name:
+            raise frappe.ValidationError("Fund record ID is required.")
+        result = service.cancel_fund_record(investor_flow_id, record_name)
+        frappe.db.commit()
+
+        return send_response(
+            status="success",
+            message="Fund record cancelled successfully.",
+            data=result,
+            status_code=200,
+            http_status=200,
+        )
+    except Exception as e:
+        frappe.db.rollback()
+        return handle_api_error(e, "Cancel Fund Record Error")
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_fund_records(page=1, page_size=20):
+    """
+    List Fund Records
+    ---
+    tags:
+      - Investor Flow
+    summary: Every fund record (one row per receipt) with its investment, investor and Record Status.
+    parameters:
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Matches investment ID, investor (Customer ID) or investor name.
+      - in: query
+        name: record_status
+        schema:
+          type: string
+        description: Draft / Approved / Cancelled - a single value or a JSON array of values.
+    """
+    try:
+        args = frappe.local.form_dict
+        page, page_size = int(page), int(page_size)
+
+        records, total_records, total_pages = service.get_fund_records(args, page, page_size)
+
+        response_data = {
+            "success": True,
+            "message": "Fund records retrieved successfully.",
+            "data": records,
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total": total_records,
+                "total_pages": total_pages,
+                "has_next": page < total_pages,
+                "has_prev": page > 1,
+            },
+        }
+
+        return send_response_list(
+            status="success",
+            message="Success",
+            data=response_data,
+            status_code=200,
+            http_status=200,
+        )
+    except Exception as e:
+        return handle_api_error(e, "Get Fund Records Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_investor_funds(page=1, page_size=20):
+    """
+    List Investor Funds
+    ---
+    tags:
+      - Investor Flow
+    summary: Investments from approval onward with fund received, remaining fund and Fund Status.
+    parameters:
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Matches ID, investor (Customer ID) or investor name.
+      - in: query
+        name: fund_status
+        schema:
+          type: string
+        description: Pending / Partial / Paid - a single value or a JSON array of values.
+      - in: query
+        name: status
+        schema:
+          type: string
+        description: Approved / Paid - a single value or a JSON array of values.
+    """
+    try:
+        args = frappe.local.form_dict
+        page, page_size = int(page), int(page_size)
+
+        records, total_records, total_pages = service.get_investor_funds(args, page, page_size)
+
+        response_data = {
+            "success": True,
+            "message": "Investor Funds retrieved successfully.",
+            "data": records,
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total": total_records,
+                "total_pages": total_pages,
+                "has_next": page < total_pages,
+                "has_prev": page > 1,
+            },
+        }
+
+        return send_response_list(
+            status="success",
+            message="Success",
+            data=response_data,
+            status_code=200,
+            http_status=200,
+        )
+    except Exception as e:
+        return handle_api_error(e, "Get Investor Funds Error")
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
@@ -627,7 +927,9 @@ def update_investor_earning(id=None):
     ---
     tags:
       - Investor Flow
-    summary: Edit the Earning & Settlement details and existing schedule rows. Rows cannot be added or removed.
+    summary: >
+      Edit existing schedule rows. The Earning & Settlement details are read-only (a changed value is
+      refused). Rows cannot be added or removed.
     parameters:
       - in: query
         name: id
@@ -703,29 +1005,64 @@ def update_investor_earning(id=None):
 
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
-def get_investor_accounting_settings():
+def get_record_fund_accounts():
     """
-    Get Investor Accounting Settings
+    Get Record Fund Accounts
     ---
     tags:
       - Investor Flow
-    summary: Company Bank Account (Paid To) and Investor Deposit Account from Custom Investor Settings.
+    summary: >
+      From Custom Investor Settings: the Credit GL (Investor Creditor GL) and, per Mode of Payment,
+      the Debit GL the money lands in (null when not set).
     responses:
       200:
-        description: Settings retrieved successfully.
+        description: Accounts retrieved successfully.
     """
     try:
-        data = service.get_investor_accounting_settings()
+        data = service.get_record_fund_accounts()
 
         return send_response(
             status="success",
-            message="Investor accounting settings retrieved successfully.",
+            message="Record Fund accounts retrieved successfully.",
             data=data,
             status_code=200,
             http_status=200,
         )
     except Exception as e:
-        return handle_api_error(e, "Get Investor Accounting Settings Error")
+        return handle_api_error(e, "Get Record Fund Accounts Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_investor_fund_by_id(id=None):
+    """
+    Get Investor Fund By ID
+    ---
+    tags:
+      - Investor Flow
+    summary: An investment's fund received, remaining fund, Fund Status and every recorded fund row.
+    parameters:
+      - in: query
+        name: id
+        schema:
+          type: string
+        required: true
+    """
+    try:
+        investor_flow_id = id or frappe.request.args.get("id")
+        if not investor_flow_id:
+            raise frappe.ValidationError("Investor Flow ID is required.")
+
+        data = service.get_investor_fund_by_id(investor_flow_id)
+
+        return send_response(
+            status="success",
+            message="Investor Fund retrieved successfully.",
+            data=data,
+            status_code=200,
+            http_status=200,
+        )
+    except Exception as e:
+        return handle_api_error(e, "Get Investor Fund By ID Error")
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
@@ -861,7 +1198,9 @@ def update_investor_settings():
     ---
     tags:
       - Investor Flow
-    summary: Save the five GL accounts of Custom Investor Settings (all required, one company).
+    summary: >
+      Save the GL accounts of Custom Investor Settings (one company). Investor Creditor GL is required;
+      the others are checked when set.
     requestBody:
       required: true
       content:
@@ -869,18 +1208,26 @@ def update_investor_settings():
           schema:
             type: object
             required:
-              - company_bank_account
-              - investor_deposit_account
-              - interest_payable_account
-              - interest_expense_account
-              - penalty_expense_account
+              - investor_creditor_account
             properties:
+              investor_creditor_account:
+                type: string
+                description: Liability account, blank Account Type (common for all investors; party = investor).
+              investor_cash_account:
+                type: string
+                description: Cash GL - Asset, Account Type Bank or Cash.
+              cheque_account:
+                type: string
+                description: Asset, Account Type Bank or Cash.
+              bank_draft_account:
+                type: string
+                description: Asset, Account Type Bank or Cash.
+              wire_transfer_account:
+                type: string
+                description: Asset, Account Type Bank or Cash.
               company_bank_account:
                 type: string
-                description: Asset account, Account Type Bank or Cash.
-              investor_deposit_account:
-                type: string
-                description: Liability account, blank Account Type.
+                description: Asset, Account Type Bank or Cash (payouts).
               interest_payable_account:
                 type: string
                 description: Liability account, blank Account Type.

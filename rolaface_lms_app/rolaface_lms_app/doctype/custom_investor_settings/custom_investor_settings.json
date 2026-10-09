@@ -5,19 +5,17 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "investor_deposit_account",
+  "investor_cash_account",
   "interest_payable_account",
   "interest_expense_account",
   "penalty_expense_account",
-  "company_bank_account"
+  "company_bank_account",
+  "investor_creditor_account",
+  "cheque_account",
+  "bank_draft_account",
+  "wire_transfer_account"
  ],
  "fields": [
-  {
-   "fieldname": "investor_deposit_account",
-   "fieldtype": "Link",
-   "label": "Liability GL (Investor Principal)",
-   "options": "Account"
-  },
   {
    "fieldname": "interest_payable_account",
    "fieldtype": "Link",
@@ -41,13 +39,43 @@
    "fieldtype": "Link",
    "label": "Company Bank Account",
    "options": "Account"
+  },
+  {
+   "fieldname": "investor_cash_account",
+   "fieldtype": "Link",
+   "label": "Liability Cash GL",
+   "options": "Account"
+  },
+  {
+   "fieldname": "investor_creditor_account",
+   "fieldtype": "Link",
+   "label": "Investor Creditor GL",
+   "options": "Account"
+  },
+  {
+   "fieldname": "cheque_account",
+   "fieldtype": "Link",
+   "label": "Cheque GL",
+   "options": "Account"
+  },
+  {
+   "fieldname": "bank_draft_account",
+   "fieldtype": "Link",
+   "label": "Bank Draft GL",
+   "options": "Account"
+  },
+  {
+   "fieldname": "wire_transfer_account",
+   "fieldtype": "Link",
+   "label": "Wire Transfer GL",
+   "options": "Account"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-08 10:00:00.000000",
+ "modified": "2026-10-08 18:27:47.908312",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom Investor Settings",
@@ -57,10 +85,8 @@
    "create": 1,
    "delete": 1,
    "email": 1,
-   "export": 1,
    "print": 1,
    "read": 1,
-   "report": 1,
    "role": "System Manager",
    "share": 1,
    "write": 1

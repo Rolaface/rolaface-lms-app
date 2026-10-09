@@ -14,7 +14,8 @@
   "total_payment",
   "status",
   "accrual_entry",
-  "payout_entry"
+  "payout_entry",
+  "version"
  ],
  "fields": [
   {
@@ -71,13 +72,18 @@
    "label": "Payout Entry",
    "options": "Journal Entry",
    "read_only": 1
+  },
+  {
+   "fieldname": "version",
+   "fieldtype": "Data",
+   "label": "Version"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-10-07 23:00:52.895966",
+ "modified": "2026-10-08 15:26:48.750718",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom Investor Earning Schedule",

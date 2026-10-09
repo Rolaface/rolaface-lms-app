@@ -47,6 +47,22 @@ def _validate_investor_flow_payload(
         if value <= 0 or value != int(value):
             raise frappe.ValidationError("Investment Amount must be a whole number greater than 0.")
 
+    # Investment Amount must be at least the chosen product's Minimum Investment.
+    product = data.get("investment_product") or (existing_doc.get("investment_product") if existing_doc else None)
+    amount = data.get("investment_amount")
+    if amount is None and existing_doc:
+        amount = existing_doc.get("investment_amount")
+    if product and amount not in (None, ""):
+        minimum_text = frappe.db.get_value("Custom Investment Product", product, "minimum_investment")
+        try:
+            minimum = float(str(minimum_text or 0).replace(",", ""))
+        except ValueError:
+            minimum = 0
+        if float(amount) < minimum:
+            raise frappe.ValidationError(
+                f"Investment Amount must be at least the product's Minimum Investment ({minimum:,.0f})."
+            )
+
     for percent_field, label in (("interest_rate", "Interest Rate"), ("penalty_rate", "Penalty Rate")):
         if percent_field in data and data.get(percent_field) is not None:
             try:

@@ -21,35 +21,22 @@
   "interest_rate",
   "first_repayment_date",
   "penalty_rate",
-  "contract_payment",
+  "contract",
   "mail_section",
   "mail_sent",
   "subject",
   "column_break_ndfb",
   "contract_status",
   "message",
-  "payment_section",
-  "payment_date",
-  "ref_no",
-  "column_break_hjap",
-  "payment_mode",
-  "amount_paid",
-  "bank_account_section",
-  "paid_from",
-  "paid_gl",
-  "column_break_kxvn",
-  "paid_to",
-  "to_gl",
-  "receive_entry",
-  "earning_settlement",
-  "details_section",
-  "amount_invested",
-  "frequency",
-  "mat_date",
-  "column_break_hbkc",
-  "rate_of_interest",
-  "first_repay_date",
-  "rate_of_penalty",
+  "record_fund",
+  "fund_record_details",
+  "fund_status",
+  "remaining_amount",
+  "paid_amount",
+  "record_status",
+  "payment_details",
+  "details",
+  "repayment_record",
   "investor_schedule",
   "schedule",
   "maturity_tab",
@@ -141,11 +128,6 @@
    "label": "Penalty Rate"
   },
   {
-   "fieldname": "earning_settlement",
-   "fieldtype": "Tab Break",
-   "label": "Earning & Settlement"
-  },
-  {
    "fieldname": "maturity_tab",
    "fieldtype": "Tab Break",
    "label": "Maturity"
@@ -158,58 +140,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Draft\nApproved\nReceived\nCancelled\nMatured\nRenewed"
-  },
-  {
-   "fieldname": "contract_payment",
-   "fieldtype": "Tab Break",
-   "label": "Contract & Payment"
-  },
-  {
-   "fieldname": "payment_section",
-   "fieldtype": "Section Break",
-   "label": "Payment"
-  },
-  {
-   "fieldname": "payment_date",
-   "fieldtype": "Date",
-   "label": "Payment Date"
-  },
-  {
-   "fieldname": "ref_no",
-   "fieldtype": "Data",
-   "label": "Reference No"
-  },
-  {
-   "fieldname": "column_break_hjap",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "payment_mode",
-   "fieldtype": "Select",
-   "label": "Mode of Payment",
-   "options": "Wire Transfer\nCheque\nCash\nBank Draft"
-  },
-  {
-   "fieldname": "bank_account_section",
-   "fieldtype": "Section Break",
-   "label": "Bank Account"
-  },
-  {
-   "fieldname": "paid_from",
-   "fieldtype": "Link",
-   "label": "Paid From",
-   "options": "Bank Account"
-  },
-  {
-   "fieldname": "column_break_kxvn",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "paid_to",
-   "fieldtype": "Link",
-   "label": "Paid To",
-   "options": "Account"
+   "options": "Draft\nApproved\nCancelled\nPaid"
   },
   {
    "default": "Pending",
@@ -239,62 +170,6 @@
    "label": "Subject"
   },
   {
-   "fieldname": "amount_paid",
-   "fieldtype": "Int",
-   "label": "Amount Paid"
-  },
-  {
-   "fieldname": "paid_gl",
-   "fieldtype": "Data",
-   "label": "Paid GL"
-  },
-  {
-   "fieldname": "to_gl",
-   "fieldtype": "Data",
-   "label": "To GL"
-  },
-  {
-   "fieldname": "details_section",
-   "fieldtype": "Section Break",
-   "label": "Details"
-  },
-  {
-   "fieldname": "amount_invested",
-   "fieldtype": "Int",
-   "label": "Amount Invested",
-   "non_negative": 1
-  },
-  {
-   "fieldname": "frequency",
-   "fieldtype": "Select",
-   "label": "Frequency",
-   "options": "Monthly\nWeekly\nBi-Weekly\nQuarterly\nYearly"
-  },
-  {
-   "fieldname": "mat_date",
-   "fieldtype": "Date",
-   "label": "Maturity Date"
-  },
-  {
-   "fieldname": "column_break_hbkc",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "rate_of_interest",
-   "fieldtype": "Float",
-   "label": "Rate of Interest"
-  },
-  {
-   "fieldname": "first_repay_date",
-   "fieldtype": "Date",
-   "label": "First Repay Date"
-  },
-  {
-   "fieldname": "rate_of_penalty",
-   "fieldtype": "Float",
-   "label": "Rate of Penalty"
-  },
-  {
    "fieldname": "investor_schedule",
    "fieldtype": "Section Break",
    "label": "Investor Schedule"
@@ -304,13 +179,6 @@
    "fieldtype": "Table",
    "label": "Schedule",
    "options": "Custom Investor Earning Schedule"
-  },
-  {
-   "fieldname": "receive_entry",
-   "fieldtype": "Link",
-   "label": "Receive Entry",
-   "options": "Journal Entry",
-   "read_only": 1
   },
   {
    "fieldname": "renewed_from",
@@ -328,12 +196,65 @@
    "fieldname": "message",
    "fieldtype": "Long Text",
    "label": "Message"
+  },
+  {
+   "fieldname": "contract",
+   "fieldtype": "Tab Break",
+   "label": "Contract"
+  },
+  {
+   "fieldname": "record_fund",
+   "fieldtype": "Tab Break",
+   "label": "Record Fund"
+  },
+  {
+   "fieldname": "fund_record_details",
+   "fieldtype": "Section Break",
+   "label": "Details"
+  },
+  {
+   "fieldname": "repayment_record",
+   "fieldtype": "Tab Break",
+   "label": "Repayment Record"
+  },
+  {
+   "fieldname": "fund_status",
+   "fieldtype": "Select",
+   "label": "Fund Status",
+   "options": "Pending\nPartial\nPaid"
+  },
+  {
+   "fieldname": "payment_details",
+   "fieldtype": "Section Break",
+   "label": "Payment Details"
+  },
+  {
+   "fieldname": "details",
+   "fieldtype": "Table",
+   "label": "Details",
+   "options": "Custom Investor Record Fund"
+  },
+  {
+   "fieldname": "remaining_amount",
+   "fieldtype": "Float",
+   "label": "Remaining Amount"
+  },
+  {
+   "fieldname": "paid_amount",
+   "fieldtype": "Float",
+   "label": "Paid Amount"
+  },
+  {
+   "fieldname": "record_status",
+   "fieldtype": "Select",
+   "label": "Record Status",
+   "options": "Draft\nApproved\nCancelled"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-07 23:21:18.211383",
+ "modified": "2026-10-09 09:53:36.064992",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom Investor Flow",

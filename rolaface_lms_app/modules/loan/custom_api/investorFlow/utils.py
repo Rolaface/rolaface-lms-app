@@ -1,9 +1,40 @@
 import frappe
-from frappe.utils import getdate
-from typing import Dict, Any
+from frappe.utils import getdate, cint
+from typing import Dict, Any, List
 import json
 
-from .constant import REPAYMENT_FREQUENCIES
+from .constant import REPAYMENT_FREQUENCIES, SCHEDULE_TABLE_FIELD
+
+
+def schedule_version(row) -> int:
+    """Version of a schedule row; rows saved before the version field existed count as version 1."""
+    return cint(row.get("version")) or 1
+
+
+def current_schedule(investor_flow_doc) -> List:
+    """The repayment schedule in use: the rows of the highest version, in order."""
+    rows = investor_flow_doc.get(SCHEDULE_TABLE_FIELD) or []
+    if not rows:
+        return []
+    latest = max(schedule_version(r) for r in rows)
+    return sorted((r for r in rows if schedule_version(r) == latest), key=lambda r: r.idx)
+
+
+def schedule_history(investor_flow_doc) -> List[Dict[str, Any]]:
+    """Earlier versions of the schedule (newest first): [{"version": n, "rows": [...]}]."""
+    rows = investor_flow_doc.get(SCHEDULE_TABLE_FIELD) or []
+    if not rows:
+        return []
+    latest = max(schedule_version(r) for r in rows)
+    versions: Dict[int, list] = {}
+    for r in rows:
+        v = schedule_version(r)
+        if v < latest:
+            versions.setdefault(v, []).append(r)
+    return [
+        {"version": v, "rows": sorted(versions[v], key=lambda r: r.idx)}
+        for v in sorted(versions, reverse=True)
+    ]
 
 
 def _parse_date(value, label: str):

@@ -14,6 +14,7 @@ import frappe
 from typing import Dict, Any, List, Iterable
 from frappe.utils import flt, getdate, nowdate, cint
 
+from .utils import current_schedule
 from .constant import (
     DOCTYPE,
     SETTINGS_DOCTYPE,
@@ -353,9 +354,9 @@ def accrue_due_rows():
     for flow_id in flow_ids:
         try:
             investor_flow_doc = frappe.get_doc(DOCTYPE, flow_id)
-            if investor_flow_doc.status != STATUS_RECEIVED:
+            if investor_flow_doc.fund_status not in ("Partial", "Paid") or investor_flow_doc.status == "Cancelled":
                 continue
-            for row in investor_flow_doc.get(SCHEDULE_TABLE_FIELD) or []:
+            for row in current_schedule(investor_flow_doc):
                 if row.status == ROW_STATUS_PENDING and getdate(row.payment_date) <= today:
                     accrue_row(investor_flow_doc, row, settings)
             investor_flow_doc.save(ignore_permissions=True)

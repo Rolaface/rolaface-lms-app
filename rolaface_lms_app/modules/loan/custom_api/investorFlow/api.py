@@ -1,7 +1,7 @@
 import frappe
 from rolaface_lms_app.utils.api_response import send_response, send_response_list, handle_api_error
 from rolaface_lms_app.utils.api_request import parse_api_payload
-from . import service, accounting, maturity
+from . import service, accounting, maturity, portfolio
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
@@ -1452,3 +1452,141 @@ def renew_investor_flow(id=None):
     except Exception as e:
         frappe.db.rollback()
         return handle_api_error(e, "Renew Investor Flow Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_investor_portfolio(investor=None):
+    """
+    Get Investor Portfolio
+    ---
+    tags:
+      - Investor Flow
+    summary: The investor, totals across their investments (paid in, received back, outstanding, next payout) and each investment.
+    parameters:
+      - in: query
+        name: investor
+        required: true
+        schema:
+          type: string
+    """
+    try:
+        investor = investor or frappe.request.args.get("investor")
+        if not investor:
+            raise frappe.ValidationError("investor is required.")
+
+        data = portfolio.get_investor_portfolio(investor)
+
+        return send_response(
+            status="success",
+            message="Investor portfolio retrieved successfully.",
+            data=data,
+            status_code=200,
+            http_status=200,
+        )
+    except Exception as e:
+        return handle_api_error(e, "Get Investor Portfolio Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_investment_detail(id=None):
+    """
+    Get Investment Detail
+    ---
+    tags:
+      - Investor Flow
+    summary: One investment: contract terms, funds paid (with Journal Entry), current repayment schedule and payouts.
+    parameters:
+      - in: query
+        name: id
+        required: true
+        schema:
+          type: string
+    """
+    try:
+        id = id or frappe.request.args.get("id")
+        if not id:
+            raise frappe.ValidationError("id is required.")
+
+        data = portfolio.get_investment_detail(id)
+
+        return send_response(
+            status="success",
+            message="Investment detail retrieved successfully.",
+            data=data,
+            status_code=200,
+            http_status=200,
+        )
+    except Exception as e:
+        return handle_api_error(e, "Get Investment Detail Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_investor_statement(investor=None, investment=None):
+    """
+    Get Investor Statement
+    ---
+    tags:
+      - Investor Flow
+    summary: Every approved fund paid in and every payout received, oldest first, with the principal balance.
+    parameters:
+      - in: query
+        name: investor
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: investment
+        schema:
+          type: string
+        description: Optional Investor Flow ID to limit the statement to one investment.
+    """
+    try:
+        investor = investor or frappe.request.args.get("investor")
+        investment = investment or frappe.request.args.get("investment")
+        if not investor:
+            raise frappe.ValidationError("investor is required.")
+
+        data = portfolio.get_investor_statement(investor, investment)
+
+        return send_response(
+            status="success",
+            message="Investor statement retrieved successfully.",
+            data=data,
+            status_code=200,
+            http_status=200,
+        )
+    except Exception as e:
+        return handle_api_error(e, "Get Investor Statement Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_journal_entry_detail(name=None):
+    """
+    Get Journal Entry Detail
+    ---
+    tags:
+      - Investor Flow
+    summary: A posted Journal Entry line by line: account, debit / credit, party, and what each line means.
+    parameters:
+      - in: query
+        name: name
+        required: true
+        schema:
+          type: string
+    """
+    try:
+        name = name or frappe.request.args.get("name")
+        if not name:
+            raise frappe.ValidationError("name is required.")
+
+        data = portfolio.get_journal_entry_detail(name)
+
+        return send_response(
+            status="success",
+            message="Journal Entry retrieved successfully.",
+            data=data,
+            status_code=200,
+            http_status=200,
+        )
+    except Exception as e:
+        return handle_api_error(e, "Get Journal Entry Detail Error")

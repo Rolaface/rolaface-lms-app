@@ -42,6 +42,7 @@ from .constant import (
 )
 from . import accounting
 from .utils import (
+    AVERAGE_DAYS_PER_MONTH,
     _validate_investor_flow_payload,
     _build_investor_flow_filters,
     _as_list,
@@ -1008,7 +1009,6 @@ SCHEDULE_FREQUENCY_STEP = {
     "Yearly": ("months", 12),
 }
 MAX_SCHEDULE_ROWS = 600
-AVERAGE_DAYS_PER_MONTH = 30.4375
 
 
 def get_schedule(data: Dict[str, Any]) -> Dict[str, Any]:

@@ -6,13 +6,23 @@
  "engine": "InnoDB",
  "field_order": [
   "investment_product_section",
+  "product_code",
   "product_name",
-  "tenure",
-  "minimum_investment",
+  "default_tenure",
+  "default_interest_rate",
+  "default_penalty_rate",
   "column_break_aalx",
-  "interest_rate",
+  "product_description",
   "payout_frequency",
-  "disabled"
+  "disabled",
+  "product_limits",
+  "min_interest_rate",
+  "minimum_investment",
+  "minimum_tenure",
+  "column_break_khls",
+  "maximum_interest_rate",
+  "maximum_investment",
+  "maximum_tenure"
  ],
  "fields": [
   {
@@ -23,22 +33,13 @@
   {
    "fieldname": "product_name",
    "fieldtype": "Data",
-   "in_list_view": 1,
    "label": "Product Name",
    "reqd": 1
   },
   {
-   "fieldname": "tenure",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Tenure(months)",
-   "reqd": 1
-  },
-  {
    "fieldname": "minimum_investment",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Minimum Investment",
+   "fieldtype": "Float",
+   "label": "Maximum Investment",
    "reqd": 1
   },
   {
@@ -46,16 +47,9 @@
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "interest_rate",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Interest Rate",
-   "reqd": 1
-  },
-  {
    "fieldname": "payout_frequency",
    "fieldtype": "Select",
-   "label": "Payout Frequency",
+   "label": "Default Payout Frequency",
    "options": "Monthly\nWeekly\nBi-Weekly\nQuarterly\nYearly",
    "reqd": 1
   },
@@ -64,12 +58,83 @@
    "fieldname": "disabled",
    "fieldtype": "Check",
    "label": "Disabled"
+  },
+  {
+   "fieldname": "product_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Product Code",
+   "reqd": 1
+  },
+  {
+   "fieldname": "default_tenure",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Default Tenure",
+   "reqd": 1
+  },
+  {
+   "fieldname": "default_interest_rate",
+   "fieldtype": "Float",
+   "label": "Default Interest Rate",
+   "reqd": 1
+  },
+  {
+   "fieldname": "default_penalty_rate",
+   "fieldtype": "Float",
+   "label": "Default Penalty Rate"
+  },
+  {
+   "fieldname": "product_description",
+   "fieldtype": "Text",
+   "label": "Product Description",
+   "reqd": 1
+  },
+  {
+   "fieldname": "product_limits",
+   "fieldtype": "Section Break",
+   "label": "Product Lmits"
+  },
+  {
+   "fieldname": "min_interest_rate",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Minimum Interest Rate",
+   "reqd": 1
+  },
+  {
+   "fieldname": "minimum_tenure",
+   "fieldtype": "Int",
+   "label": "Minimum Tenure",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_khls",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "maximum_interest_rate",
+   "fieldtype": "Float",
+   "label": "Maximum Interest Rate",
+   "reqd": 1
+  },
+  {
+   "fieldname": "maximum_investment",
+   "fieldtype": "Float",
+   "label": "Maximum Investment",
+   "reqd": 1
+  },
+  {
+   "fieldname": "maximum_tenure",
+   "fieldtype": "Int",
+   "label": "Maximum Tenure",
+   "reqd": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-06 17:06:41.373054",
+ "modified": "2026-10-09 16:11:43.587851",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom Investment Product",

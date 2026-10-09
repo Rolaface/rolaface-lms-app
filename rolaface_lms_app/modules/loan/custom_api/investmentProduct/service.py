@@ -6,6 +6,7 @@ from .constant import (
     RETURN_FIELDS_GET_ALL,
     RETURN_FIELDS_GET_BY_ID,
     ALLOWED_SORT_FIELDS,
+    PRODUCT_CODE_FIELD,
 )
 from .utils import _validate_investment_product_payload, _build_investment_product_filters
 
@@ -18,19 +19,26 @@ def _product_name_taken(product_name: str, exclude_id: str = None) -> bool:
     return bool(frappe.db.exists(DOCTYPE, filters))
 
 
-def create_investment_product(data: Dict[str, Any]) -> Dict[str, Any]:
-    _validate_investment_product_payload(data, is_update=False)
+def _normalize_product_code(code) -> str:
+    return str(code or "").strip().upper()
 
-    if _product_name_taken(data.get("product_name")):
-        raise frappe.DuplicateEntryError(
-            f"Investment Product '{data.get('product_name')}' already exists."
-        )
+
+def create_investment_product(data: Dict[str, Any]) -> Dict[str, Any]:
+    values = {f: data.get(f) for f in ALLOWED_INVESTMENT_PRODUCT_FIELDS if f in data}
+    if values.get(PRODUCT_CODE_FIELD) is not None:
+        values[PRODUCT_CODE_FIELD] = _normalize_product_code(values[PRODUCT_CODE_FIELD])
+
+    _validate_investment_product_payload(values)
+
+    if _product_name_taken(values["product_name"]):
+        raise frappe.DuplicateEntryError(f"Investment Product '{values['product_name']}' already exists.")
+    if frappe.db.exists(DOCTYPE, {PRODUCT_CODE_FIELD: values[PRODUCT_CODE_FIELD]}):
+        raise frappe.DuplicateEntryError(f"Product Code '{values[PRODUCT_CODE_FIELD]}' is already used.")
 
     product_doc = frappe.new_doc(DOCTYPE)
-
-    for field in ALLOWED_INVESTMENT_PRODUCT_FIELDS:
-        if field in data and data.get(field) is not None:
-            product_doc.set(field, data.get(field))
+    for field, value in values.items():
+        if value is not None:
+            product_doc.set(field, value)
 
     product_doc.insert(ignore_permissions=True)
     return get_investment_product_by_id(product_doc.name)
@@ -42,20 +50,37 @@ def update_investment_product(product_id: str, data: Dict[str, Any]) -> Dict[str
 
     product_doc = frappe.get_doc(DOCTYPE, product_id)
 
-    _validate_investment_product_payload(data, is_update=True)
+    # Product Code is set once on create and never changes.
+    if data.get(PRODUCT_CODE_FIELD) not in (None, "") and product_doc.get(PRODUCT_CODE_FIELD) and (
+        _normalize_product_code(data.get(PRODUCT_CODE_FIELD)) != product_doc.get(PRODUCT_CODE_FIELD)
+    ):
+        raise frappe.ValidationError("Product Code cannot be changed once the product is created.")
 
-    if data.get("product_name") and _product_name_taken(data.get("product_name"), exclude_id=product_id):
-        raise frappe.DuplicateEntryError(
-            f"Investment Product '{data.get('product_name')}' already exists."
-        )
+    changes = {
+        f: data.get(f)
+        for f in ALLOWED_INVESTMENT_PRODUCT_FIELDS
+        if f in data and f != PRODUCT_CODE_FIELD
+    }
+    # Products saved before Product Code existed get their code on the first update.
+    if not product_doc.get(PRODUCT_CODE_FIELD) and data.get(PRODUCT_CODE_FIELD) not in (None, ""):
+        code = _normalize_product_code(data.get(PRODUCT_CODE_FIELD))
+        if frappe.db.exists(DOCTYPE, {PRODUCT_CODE_FIELD: code, "name": ["!=", product_id]}):
+            raise frappe.DuplicateEntryError(f"Product Code '{code}' is already used.")
+        changes[PRODUCT_CODE_FIELD] = code
+
+    # Validate the whole product as it will be saved, so limits and defaults are checked together.
+    merged = {f: product_doc.get(f) for f in ALLOWED_INVESTMENT_PRODUCT_FIELDS}
+    merged.update(changes)
+    _validate_investment_product_payload(merged)
+
+    if changes.get("product_name") and _product_name_taken(changes["product_name"], exclude_id=product_id):
+        raise frappe.DuplicateEntryError(f"Investment Product '{changes['product_name']}' already exists.")
 
     has_changes = False
-
-    for field in ALLOWED_INVESTMENT_PRODUCT_FIELDS:
-        if field in data and data.get(field) is not None:
-            if product_doc.get(field) != data.get(field):
-                product_doc.set(field, data.get(field))
-                has_changes = True
+    for field, value in changes.items():
+        if product_doc.get(field) != value:
+            product_doc.set(field, value)
+            has_changes = True
 
     if has_changes:
         product_doc.save(ignore_permissions=True)
@@ -85,6 +110,7 @@ def get_investment_products(
         or_filters = [
             ["name", "like", search_term],
             ["product_name", "like", search_term],
+            ["product_code", "like", search_term],
         ]
 
     safe_filters = _build_investment_product_filters(args)

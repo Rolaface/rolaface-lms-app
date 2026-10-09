@@ -1,9 +1,13 @@
 import frappe
-from frappe.utils import getdate, cint
+from dateutil.relativedelta import relativedelta
+from frappe.utils import getdate, cint, flt, nowdate
 from typing import Dict, Any, List
 import json
 
 from .constant import REPAYMENT_FREQUENCIES, SCHEDULE_TABLE_FIELD
+
+# Used to count leftover days as a fraction of a month.
+AVERAGE_DAYS_PER_MONTH = 30.4375
 
 
 def schedule_version(row) -> int:
@@ -78,22 +82,6 @@ def _validate_investor_flow_payload(
         if value <= 0 or value != int(value):
             raise frappe.ValidationError("Investment Amount must be a whole number greater than 0.")
 
-    # Investment Amount must be at least the chosen product's Minimum Investment.
-    product = data.get("investment_product") or (existing_doc.get("investment_product") if existing_doc else None)
-    amount = data.get("investment_amount")
-    if amount is None and existing_doc:
-        amount = existing_doc.get("investment_amount")
-    if product and amount not in (None, ""):
-        minimum_text = frappe.db.get_value("Custom Investment Product", product, "minimum_investment")
-        try:
-            minimum = float(str(minimum_text or 0).replace(",", ""))
-        except ValueError:
-            minimum = 0
-        if float(amount) < minimum:
-            raise frappe.ValidationError(
-                f"Investment Amount must be at least the product's Minimum Investment ({minimum:,.0f})."
-            )
-
     for percent_field, label in (("interest_rate", "Interest Rate"), ("penalty_rate", "Penalty Rate")):
         if percent_field in data and data.get(percent_field) is not None:
             try:
@@ -124,6 +112,70 @@ def _validate_investor_flow_payload(
 
     if first_repayment_date and maturity_date and maturity_date <= first_repayment_date:
         raise frappe.ValidationError("Maturity Date must be after the First Repayment Date.")
+
+    _validate_against_product_limits(data, existing_doc, maturity_date)
+
+
+def _tenure_months(start, end) -> float:
+    """Months from start to end; leftover days count as a fraction of a month."""
+    diff = relativedelta(end, start)
+    return diff.years * 12 + diff.months + diff.days / AVERAGE_DAYS_PER_MONTH
+
+
+def _validate_against_product_limits(data: Dict[str, Any], existing_doc, maturity_date):
+    """
+    The investment must stay within its product's limits:
+    amount between Minimum and Maximum Investment, interest rate between Minimum and Maximum
+    Interest Rate, and tenure (create date -> maturity date) between Minimum and Maximum Tenure.
+    """
+    def value(field):
+        if data.get(field) not in (None, ""):
+            return data.get(field)
+        return existing_doc.get(field) if existing_doc else None
+
+    product = value("investment_product")
+    if not product:
+        return
+    limits = frappe.db.get_value(
+        "Custom Investment Product", product,
+        ["product_name", "minimum_investment", "maximum_investment", "min_interest_rate",
+         "maximum_interest_rate", "minimum_tenure", "maximum_tenure"],
+        as_dict=True,
+    )
+    if not limits:
+        return
+
+    amount = value("investment_amount")
+    if amount not in (None, ""):
+        if flt(limits.minimum_investment) and flt(amount) < flt(limits.minimum_investment):
+            raise frappe.ValidationError(
+                f"Investment Amount must be at least {flt(limits.minimum_investment):,.0f} "
+                f"(Minimum Investment of {limits.product_name})."
+            )
+        if flt(limits.maximum_investment) and flt(amount) > flt(limits.maximum_investment):
+            raise frappe.ValidationError(
+                f"Investment Amount cannot be more than {flt(limits.maximum_investment):,.0f} "
+                f"(Maximum Investment of {limits.product_name})."
+            )
+
+    rate = value("interest_rate")
+    if rate not in (None, "") and (limits.min_interest_rate is not None or limits.maximum_interest_rate):
+        low, high = flt(limits.min_interest_rate), flt(limits.maximum_interest_rate)
+        if flt(rate) < low or (high and flt(rate) > high):
+            raise frappe.ValidationError(
+                f"Interest Rate must be between {low:g}% and {high:g}% (limits of {limits.product_name})."
+            )
+
+    if maturity_date and (cint(limits.minimum_tenure) or cint(limits.maximum_tenure)):
+        # Tenure runs from the day the investment is created (today for a new one).
+        start = getdate(existing_doc.creation) if existing_doc else getdate(nowdate())
+        months = _tenure_months(start, maturity_date)
+        low, high = cint(limits.minimum_tenure), cint(limits.maximum_tenure)
+        if months < low or (high and months > high):
+            raise frappe.ValidationError(
+                f"Tenure must be between {low} and {high} months (limits of {limits.product_name}); "
+                f"from {start} to the Maturity Date {maturity_date} is {months:.1f} months."
+            )
 
 
 def _as_list(value):

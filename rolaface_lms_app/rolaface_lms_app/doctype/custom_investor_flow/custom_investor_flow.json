@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "naming_series:INVST-.YYYY.-.#####",
  "creation": "2026-10-07 16:20:27.556456",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -8,6 +9,7 @@
   "investor_product",
   "investor_section",
   "investor",
+  "naming_series",
   "product_section",
   "investment_product",
   "section_break_tvjg",
@@ -140,7 +142,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Draft\nApproved\nCancelled\nPaid"
+   "options": "Draft\nApproved\nCancelled\nPaid\nMatured\nRenewed"
   },
   {
    "default": "Pending",
@@ -249,15 +251,22 @@
    "fieldtype": "Select",
    "label": "Record Status",
    "options": "Draft\nApproved\nCancelled"
+  },
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Naming Series",
+   "options": "INVST-.YYYY.-.#####"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-09 09:53:36.064992",
+ "modified": "2026-10-09 17:10:02.948225",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom Investor Flow",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {

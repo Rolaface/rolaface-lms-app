@@ -2,52 +2,70 @@ import frappe
 from typing import Dict, Any
 import json
 
-from .constant import PAYOUT_FREQUENCIES
+from .constant import (
+    PAYOUT_FREQUENCIES,
+    REQUIRED_FIELDS,
+    FIELD_LABELS,
+    PERCENT_FIELDS,
+    AMOUNT_FIELDS,
+    TENURE_FIELDS,
+    LIMIT_PAIRS,
+    DEFAULT_WITHIN_LIMITS,
+)
 
 
-def _validate_investment_product_payload(data: Dict[str, Any], is_update: bool = False):
-    if not is_update:
-        required_fields = [
-            "product_name", "tenure", "minimum_investment",
-            "interest_rate", "payout_frequency",
-        ]
-        missing = [f for f in required_fields if data.get(f) in (None, "")]
-        if missing:
-            raise frappe.ValidationError(f"Missing required field(s): {', '.join(missing)}")
+def _number(data: Dict[str, Any], field: str) -> float:
+    try:
+        return float(data.get(field))
+    except (TypeError, ValueError):
+        raise frappe.ValidationError(f"{FIELD_LABELS[field]} must be a number.")
 
-    if "product_name" in data and data.get("product_name") is not None:
-        if not str(data.get("product_name")).strip():
-            raise frappe.ValidationError("Product Name cannot be empty.")
 
-    if "tenure" in data and data.get("tenure") is not None:
-        try:
-            value = float(data.get("tenure"))
-        except (TypeError, ValueError):
-            raise frappe.ValidationError("Tenure (months) must be a number.")
-        if value <= 0 or value != int(value):
-            raise frappe.ValidationError("Tenure (months) must be a whole number greater than 0.")
+def _validate_investment_product_payload(data: Dict[str, Any]):
+    """
+    Validates a complete product (on update: the saved values merged with the changes),
+    so the cross-field rules (minimum <= maximum, defaults within limits) always see every value.
+    """
+    missing = [FIELD_LABELS[f] for f in REQUIRED_FIELDS if data.get(f) in (None, "")]
+    if missing:
+        raise frappe.ValidationError(f"Missing required field(s): {', '.join(missing)}")
 
-    if "minimum_investment" in data and data.get("minimum_investment") is not None:
-        try:
-            value = float(data.get("minimum_investment"))
-        except (TypeError, ValueError):
-            raise frappe.ValidationError("Minimum Investment must be a number.")
-        if value < 0:
-            raise frappe.ValidationError("Minimum Investment cannot be negative.")
+    for field in ("product_code", "product_name", "product_description"):
+        if not str(data.get(field)).strip():
+            raise frappe.ValidationError(f"{FIELD_LABELS[field]} cannot be empty.")
 
-    if "interest_rate" in data and data.get("interest_rate") is not None:
-        try:
-            value = float(data.get("interest_rate"))
-        except (TypeError, ValueError):
-            raise frappe.ValidationError("Interest Rate must be a number.")
+    for field in PERCENT_FIELDS:
+        if data.get(field) in (None, ""):
+            continue  # only Default Penalty Rate is optional
+        value = _number(data, field)
         if value < 0 or value > 100:
-            raise frappe.ValidationError("Interest Rate must be between 0 and 100.")
+            raise frappe.ValidationError(f"{FIELD_LABELS[field]} must be between 0 and 100.")
 
-    if "payout_frequency" in data and data.get("payout_frequency") is not None:
-        if data.get("payout_frequency") not in PAYOUT_FREQUENCIES:
+    for field in AMOUNT_FIELDS:
+        if _number(data, field) <= 0:
+            raise frappe.ValidationError(f"{FIELD_LABELS[field]} must be greater than 0.")
+
+    for field in TENURE_FIELDS:
+        value = _number(data, field)
+        if value <= 0 or value != int(value):
+            raise frappe.ValidationError(f"{FIELD_LABELS[field]} must be a whole number of months greater than 0.")
+
+    for low, high in LIMIT_PAIRS:
+        if _number(data, low) > _number(data, high):
+            raise frappe.ValidationError(f"{FIELD_LABELS[low]} cannot be more than {FIELD_LABELS[high]}.")
+
+    for field, (low, high) in DEFAULT_WITHIN_LIMITS.items():
+        value = _number(data, field)
+        if value < _number(data, low) or value > _number(data, high):
             raise frappe.ValidationError(
-                f"Payout Frequency must be one of: {', '.join(PAYOUT_FREQUENCIES)}."
+                f"{FIELD_LABELS[field]} must be between {FIELD_LABELS[low]} and {FIELD_LABELS[high]} "
+                f"({data.get(low)} to {data.get(high)})."
             )
+
+    if data.get("payout_frequency") not in PAYOUT_FREQUENCIES:
+        raise frappe.ValidationError(
+            f"Default Payout Frequency must be one of: {', '.join(PAYOUT_FREQUENCIES)}."
+        )
 
 
 def _build_investment_product_filters(args: Dict[str, Any]) -> Dict[str, Any]:

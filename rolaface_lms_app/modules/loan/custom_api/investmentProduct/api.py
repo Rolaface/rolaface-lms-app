@@ -19,26 +19,52 @@ def create_investment_product():
           schema:
             type: object
             required:
+              - product_code
               - product_name
-              - tenure
-              - minimum_investment
-              - interest_rate
+              - product_description
+              - default_tenure
+              - default_interest_rate
               - payout_frequency
+              - min_interest_rate
+              - maximum_interest_rate
+              - minimum_investment
+              - maximum_investment
+              - minimum_tenure
+              - maximum_tenure
             properties:
+              product_code:
+                type: string
+                description: Unique, saved in UPPERCASE; cannot be changed after create.
               product_name:
                 type: string
-              tenure:
+              product_description:
+                type: string
+              default_tenure:
+                type: integer
+                description: Months; between minimum_tenure and maximum_tenure.
+              default_interest_rate:
                 type: number
-                description: Tenure in months.
-              minimum_investment:
+                description: Percent p.a.; between min_interest_rate and maximum_interest_rate.
+              default_penalty_rate:
                 type: number
-              interest_rate:
-                type: number
+                description: Optional, percent p.a.
               payout_frequency:
                 type: string
                 enum: [Monthly, Weekly, Bi-Weekly, Quarterly, Yearly]
               disabled:
-                type: boolean
+                type: integer
+              min_interest_rate:
+                type: number
+              maximum_interest_rate:
+                type: number
+              minimum_investment:
+                type: number
+              maximum_investment:
+                type: number
+              minimum_tenure:
+                type: integer
+              maximum_tenure:
+                type: integer
     responses:
       201:
         description: Investment Product created successfully.

@@ -120,9 +120,19 @@ EARNING_SCHEDULE_ROW_FIELDS = [
 EARNING_SCHEDULE_ROW_READ_ONLY_FIELDS = ["status", "accrual_entry", "payout_entry"]
 EARNING_AMOUNT_FIELDS = ["principal_amount", "interest_amount", "penalty_amount", "total_payment"]
 
-RETURN_FIELDS_EARNINGS_LIST = [
-    "name", "investor", "investment_product", "amount_invested", "rate_of_interest",
-    "frequency", "first_repay_date", "mat_date", "payment_date", "status"
+# Repayment Record details come from the approved contract's terms:
+# detail key (as the screens use it) -> Custom Investor Flow term field.
+CONTRACT_TERM_FIELDS = {
+    "amount_invested": "investment_amount",
+    "frequency": "repayment_frequency",
+    "mat_date": "maturity_date",
+    "rate_of_interest": "interest_rate",
+    "first_repay_date": "first_repayment_date",
+    "rate_of_penalty": "penalty_rate",
+}
+
+RETURN_FIELDS_EARNINGS_LIST = ["name", "investor", "investment_product", "status", "fund_status"] + [
+    f"{term} as {key}" for key, term in CONTRACT_TERM_FIELDS.items()
 ]
-# Statuses that have earnings (shown on the Earnings & Statements screen).
-EARNING_STATUSES = ["Received", "Matured", "Renewed"]
+# Fund Status of investments that have a repayment schedule (Repayment Record screen).
+EARNING_FUND_STATUSES = ["Partial", "Paid"]

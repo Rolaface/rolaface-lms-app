@@ -20,7 +20,7 @@ from .constant import (
     STATUS_RENEWED,
     ROW_STATUS_PAID,
 )
-from .utils import _as_list
+from .utils import _as_list, current_schedule, schedule_version
 from . import accounting, service
 
 MATURITY_VIEWS = ["due", "upcoming", "closed"]
@@ -91,9 +91,13 @@ def get_investor_maturities(args: Dict[str, Any], page: int, page_size: int) -> 
         for r in frappe.get_all(
             "Custom Investor Earning Schedule",
             filters={"parenttype": DOCTYPE, "parent": ["in", [row.name for row in rows]]},
-            fields=["parent", "status", "principal_amount", "interest_amount", "penalty_amount"],
+            fields=["parent", "status", "principal_amount", "interest_amount", "penalty_amount", "version"],
         ):
             schedule_by_flow.setdefault(r.parent, []).append(r)
+        # Only the current (highest) version of each schedule counts.
+        for parent, schedule_rows in schedule_by_flow.items():
+            latest = max(schedule_version(r) for r in schedule_rows)
+            schedule_by_flow[parent] = [r for r in schedule_rows if schedule_version(r) == latest]
 
     investor_names = service._get_names("Customer", "customer_name", [r.investor for r in rows])
     product_names = service._get_names(
@@ -130,7 +134,7 @@ def _renewal_defaults(doc) -> Dict[str, Any]:
 
 def get_investor_maturity_by_id(investor_flow_id: str) -> Dict[str, Any]:
     doc = service._get_earning_doc(investor_flow_id)
-    rows = doc.get(SCHEDULE_TABLE_FIELD) or []
+    rows = current_schedule(doc)
     outstanding = _outstanding(rows)
     carry = math.floor(outstanding["outstanding_principal"])
 
@@ -174,7 +178,7 @@ def redeem_investor_flow(investor_flow_id: str) -> Dict[str, Any]:
     settings = accounting.get_accounting_settings()
     today = getdate(nowdate())
 
-    for row in sorted(doc.get(SCHEDULE_TABLE_FIELD) or [], key=lambda r: r.idx):
+    for row in current_schedule(doc):
         if row.status != ROW_STATUS_PAID:
             accounting.pay_row(doc, row, settings, today, f"Redemption of {doc.name}")
 
@@ -186,7 +190,7 @@ def redeem_investor_flow(investor_flow_id: str) -> Dict[str, Any]:
 def renew_investor_flow(investor_flow_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
     """Pays the interest still owed, carries the unpaid principal into a new Draft investment."""
     doc = _get_due_doc(investor_flow_id)
-    rows = sorted(doc.get(SCHEDULE_TABLE_FIELD) or [], key=lambda r: r.idx)
+    rows = current_schedule(doc)
     unpaid = [r for r in rows if r.status != ROW_STATUS_PAID]
     outstanding_principal = flt(sum(flt(r.principal_amount) for r in unpaid), 2)
     carry = math.floor(outstanding_principal)

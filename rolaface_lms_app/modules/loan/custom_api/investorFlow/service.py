@@ -33,14 +33,23 @@ from .constant import (
     EARNING_AMOUNT_FIELDS,
     RETURN_FIELDS_EARNINGS_LIST,
     EARNING_SCHEDULE_ROW_READ_ONLY_FIELDS,
-    EARNING_STATUSES,
+    EARNING_FUND_STATUSES,
+    CONTRACT_TERM_FIELDS,
     STATUS_MATURED,
     ROW_STATUS_PENDING,
     ROW_STATUS_ACCRUED,
     ROW_STATUS_PAID,
 )
 from . import accounting
-from .utils import _validate_investor_flow_payload, _build_investor_flow_filters, _as_list, _parse_date
+from .utils import (
+    _validate_investor_flow_payload,
+    _build_investor_flow_filters,
+    _as_list,
+    _parse_date,
+    current_schedule,
+    schedule_history,
+    schedule_version,
+)
 from frappe.utils import getdate, add_months, add_days, flt, nowdate, cint, validate_email_address
 
 
@@ -446,8 +455,10 @@ def update_fund_record(investor_flow_id: str, record_name: str, data: Dict[str, 
 def delete_fund_record(investor_flow_id: str, record_name: str):
     investor_flow_doc = _get_existing_investor_flow(investor_flow_id)
     row = _get_fund_record(investor_flow_doc, record_name)
-    if (row.get("record_status") or RECORD_STATUS_DRAFT) != RECORD_STATUS_DRAFT:
-        raise frappe.ValidationError(f"Only a Draft fund record can be deleted (this one is {row.record_status}).")
+    if (row.get("record_status") or RECORD_STATUS_DRAFT) not in (RECORD_STATUS_DRAFT, RECORD_STATUS_CANCELLED):
+        raise frappe.ValidationError(
+            f"Only a Draft or Cancelled fund record can be deleted (this one is {row.record_status})."
+        )
 
     investor_flow_doc.remove(row)
     investor_flow_doc.save(ignore_permissions=True)
@@ -467,22 +478,27 @@ def approve_fund_record(investor_flow_id: str, record_name: str) -> Dict[str, An
     row.journal_entry = accounting.post_fund_entry(investor_flow_doc, row)
     row.record_status = RECORD_STATUS_APPROVED
     _refresh_fund_status(investor_flow_doc)
+    _rebuild_repayment_schedule(investor_flow_doc)
     investor_flow_doc.save(ignore_permissions=True)
     return _record_dict(investor_flow_doc, row)
 
 
 def cancel_fund_record(investor_flow_id: str, record_name: str) -> Dict[str, Any]:
-    """Draft -> Cancelled. Approved -> its Journal Entry is cancelled too and the amount no longer counts."""
+    """
+    Cancels an Approved record: its Journal Entry is cancelled, the amount no longer counts and the
+    repayment schedule is rebuilt. (A Draft is not cancelled; it can be edited or deleted.)
+    """
     investor_flow_doc = _get_existing_investor_flow(investor_flow_id)
     row = _get_fund_record(investor_flow_doc, record_name)
     status = row.get("record_status") or RECORD_STATUS_DRAFT
-    if status == RECORD_STATUS_CANCELLED:
-        raise frappe.ValidationError("This fund record is already Cancelled.")
+    if status != RECORD_STATUS_APPROVED:
+        raise frappe.ValidationError(f"Only an Approved fund record can be cancelled (this one is {status}).")
 
-    if status == RECORD_STATUS_APPROVED:
-        accounting.cancel_journal_entry(row.journal_entry)
     row.record_status = RECORD_STATUS_CANCELLED
     _refresh_fund_status(investor_flow_doc)
+    # Rebuild first: if the schedule can't be rebuilt, nothing is cancelled.
+    _rebuild_repayment_schedule(investor_flow_doc)
+    accounting.cancel_journal_entry(row.journal_entry)
     investor_flow_doc.save(ignore_permissions=True)
     return _record_dict(investor_flow_doc, row)
 
@@ -630,50 +646,124 @@ def get_record_fund_accounts() -> Dict[str, Any]:
     return accounting.get_record_fund_accounts()
 
 
-def _set_earnings(investor_flow_doc, amount_paid: int):
-    """Earning & Settlement: details copied from the terms (amount = Amount Paid) and the payout schedule."""
-    investor_flow_doc.amount_invested = amount_paid
+def _receipt_interest(amount: float, rate: float, paid_date, maturity_date) -> float:
+    """Interest on one receipt, calculated once: simple interest for the whole months from its paid date to maturity."""
+    months = max(1, int((getdate(maturity_date) - getdate(paid_date)).days / AVERAGE_DAYS_PER_MONTH + 0.5))
+    return flt(amount * rate / 1200 * months, 2)
+
+
+def _split_equally(total: float, count: int) -> list:
+    """total split into count equal parts (2 decimals); the last part takes the rounding difference."""
+    each = flt(total / count, 2)
+    return [each] * (count - 1) + [flt(total - each * (count - 1), 2)]
+
+
+def _rebuild_repayment_schedule(investor_flow_doc):
+    """
+    Rebuilds the repayment schedule from the Approved fund records (called when a record is approved or
+    an approved one is cancelled):
+      - each receipt's interest is calculated once on its principal, from its paid date to maturity;
+      - rows already due (on or before today) or already Accrued / Paid stay as they are;
+      - the rest (principal and interest not yet in those rows) is split equally over the future payout
+        dates; the last row takes the rounding difference.
+    The result is saved as a new schedule version (the previous one stays in the history).
+    """
+    rate = flt(investor_flow_doc.interest_rate)
+    maturity_date = getdate(investor_flow_doc.maturity_date)
+    receipts = [r for r in _fund_rows(investor_flow_doc) if r.get("record_status") == RECORD_STATUS_APPROVED]
+    principal_total = flt(sum(flt(r.amount_paid) for r in receipts), 2)
+    interest_total = flt(
+        sum(_receipt_interest(flt(r.amount_paid), rate, r.paid_date, maturity_date) for r in receipts), 2
+    )
+
+    current = current_schedule(investor_flow_doc)
+    if principal_total <= 0 and not current:
+        return
+
+    today = getdate(nowdate())
+    locked = [r for r in current if getdate(r.payment_date) <= today or r.status in (ROW_STATUS_ACCRUED, ROW_STATUS_PAID)]
+    locked_dates = {getdate(r.payment_date) for r in locked}
+    future_dates = [
+        d for d in _payout_dates(
+            investor_flow_doc.repayment_frequency,
+            getdate(investor_flow_doc.first_repayment_date),
+            maturity_date,
+        )
+        if d > today and d not in locked_dates
+    ]
+
+    remaining_principal = flt(principal_total - sum(flt(r.principal_amount) for r in locked), 2)
+    remaining_interest = flt(interest_total - sum(flt(r.interest_amount) for r in locked), 2)
+    if remaining_principal < 0 or remaining_interest < 0:
+        raise frappe.ValidationError(
+            "The schedule rows already due or paid include more principal / interest than the approved funds."
+        )
+    if not future_dates and (remaining_principal > 0 or remaining_interest > 0):
+        raise frappe.ValidationError("No payout date is left after today to schedule the received fund.")
+
+    # Penalty entered on a future row is kept when that date is still in the new schedule.
+    penalty_by_date = {getdate(r.payment_date): flt(r.penalty_amount) for r in current if r not in locked}
+    principals = _split_equally(remaining_principal, len(future_dates)) if future_dates else []
+    interests = _split_equally(remaining_interest, len(future_dates)) if future_dates else []
+
+    new_rows = [
+        {f: r.get(f) for f in EARNING_SCHEDULE_ROW_FIELDS + EARNING_SCHEDULE_ROW_READ_ONLY_FIELDS} for r in locked
+    ]
+    for d, principal, interest in zip(future_dates, principals, interests):
+        penalty = penalty_by_date.get(d, 0)
+        new_rows.append({
+            "payment_date": d,
+            "principal_amount": principal,
+            "interest_amount": interest,
+            "penalty_amount": penalty,
+            "total_payment": flt(principal + interest + penalty, 2),
+            "status": ROW_STATUS_PENDING,
+            "accrual_entry": None,
+            "payout_entry": None,
+        })
+    new_rows.sort(key=lambda r: getdate(r["payment_date"]))
+
+    def _key(rows):
+        return [
+            (str(getdate(r["payment_date"])), flt(r["principal_amount"], 2), flt(r["interest_amount"], 2),
+             flt(r["penalty_amount"], 2), r.get("status"))
+            for r in rows
+        ]
+    current_values = [
+        {f: r.get(f) for f in EARNING_SCHEDULE_ROW_FIELDS + EARNING_SCHEDULE_ROW_READ_ONLY_FIELDS} for r in current
+    ]
+    if current and _key(current_values) == _key(new_rows):
+        return
+
+    version = (schedule_version(current[0]) + 1) if current else 1
+    for values in new_rows:
+        investor_flow_doc.append(SCHEDULE_TABLE_FIELD, {**values, "version": version})
+
+    # Earning & Settlement details (read-only on screen).
+    investor_flow_doc.amount_invested = cint(round(principal_total))
     investor_flow_doc.frequency = investor_flow_doc.repayment_frequency
     investor_flow_doc.mat_date = investor_flow_doc.maturity_date
     investor_flow_doc.rate_of_interest = investor_flow_doc.interest_rate
     investor_flow_doc.first_repay_date = investor_flow_doc.first_repayment_date
     investor_flow_doc.rate_of_penalty = investor_flow_doc.penalty_rate
 
-    result = _calculate_schedule(
-        amount=flt(amount_paid),
-        rate=flt(investor_flow_doc.interest_rate),
-        penalty_rate=flt(investor_flow_doc.penalty_rate),
-        frequency=investor_flow_doc.repayment_frequency,
-        first_repayment_date=getdate(investor_flow_doc.first_repayment_date),
-        maturity_date=getdate(investor_flow_doc.maturity_date),
-    )
-
-    investor_flow_doc.set(SCHEDULE_TABLE_FIELD, [])
-    for row in result["schedule"]:
-        investor_flow_doc.append(SCHEDULE_TABLE_FIELD, {
-            "payment_date": row["date"],
-            "principal_amount": row["principal"],
-            "interest_amount": row["interest"],
-            "penalty_amount": 0,
-            "total_payment": row["total"],
-            "status": ROW_STATUS_PENDING,
-        })
-
 
 def _get_earning_doc(investor_flow_id: str, for_update: bool = False):
+    """Repayment Record exists once funds are approved (Fund Status Partial or Paid)."""
     investor_flow_doc = _get_existing_investor_flow(investor_flow_id)
-    allowed = [STATUS_RECEIVED] if for_update else EARNING_STATUSES
-    if investor_flow_doc.status not in allowed:
+    if (investor_flow_doc.fund_status or FUND_STATUS_PENDING) not in EARNING_FUND_STATUSES:
         raise frappe.ValidationError(
-            f"This action needs an Investor Flow in status {' / '.join(allowed)} "
-            f"(current status: '{investor_flow_doc.status}')."
+            "The repayment schedule is created when a fund record is approved "
+            f"(Fund Status: '{investor_flow_doc.fund_status or FUND_STATUS_PENDING}')."
         )
+    if for_update and investor_flow_doc.status == "Cancelled":
+        raise frappe.ValidationError("This investment is Cancelled.")
     return investor_flow_doc
 
 
 def get_investor_earnings(args: Dict[str, Any], page: int, page_size: int) -> Tuple[list, int, int]:
-    """Received Investor Flows with the main Earning & Settlement fields."""
-    filters = {"status": ["in", EARNING_STATUSES]}
+    """Investments with approved funds (Fund Status Partial / Paid) and their main repayment fields."""
+    filters = {"fund_status": ["in", EARNING_FUND_STATUSES]}
     if args.get("investment_product"):
         filters["investment_product"] = ["in", _as_list(args.get("investment_product"))]
 
@@ -724,13 +814,26 @@ def _get_names(doctype: str, name_field: str, ids: list) -> Dict[str, str]:
     return dict(frappe.get_all(doctype, filters={"name": ["in", ids]}, fields=["name", name_field], as_list=True))
 
 
+def _schedule_row_dict(row, number: int) -> Dict[str, Any]:
+    """A schedule row for the API; idx is its position (1, 2, …) within its version."""
+    return {
+        "name": row.name,
+        "idx": number,
+        **{f: row.get(f) for f in EARNING_SCHEDULE_ROW_FIELDS + EARNING_SCHEDULE_ROW_READ_ONLY_FIELDS},
+        "version": schedule_version(row),
+    }
+
+
 def get_investor_earning_by_id(investor_flow_id: str) -> Dict[str, Any]:
     investor_flow_doc = _get_earning_doc(investor_flow_id)
+    current = current_schedule(investor_flow_doc)
 
-    result = {field: investor_flow_doc.get(field) for field in EARNING_DETAIL_FIELDS}
+    # Details come from the approved contract's terms.
+    result = {key: investor_flow_doc.get(term) for key, term in CONTRACT_TERM_FIELDS.items()}
     result.update({
         "id": investor_flow_doc.name,
         "status": investor_flow_doc.status,
+        "fund_status": investor_flow_doc.fund_status or FUND_STATUS_PENDING,
         "investor_id": investor_flow_doc.investor,
         "investor": frappe.db.get_value("Customer", investor_flow_doc.investor, "customer_name")
         or investor_flow_doc.investor,
@@ -742,20 +845,22 @@ def get_investor_earning_by_id(investor_flow_id: str) -> Dict[str, Any]:
         "receive_entry": investor_flow_doc.get("receive_entry"),
         "renewed_to": investor_flow_doc.get("renewed_to"),
         "renewed_from": investor_flow_doc.get("renewed_from"),
-        SCHEDULE_TABLE_FIELD: [
+        # The schedule in use is the highest version; earlier versions are history.
+        "schedule_version": schedule_version(current[0]) if current else 1,
+        SCHEDULE_TABLE_FIELD: [_schedule_row_dict(row, i) for i, row in enumerate(current, start=1)],
+        "schedule_history": [
             {
-                "name": row.name,
-                "idx": row.idx,
-                **{f: row.get(f) for f in EARNING_SCHEDULE_ROW_FIELDS + EARNING_SCHEDULE_ROW_READ_ONLY_FIELDS},
+                "version": entry["version"],
+                "rows": [_schedule_row_dict(row, i) for i, row in enumerate(entry["rows"], start=1)],
             }
-            for row in sorted(investor_flow_doc.get(SCHEDULE_TABLE_FIELD) or [], key=lambda r: r.idx)
+            for entry in schedule_history(investor_flow_doc)
         ],
     })
     return result
 
 
 def _detail_value_changed(doc, field: str, value) -> bool:
-    current = doc.get(field)
+    current = doc.get(CONTRACT_TERM_FIELDS[field])
     if field in ("mat_date", "first_repay_date"):
         return (getdate(value) if value else None) != (getdate(current) if current else None)
     if field == "frequency":
@@ -780,9 +885,11 @@ def pay_investor_earning_row(investor_flow_id: str, data: Dict[str, Any]) -> Dic
     investor_flow_doc = _get_earning_doc(investor_flow_id, for_update=True)
 
     row_name = data.get("row")
-    row = next((r for r in investor_flow_doc.get(SCHEDULE_TABLE_FIELD) or [] if r.name == row_name), None)
+    row = next((r for r in current_schedule(investor_flow_doc) if r.name == row_name), None)
     if not row:
-        raise frappe.ValidationError(f"Schedule row '{row_name}' does not belong to this Investor Flow.")
+        raise frappe.ValidationError(
+            f"Schedule row '{row_name}' is not in the current schedule of this Investor Flow."
+        )
     if row.status == ROW_STATUS_PAID:
         raise frappe.ValidationError(f"Schedule row {row.idx} is already Paid.")
 
@@ -798,8 +905,8 @@ def close_investor_flow(investor_flow_id: str) -> Dict[str, Any]:
     """Maturity: when every schedule row is Paid, nothing is owed: Status -> Matured."""
     investor_flow_doc = _get_earning_doc(investor_flow_id, for_update=True)
 
-    rows = investor_flow_doc.get(SCHEDULE_TABLE_FIELD) or []
-    unpaid = [str(r.idx) for r in rows if r.status != ROW_STATUS_PAID]
+    rows = current_schedule(investor_flow_doc)
+    unpaid = [str(i) for i, r in enumerate(rows, start=1) if r.status != ROW_STATUS_PAID]
     if not rows or unpaid:
         raise frappe.ValidationError(
             "All schedule rows must be Paid before closing"
@@ -812,7 +919,11 @@ def close_investor_flow(investor_flow_id: str) -> Dict[str, Any]:
 
 
 def update_investor_earning(investor_flow_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-    """Edits the Earning & Settlement details and existing schedule rows (rows cannot be added or removed)."""
+    """
+    Edits the current repayment schedule. The details are read-only. An edit is saved as a new version:
+    every row of the current schedule is copied with version max + 1 (edited values applied);
+    earlier versions stay as history.
+    """
     investor_flow_doc = _get_earning_doc(investor_flow_id, for_update=True)
 
     # The Earning & Settlement details are read-only; only the schedule rows can be edited.
@@ -825,43 +936,64 @@ def update_investor_earning(investor_flow_id: str, data: Dict[str, Any]) -> Dict
             f"Earning details cannot be edited ({', '.join(changed_details)}); only the schedule rows can."
         )
 
-    rows_by_name = {row.name: row for row in investor_flow_doc.get(SCHEDULE_TABLE_FIELD) or []}
+    current = current_schedule(investor_flow_doc)
+    position = {row.name: i for i, row in enumerate(current, start=1)}
+    # Values of the current schedule, edited below; saved as a new version if anything changed.
+    new_values = {
+        row.name: {f: row.get(f) for f in EARNING_SCHEDULE_ROW_FIELDS + EARNING_SCHEDULE_ROW_READ_ONLY_FIELDS}
+        for row in current
+    }
+
     schedule = data.get(SCHEDULE_TABLE_FIELD) or []
     if not isinstance(schedule, list):
         raise frappe.ValidationError("'schedule' must be a list of rows.")
 
+    any_change = False
     for index, row_data in enumerate(schedule, start=1):
-        row = rows_by_name.get(row_data.get("name"))
+        row = next((r for r in current if r.name == row_data.get("name")), None)
         if not row:
             raise frappe.ValidationError(
-                f"Schedule row {index}: '{row_data.get('name')}' does not belong to this Investor Flow."
+                f"Schedule row {index}: '{row_data.get('name')}' is not in the current schedule."
             )
+        number = position[row.name]
         changed = [
             f for f in EARNING_SCHEDULE_ROW_FIELDS
             if f in row_data and _row_value_changed(row, f, row_data.get(f))
         ]
+        if not changed:
+            continue
         # Paid rows are locked; accrued rows keep their date, principal and interest
         # (penalty can still be added; it is paid through Penalty Expense).
-        if row.status == ROW_STATUS_PAID and changed:
-            raise frappe.ValidationError(f"Schedule row {row.idx} is Paid and cannot be changed.")
+        if row.status == ROW_STATUS_PAID:
+            raise frappe.ValidationError(f"Schedule row {number} is Paid and cannot be changed.")
         locked = {"payment_date", "principal_amount", "interest_amount"}
         if row.status == ROW_STATUS_ACCRUED and locked.intersection(changed):
             raise frappe.ValidationError(
-                f"Schedule row {row.idx} is Accrued: only Penalty and Total Payment can be changed."
+                f"Schedule row {number} is Accrued: only Penalty and Total Payment can be changed."
             )
-        if "payment_date" in row_data:
+        values = new_values[row.name]
+        if "payment_date" in changed:
             if not row_data.get("payment_date"):
-                raise frappe.ValidationError(f"Schedule row {row.idx}: Payment Date is required.")
-            row.payment_date = _parse_date(row_data.get("payment_date"), f"Schedule row {row.idx}: Payment Date")
+                raise frappe.ValidationError(f"Schedule row {number}: Payment Date is required.")
+            values["payment_date"] = _parse_date(row_data.get("payment_date"), f"Schedule row {number}: Payment Date")
         for field in EARNING_AMOUNT_FIELDS:
-            if field in row_data:
+            if field in changed:
                 try:
                     value = float(row_data.get(field))
                 except (TypeError, ValueError):
-                    raise frappe.ValidationError(f"Schedule row {row.idx}: {field} must be a number.")
+                    raise frappe.ValidationError(f"Schedule row {number}: {field} must be a number.")
                 if value < 0:
-                    raise frappe.ValidationError(f"Schedule row {row.idx}: {field} cannot be negative.")
-                row.set(field, value)
+                    raise frappe.ValidationError(f"Schedule row {number}: {field} cannot be negative.")
+                values[field] = value
+        any_change = True
+
+    if not any_change:
+        return get_investor_earning_by_id(investor_flow_doc.name)
+
+    # Edited schedule = a full new set of rows with version max + 1; the earlier rows stay as history.
+    new_version = schedule_version(current[0]) + 1
+    for row in current:
+        investor_flow_doc.append(SCHEDULE_TABLE_FIELD, {**new_values[row.name], "version": new_version})
 
     investor_flow_doc.save(ignore_permissions=True)
     return get_investor_earning_by_id(investor_flow_doc.name)
@@ -905,15 +1037,8 @@ def get_schedule(data: Dict[str, Any]) -> Dict[str, Any]:
     )
 
 
-def _calculate_schedule(
-    amount: float, rate: float, penalty_rate: float, frequency: str, first_repayment_date, maturity_date
-) -> Dict[str, Any]:
-    today = getdate(nowdate())
-    # Simple interest for the whole months between today and maturity.
-    total_months = max(1, int((maturity_date - today).days / AVERAGE_DAYS_PER_MONTH + 0.5))
-    total_interest = amount * rate / 1200 * total_months
-
-    # Payout dates: first repayment date, then one every step, and finally the maturity date.
+def _payout_dates(frequency: str, first_repayment_date, maturity_date) -> list:
+    """Payout dates: first repayment date, then one every step, and finally the maturity date."""
     unit, step = SCHEDULE_FREQUENCY_STEP[frequency]
     dates = []
     index = 0
@@ -931,6 +1056,18 @@ def _calculate_schedule(
         else:
             current = getdate(add_days(first_repayment_date, index * step))
     dates.append(maturity_date)
+    return dates
+
+
+def _calculate_schedule(
+    amount: float, rate: float, penalty_rate: float, frequency: str, first_repayment_date, maturity_date
+) -> Dict[str, Any]:
+    today = getdate(nowdate())
+    # Simple interest for the whole months between today and maturity.
+    total_months = max(1, int((maturity_date - today).days / AVERAGE_DAYS_PER_MONTH + 0.5))
+    total_interest = amount * rate / 1200 * total_months
+
+    dates = _payout_dates(frequency, first_repayment_date, maturity_date)
 
     # Principal and interest (on the amount invested, for the whole tenure) are both split equally
     # across the payouts; the last payout takes the rounding difference so the totals match exactly.

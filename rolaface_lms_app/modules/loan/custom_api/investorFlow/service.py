@@ -804,6 +804,8 @@ def get_investor_earnings(args: Dict[str, Any], page: int, page_size: int) -> Tu
         row["investment_product_name"] = (
             product_names.get(row.investment_product) or row.investment_product
         )
+        # Payment Status from the schedule now (Paid / Expired change with payouts and dates).
+        row["payment_status"] = _live_payment_status(frappe.get_doc(DOCTYPE, row.name))
 
     return rows, total_records, total_pages
 
@@ -825,6 +827,12 @@ def _schedule_row_dict(row, number: int) -> Dict[str, Any]:
     }
 
 
+def _live_payment_status(investor_flow_doc):
+    """Payment Status worked out from the schedule now (and saved when it changed)."""
+    from .renewal import sync_payment_status
+    return sync_payment_status(investor_flow_doc)
+
+
 def get_investor_earning_by_id(investor_flow_id: str) -> Dict[str, Any]:
     investor_flow_doc = _get_earning_doc(investor_flow_id)
     current = current_schedule(investor_flow_doc)
@@ -844,8 +852,8 @@ def get_investor_earning_by_id(investor_flow_id: str) -> Dict[str, Any]:
         ) or investor_flow_doc.investment_product,
         "payment_date": investor_flow_doc.payment_date,
         "receive_entry": investor_flow_doc.get("receive_entry"),
-        "renewed_to": investor_flow_doc.get("renewed_to"),
-        "renewed_from": investor_flow_doc.get("renewed_from"),
+        "payment_status": _live_payment_status(investor_flow_doc),
+        "renewal_status": investor_flow_doc.get("renewal_status"),
         # The schedule in use is the highest version; earlier versions are history.
         "schedule_version": schedule_version(current[0]) if current else 1,
         SCHEDULE_TABLE_FIELD: [_schedule_row_dict(row, i) for i, row in enumerate(current, start=1)],
@@ -897,6 +905,9 @@ def pay_investor_earning_row(investor_flow_id: str, data: Dict[str, Any]) -> Dic
     posting_date = _parse_date(data.get("payment_date") or nowdate(), "Payment Date")
     settings = accounting.get_accounting_settings()
     accounting.pay_row(investor_flow_doc, row, settings, posting_date, data.get("ref_no"))
+    # Paying the last row makes the investment Paid (also when it had Expired).
+    from .renewal import refresh_payment_status
+    refresh_payment_status(investor_flow_doc)
     investor_flow_doc.save(ignore_permissions=True)
 
     return get_investor_earning_by_id(investor_flow_doc.name)
@@ -926,6 +937,18 @@ def update_investor_earning(investor_flow_id: str, data: Dict[str, Any]) -> Dict
     earlier versions stay as history.
     """
     investor_flow_doc = _get_earning_doc(investor_flow_id, for_update=True)
+
+    # Fully paid: nothing is left to change; the Repayment Record can only be viewed.
+    if _live_payment_status(investor_flow_doc) == "Paid":
+        raise frappe.ValidationError("Every schedule row is Paid; Investor Payouts can only be viewed.")
+
+    # Past maturity with money still due: the schedule can only be viewed (rows can still be paid).
+    from .renewal import is_expired
+    if is_expired(investor_flow_doc):
+        raise frappe.ValidationError(
+            "This investment has Expired (its maturity date has passed with money still due). "
+            "The schedule can no longer be edited; its rows can still be paid, or the investment can be renewed."
+        )
 
     # The Earning & Settlement details are read-only; only the schedule rows can be edited.
     changed_details = [

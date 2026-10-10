@@ -266,7 +266,9 @@ def accrue_row(investor_flow_doc, row, settings, posting_date=None) -> str:
 def _accrued_amount(row, settings) -> float:
     """Interest + penalty credited to Interest Payable by the row's accrual entry."""
     if not row.accrual_entry:
-        return 0
+        # A renewal's deferred-interest row is Accrued without an entry of its own:
+        # its interest was booked in Interest Payable before the renewal.
+        return flt(row.interest_amount, 2) if row.status == ROW_STATUS_ACCRUED else 0
     credits = frappe.get_all(
         "Journal Entry Account",
         filters={"parent": row.accrual_entry, "account": settings["interest_payable_account"]},

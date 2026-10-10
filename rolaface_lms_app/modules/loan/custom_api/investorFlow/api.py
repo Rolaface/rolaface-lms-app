@@ -1,7 +1,7 @@
 import frappe
 from rolaface_lms_app.utils.api_response import send_response, send_response_list, handle_api_error
 from rolaface_lms_app.utils.api_request import parse_api_payload
-from . import service, accounting, maturity, portfolio
+from . import service, accounting, maturity, portfolio, renewal
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
@@ -1023,7 +1023,7 @@ def get_record_fund_accounts():
 
         return send_response(
             status="success",
-            message="Record Fund accounts retrieved successfully.",
+            message="Fund Receipt accounts retrieved successfully.",
             data=data,
             status_code=200,
             http_status=200,
@@ -1590,3 +1590,233 @@ def get_journal_entry_detail(name=None):
         )
     except Exception as e:
         return handle_api_error(e, "Get Journal Entry Detail Error")
+
+
+# ------------------------------- Renewal -------------------------------
+
+def _renewal_id(id):
+    investor_flow_id = id or frappe.request.args.get("id")
+    if not investor_flow_id:
+        raise frappe.ValidationError("Investor Flow ID is required.")
+    return investor_flow_id
+
+
+def _renewal_ok(message, data, status_code=200):
+    return send_response(status="success", message=message, data=data, status_code=status_code, http_status=status_code)
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_renewals(page=1, page_size=20):
+    """
+    List Renewals
+    ---
+    tags:
+      - Investor Flow Renewal
+    summary: Investments that have a renewal (Draft / Approved / Cancelled).
+    parameters:
+      - {in: query, name: page, schema: {type: integer}}
+      - {in: query, name: page_size, schema: {type: integer}}
+      - {in: query, name: search, schema: {type: string}, description: Investment ID or investor name.}
+      - {in: query, name: renewal_status, schema: {type: string}, description: One value or a JSON list.}
+      - {in: query, name: renewal_structure, schema: {type: string}, description: One value or a JSON list.}
+    """
+    try:
+        page, page_size = int(page), int(page_size)
+        records, total, total_pages = renewal.get_renewals(frappe.local.form_dict, page, page_size)
+        return send_response_list(
+            status="success",
+            message="Success",
+            data={
+                "success": True,
+                "message": "Renewals retrieved successfully.",
+                "data": records,
+                "pagination": {
+                    "page": page, "page_size": page_size, "total": total, "total_pages": total_pages,
+                    "has_next": page < total_pages, "has_prev": page > 1,
+                },
+            },
+            status_code=200,
+            http_status=200,
+        )
+    except Exception as e:
+        return handle_api_error(e, "Get Renewals Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_renewal_candidates(search=None):
+    """
+    Investments that can be renewed
+    ---
+    tags:
+      - Investor Flow Renewal
+    summary: Expired investments (past maturity with money still due) without a Draft renewal.
+    """
+    try:
+        return _renewal_ok("Renewal candidates retrieved successfully.", renewal.get_renewal_candidates(search))
+    except Exception as e:
+        return handle_api_error(e, "Get Renewal Candidates Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_renewal_context(id=None):
+    """
+    Existing contract details for a renewal
+    ---
+    tags:
+      - Investor Flow Renewal
+    summary: The contract in force (principal, maturity, terms) and what is still owed on it.
+    """
+    try:
+        return _renewal_ok("Renewal context retrieved successfully.", renewal.get_renewal_context(_renewal_id(id)))
+    except Exception as e:
+        return handle_api_error(e, "Get Renewal Context Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_renewal_by_id(id=None):
+    """
+    Get Renewal
+    ---
+    tags:
+      - Investor Flow Renewal
+    """
+    try:
+        return _renewal_ok("Renewal retrieved successfully.", renewal.get_renewal_by_id(_renewal_id(id)))
+    except Exception as e:
+        return handle_api_error(e, "Get Renewal Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def preview_renewal_schedule(id=None):
+    """
+    Preview renewed schedule
+    ---
+    tags:
+      - Investor Flow Renewal
+    summary: Validates the renewal terms and returns the schedule they will create (nothing is saved).
+    """
+    try:
+        data = parse_api_payload()
+        return _renewal_ok(
+            "Renewal schedule calculated successfully.", renewal.preview_renewal_schedule(_renewal_id(id), data)
+        )
+    except Exception as e:
+        return handle_api_error(e, "Preview Renewal Schedule Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def save_renewal(id=None):
+    """
+    Add / Edit Renewal
+    ---
+    tags:
+      - Investor Flow Renewal
+    summary: Creates a Draft renewal on an Expired investment, or edits a Draft one.
+    requestBody:
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [renewal_structure, renewal_effective_date, renewal_interest_rate, payment_frequency,
+                       renewal_tenure, renewal_first_repayment_date]
+            properties:
+              renewal_structure: {type: string, enum: [Capitalization, Principal Rollover, Extended Maturity, Partial Settlement]}
+              renewal_effective_date: {type: string, format: date}
+              settlement_amount: {type: number, description: Partial Settlement only.}
+              interest_settlement: {type: string, enum: [Pay on renewal date, Defer to an agreed future date]}
+              interest_settlement_date: {type: string, format: date}
+              renewal_interest_rate: {type: number}
+              payment_frequency: {type: string, enum: [Monthly, Weekly, Bi-Weekly, Quarterly, Yearly]}
+              renewal_tenure: {type: integer, description: Months; new maturity = effective date + tenure.}
+              renewal_first_repayment_date: {type: string, format: date}
+              renewal_penalty_rate: {type: number}
+              reason_for_renewal: {type: string}
+    """
+    try:
+        data = parse_api_payload()
+        result = renewal.save_renewal(_renewal_id(id), data)
+        frappe.db.commit()
+        return _renewal_ok("Renewal saved successfully.", result)
+    except Exception as e:
+        frappe.db.rollback()
+        return handle_api_error(e, "Save Renewal Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["DELETE"])
+def delete_renewal(id=None):
+    """
+    Delete Renewal
+    ---
+    tags:
+      - Investor Flow Renewal
+    summary: Removes a Draft or Cancelled renewal.
+    """
+    try:
+        investor_flow_id = _renewal_id(id)
+        renewal.delete_renewal(investor_flow_id)
+        frappe.db.commit()
+        return _renewal_ok("Renewal deleted successfully.", {"id": investor_flow_id})
+    except Exception as e:
+        frappe.db.rollback()
+        return handle_api_error(e, "Delete Renewal Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def approve_renewal(id=None):
+    """
+    Approve Renewal
+    ---
+    tags:
+      - Investor Flow Renewal
+    summary: Posts the renewal Journal Entry and makes the renewed schedule the current version.
+    """
+    try:
+        result = renewal.approve_renewal(_renewal_id(id))
+        frappe.db.commit()
+        return _renewal_ok("Renewal approved successfully.", result)
+    except Exception as e:
+        frappe.db.rollback()
+        return handle_api_error(e, "Approve Renewal Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def cancel_renewal(id=None):
+    """
+    Cancel Renewal
+    ---
+    tags:
+      - Investor Flow Renewal
+    summary: Cancels an Approved renewal (its Journal Entry) and restores the schedule in force before it.
+    """
+    try:
+        result = renewal.cancel_renewal(_renewal_id(id))
+        frappe.db.commit()
+        return _renewal_ok("Renewal cancelled successfully.", result)
+    except Exception as e:
+        frappe.db.rollback()
+        return handle_api_error(e, "Cancel Renewal Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def save_renewal_contract(id=None):
+    """
+    Save Renewal Contract
+    ---
+    tags:
+      - Investor Flow Renewal
+    summary: After the renewal contract is emailed, saves To / Subject / Message, attaches the file, status Sent.
+    requestBody:
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [to, subject, message, file_id]
+    """
+    try:
+        data = parse_api_payload()
+        result = renewal.save_renewal_contract(_renewal_id(id), data)
+        frappe.db.commit()
+        return _renewal_ok("Renewal contract saved successfully.", result)
+    except Exception as e:
+        frappe.db.rollback()
+        return handle_api_error(e, "Save Renewal Contract Error")

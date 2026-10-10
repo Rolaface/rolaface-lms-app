@@ -15,7 +15,8 @@
   "status",
   "accrual_entry",
   "payout_entry",
-  "version"
+  "version",
+  "version_change_date"
  ],
  "fields": [
   {
@@ -75,15 +76,20 @@
   },
   {
    "fieldname": "version",
-   "fieldtype": "Data",
+   "fieldtype": "Int",
    "label": "Version"
+  },
+  {
+   "fieldname": "version_change_date",
+   "fieldtype": "Date",
+   "label": "Version Change Date"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-10-08 15:26:48.750718",
+ "modified": "2026-10-10 10:47:23.303091",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom Investor Earning Schedule",

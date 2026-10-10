@@ -41,9 +41,36 @@
   "repayment_record",
   "investor_schedule",
   "schedule",
-  "maturity_tab",
-  "renewed_from",
-  "renewed_to"
+  "details_section",
+  "payment_status",
+  "renewal",
+  "renewal_mail",
+  "renewal_to",
+  "renewal_subject",
+  "column_break_dqfq",
+  "renewal_contract_status",
+  "renewal_message",
+  "section_break_nnzp",
+  "renewal_effective_date",
+  "settlement_amount",
+  "renewal_outstanding_principal",
+  "renewal_unpaid_interest",
+  "renewal_penalty_rate",
+  "renewal_status",
+  "column_break_ywfu",
+  "renewal_structure",
+  "interest_settlement",
+  "interest_settlement_date",
+  "renewal_first_repayment_date",
+  "renewal_journal_entry",
+  "proposed_investment_terms",
+  "renewed_principal",
+  "renewal_tenure",
+  "payment_frequency",
+  "column_break_gowj",
+  "renewal_interest_rate",
+  "new_maturity_date",
+  "reason_for_renewal"
  ],
  "fields": [
   {
@@ -130,11 +157,6 @@
    "label": "Penalty Rate"
   },
   {
-   "fieldname": "maturity_tab",
-   "fieldtype": "Tab Break",
-   "label": "Maturity"
-  },
-  {
    "fieldname": "section_break_tvjg",
    "fieldtype": "Section Break"
   },
@@ -181,18 +203,6 @@
    "fieldtype": "Table",
    "label": "Schedule",
    "options": "Custom Investor Earning Schedule"
-  },
-  {
-   "fieldname": "renewed_from",
-   "fieldtype": "Link",
-   "label": "Renewed From",
-   "options": "Custom Investor Flow"
-  },
-  {
-   "fieldname": "renewed_to",
-   "fieldtype": "Link",
-   "label": "Renewed To",
-   "options": "Custom Investor Flow"
   },
   {
    "fieldname": "message",
@@ -257,12 +267,169 @@
    "fieldtype": "Select",
    "label": "Naming Series",
    "options": "INVST-.YYYY.-.#####"
+  },
+  {
+   "fieldname": "renewal",
+   "fieldtype": "Tab Break",
+   "label": "Renewal"
+  },
+  {
+   "fieldname": "renewal_structure",
+   "fieldtype": "Select",
+   "label": "Renewal Structure",
+   "options": "Capitalization\nPrincipal Rollover\nExtended Maturity\nPartial Settlement"
+  },
+  {
+   "fieldname": "renewal_effective_date",
+   "fieldtype": "Date",
+   "label": "Renewal Effective Date"
+  },
+  {
+   "fieldname": "proposed_investment_terms",
+   "fieldtype": "Section Break",
+   "label": "Proposed Investment Terms"
+  },
+  {
+   "fieldname": "renewed_principal",
+   "fieldtype": "Float",
+   "label": "Renewed Principal"
+  },
+  {
+   "fieldname": "renewal_tenure",
+   "fieldtype": "Int",
+   "label": "Renewal Tenure"
+  },
+  {
+   "fieldname": "payment_frequency",
+   "fieldtype": "Select",
+   "label": "Payment Frequency",
+   "options": "Monthly\nWeekly\nBi-Weekly\nQuarterly\nYearly"
+  },
+  {
+   "fieldname": "column_break_gowj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "renewal_interest_rate",
+   "fieldtype": "Float",
+   "label": "Interest Rate"
+  },
+  {
+   "fieldname": "new_maturity_date",
+   "fieldtype": "Date",
+   "label": "New Maturity Date"
+  },
+  {
+   "fieldname": "reason_for_renewal",
+   "fieldtype": "Text",
+   "label": "Reason for renewal"
+  },
+  {
+   "fieldname": "settlement_amount",
+   "fieldtype": "Float",
+   "label": "Settlement Amount"
+  },
+  {
+   "fieldname": "renewal_outstanding_principal",
+   "fieldtype": "Float",
+   "label": "Renewal Outstanding Principal",
+   "read_only": 1
+  },
+  {
+   "fieldname": "renewal_unpaid_interest",
+   "fieldtype": "Float",
+   "label": "Renewal Unpaid Interest",
+   "read_only": 1
+  },
+  {
+   "fieldname": "renewal_penalty_rate",
+   "fieldtype": "Float",
+   "label": "Renewal Penalty Rate"
+  },
+  {
+   "fieldname": "column_break_ywfu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "interest_settlement",
+   "fieldtype": "Select",
+   "label": "Interest Settlement",
+   "options": "Pay on renewal date\nDefer to an agreed future date"
+  },
+  {
+   "fieldname": "interest_settlement_date",
+   "fieldtype": "Date",
+   "label": "Interest Settlement Date"
+  },
+  {
+   "fieldname": "renewal_first_repayment_date",
+   "fieldtype": "Date",
+   "label": "Renewal First Repayment Date"
+  },
+  {
+   "fieldname": "renewal_journal_entry",
+   "fieldtype": "Link",
+   "label": "Renewal Journal Entry",
+   "options": "Journal Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "renewal_status",
+   "fieldtype": "Select",
+   "label": "Renewal Status",
+   "options": "Draft\nApproved\nCancelled"
+  },
+  {
+   "fieldname": "details_section",
+   "fieldtype": "Section Break",
+   "label": "Details"
+  },
+  {
+   "fieldname": "payment_status",
+   "fieldtype": "Select",
+   "label": "Payment Status",
+   "options": "Pending\nPaid\nRenewed\nExpired"
+  },
+  {
+   "fieldname": "renewal_mail",
+   "fieldtype": "Section Break",
+   "label": "Renewal Mail"
+  },
+  {
+   "fieldname": "renewal_to",
+   "fieldtype": "Data",
+   "label": "Renewal To"
+  },
+  {
+   "fieldname": "renewal_subject",
+   "fieldtype": "Long Text",
+   "label": "Renewal Subject"
+  },
+  {
+   "fieldname": "column_break_dqfq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "renewal_contract_status",
+   "fieldtype": "Select",
+   "label": "Renewal Contract Status",
+   "options": "Pending\nSent\nPaid"
+  },
+  {
+   "fieldname": "renewal_message",
+   "fieldtype": "Long Text",
+   "label": "Renewal Message"
+  },
+  {
+   "fieldname": "section_break_nnzp",
+   "fieldtype": "Section Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-09 17:10:02.948225",
+ "modified": "2026-10-10 11:27:51.794913",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom Investor Flow",

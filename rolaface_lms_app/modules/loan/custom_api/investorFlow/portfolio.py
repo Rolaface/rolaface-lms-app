@@ -21,6 +21,8 @@ from .constant import (
     ROW_STATUS_PAID,
 )
 from .utils import current_schedule
+from .constant import RENEWAL_ALL_FIELDS
+from .renewal import _payment_status
 from . import service
 
 INVESTMENT_FIELDS = [
@@ -142,6 +144,9 @@ def get_investment_detail(investment_id: str) -> Dict[str, Any]:
         ) or doc.investment_product,
         "mail_sent": doc.get("mail_sent"),
         "subject": doc.get("subject"),
+        "payment_status": _payment_status(doc),
+        # The latest renewal (its terms are shown next to the original contract terms).
+        "renewal": {f: doc.get(f) for f in RENEWAL_ALL_FIELDS} if doc.get("renewal_status") else None,
         **_investment_figures(doc),
         "funds": [
             {

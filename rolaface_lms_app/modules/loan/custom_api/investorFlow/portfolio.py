@@ -144,6 +144,9 @@ def get_investment_detail(investment_id: str) -> Dict[str, Any]:
         ) or doc.investment_product,
         "mail_sent": doc.get("mail_sent"),
         "subject": doc.get("subject"),
+        # For the statements emailed to the investor.
+        "investor_name": frappe.db.get_value("Customer", doc.investor, "customer_name") or doc.investor,
+        "investor_email": frappe.db.get_value("Customer", doc.investor, "email_id"),
         "payment_status": _payment_status(doc),
         # The latest renewal (its terms are shown next to the original contract terms).
         "renewal": {f: doc.get(f) for f in RENEWAL_ALL_FIELDS} if doc.get("renewal_status") else None,

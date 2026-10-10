@@ -1,7 +1,7 @@
 import frappe
 from rolaface_lms_app.utils.api_response import send_response, send_response_list, handle_api_error
 from rolaface_lms_app.utils.api_request import parse_api_payload
-from . import service, accounting, maturity, portfolio, renewal
+from . import service, accounting, maturity, portfolio, renewal, notifications
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
@@ -1820,3 +1820,67 @@ def save_renewal_contract(id=None):
     except Exception as e:
         frappe.db.rollback()
         return handle_api_error(e, "Save Renewal Contract Error")
+
+
+# ----------------------------- Notifications -----------------------------
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def log_investor_notification():
+    """
+    Log an emailed notification
+    ---
+    tags:
+      - Investor Notification
+    summary: >
+      After a statement / contract is emailed (frappe.core.doctype.communication.email.make), records it in
+      Custom Investor Notification, attaches the PDF to the investment and links the Communication.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [investment, notification_type, sent_to, subject, file_id]
+            properties:
+              investment: {type: string}
+              notification_type: {type: string, enum: [Contract, Investment, Payment Statement]}
+              sent_to: {type: string}
+              subject: {type: string}
+              message: {type: string}
+              file_id: {type: string, description: File ID of the emailed PDF.}
+              reference: {type: string, description: Fund record or schedule row the email is about.}
+    """
+    try:
+        result = notifications.log_notification(parse_api_payload())
+        frappe.db.commit()
+        return send_response(
+            status="success", message="Notification logged successfully.", data=result,
+            status_code=201, http_status=201,
+        )
+    except Exception as e:
+        frappe.db.rollback()
+        return handle_api_error(e, "Log Investor Notification Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_investor_notifications(investor=None, notification_type=None, investment=None):
+    """
+    Investor notifications
+    ---
+    tags:
+      - Investor Notification
+    summary: Every email sent to the investor (contracts, fund receipts, payment statements), newest first.
+    parameters:
+      - {in: query, name: investor, required: true, schema: {type: string}}
+      - {in: query, name: notification_type, schema: {type: string, enum: [Contract, Investment, Payment Statement]}}
+      - {in: query, name: investment, schema: {type: string}}
+    """
+    try:
+        investor = investor or frappe.request.args.get("investor")
+        data = notifications.get_investor_notifications(investor, notification_type, investment)
+        return send_response(
+            status="success", message="Notifications retrieved successfully.", data=data,
+            status_code=200, http_status=200,
+        )
+    except Exception as e:
+        return handle_api_error(e, "Get Investor Notifications Error")

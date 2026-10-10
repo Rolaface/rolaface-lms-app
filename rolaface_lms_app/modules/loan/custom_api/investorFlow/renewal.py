@@ -718,4 +718,15 @@ def save_renewal_contract(investor_flow_id: str, data: Dict[str, Any]) -> Dict[s
     doc.renewal_message = data.get("message")
     doc.renewal_contract_status = CONTRACT_STATUS_SENT
     doc.save(ignore_permissions=True)
+
+    from .notifications import log_notification
+    log_notification({
+        "investment": doc.name,
+        "notification_type": "Contract",
+        "sent_to": to,
+        "subject": data.get("subject"),
+        "message": data.get("message"),
+        "file_id": file_doc.name,
+        "reference": "Renewal contract",
+    })
     return {**get_renewal_by_id(doc.name), "file_id": file_doc.name, "file_url": file_doc.file_url}

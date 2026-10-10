@@ -303,6 +303,18 @@ def save_contract(investor_flow_id: str, data: Dict[str, Any]) -> Dict[str, Any]
     investor_flow_doc.contract_status = CONTRACT_STATUS_SENT
     investor_flow_doc.save(ignore_permissions=True)
 
+    # Logged with the investor's other notifications (Investor 360).
+    from .notifications import log_notification
+    log_notification({
+        "investment": investor_flow_doc.name,
+        "notification_type": "Contract",
+        "sent_to": to,
+        "subject": data.get("subject"),
+        "message": data.get("message"),
+        "file_id": file_doc.name,
+        "reference": "Contract",
+    })
+
     return {
         "id": investor_flow_doc.name,
         "contract_status": investor_flow_doc.contract_status,

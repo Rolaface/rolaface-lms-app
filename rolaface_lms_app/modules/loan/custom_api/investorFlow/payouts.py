@@ -32,6 +32,10 @@ from .constant import (
     ROW_STATUS_PENDING,
     ROW_STATUS_ACCRUED,
     ROW_STATUS_PAID,
+    STATUS_APPROVED,
+    STATUS_PAID,
+    STATUS_MATURED,
+    FUND_STATUS_PAID,
 )
 from .utils import _as_list, _parse_date, current_schedule, schedule_version
 from . import accounting, service
@@ -134,6 +138,19 @@ def _number_of(doc, row_name: str) -> Optional[int]:
 
 
 # ---------------------------------- Read ----------------------------------
+
+def _refresh_maturity(doc):
+    """Every EMI of the current schedule Paid: nothing is owed, Status -> Matured.
+    A cancelled payout that leaves money owed again puts a Matured investment back to Paid (Approved when its
+    funds are not fully received)."""
+    if doc.status not in (STATUS_APPROVED, STATUS_PAID, STATUS_MATURED):
+        return
+    rows = current_schedule(doc)
+    if rows and all(r.status == ROW_STATUS_PAID for r in rows):
+        doc.status = STATUS_MATURED
+    elif doc.status == STATUS_MATURED:
+        doc.status = STATUS_PAID if doc.fund_status == FUND_STATUS_PAID else STATUS_APPROVED
+
 
 def _get_doc(investor_flow_id: str):
     if not investor_flow_id or not frappe.db.exists(DOCTYPE, investor_flow_id):
@@ -453,6 +470,7 @@ def approve_payout(investor_flow_id: str, payout_name: str) -> Dict[str, Any]:
 
     from .renewal import refresh_payment_status
     refresh_payment_status(doc)
+    _refresh_maturity(doc)
     doc.save(ignore_permissions=True)
     return _payout_dict(doc, payout)
 
@@ -503,5 +521,6 @@ def cancel_payout(investor_flow_id: str, payout_name: str) -> Dict[str, Any]:
     payout.record_status = PAYOUT_CANCELLED
     from .renewal import refresh_payment_status
     refresh_payment_status(doc)
+    _refresh_maturity(doc)
     doc.save(ignore_permissions=True)
     return _payout_dict(doc, payout)

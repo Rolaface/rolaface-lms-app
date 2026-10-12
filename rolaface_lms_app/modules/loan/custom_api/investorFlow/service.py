@@ -406,9 +406,11 @@ def _refresh_fund_status(investor_flow_doc):
     else:
         investor_flow_doc.fund_status = FUND_STATUS_PAID
 
-    if investor_flow_doc.fund_status == FUND_STATUS_PAID:
+    if investor_flow_doc.status == STATUS_MATURED and investor_flow_doc.fund_status == FUND_STATUS_PAID:
+        pass  # every payout made: stays Matured
+    elif investor_flow_doc.fund_status == FUND_STATUS_PAID:
         investor_flow_doc.status = STATUS_PAID
-    elif investor_flow_doc.status == STATUS_PAID:
+    elif investor_flow_doc.status in (STATUS_PAID, STATUS_MATURED):
         investor_flow_doc.status = STATUS_APPROVED
 
 

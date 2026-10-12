@@ -299,24 +299,14 @@ def update_investor_flow_status(id=None, action=None):
         action_clean = str(action_value).strip().lower()
 
         if action_clean == "approved":
-            # Approved, then the contract is emailed (body: subject, message, file_id); a failed email comes back as email_error.
-            mail = parse_api_payload() or {}
-
-            def save_contract_fields(to, sent):
-                frappe.db.set_value(service.DOCTYPE, investor_flow_id, {
-                    "mail_sent": to,
-                    "subject": sent["subject"],
-                    "message": sent["message"],
-                    "contract_status": service.CONTRACT_STATUS_SENT,
-                })
-
+            # Approved; the contract (body: subject, message, file_id) is emailed in the background.
             result = mailer.approve_and_email(
                 investor_flow_id,
                 lambda: service.update_investor_flow_status(investor_flow_id, action_clean),
-                mail,
+                parse_api_payload() or {},
                 "Contract",
                 "Contract",
-                after_email=save_contract_fields,
+                after_email="contract",
             )
         else:
             result = service.update_investor_flow_status(investor_flow_id, action_clean)
@@ -637,7 +627,7 @@ def approve_fund_record(id=None, record=None):
         record_name = record or frappe.request.args.get("record")
         if not record_name:
             raise frappe.ValidationError("Fund record ID is required.")
-        # Approved, then the fund receipt is emailed (body: subject, message, file_id); a failed email comes back as email_error.
+        # Approved; the fund receipt (body: subject, message, file_id) is emailed in the background.
         result = mailer.approve_and_email(
             investor_flow_id,
             lambda: service.approve_fund_record(investor_flow_id, record_name),
@@ -2094,7 +2084,7 @@ def approve_investor_payout(id=None, payout=None):
     """
     try:
         investor_flow_id, payout_name = _payout_ids(id, payout)
-        # Approved, then the payment statement is emailed (body: subject, message, file_id); a failed email comes back as email_error.
+        # Approved; the payment statement (body: subject, message, file_id) is emailed in the background.
         result = mailer.approve_and_email(
             investor_flow_id,
             lambda: payouts.approve_payout(investor_flow_id, payout_name),

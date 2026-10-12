@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Tuple
 import frappe
 
 from ..common import build_order_by, count_records, search_or_filters
+from ..engine.product_assignment import assign_product
 from .constant import (
 	ADDRESS_DOCTYPE,
 	ADDRESS_FIELDS,
@@ -53,6 +54,7 @@ def create_loan_application(data: Dict[str, Any]) -> Dict[str, Any]:
 	application_doc = frappe.new_doc(APPLICATION_DOCTYPE)
 	set_application_values(application_doc, data)
 	validate_application(application_doc, [address["address_type"] for address in addresses])
+	application_doc.loan_product = assign_product(application_doc.as_dict())["product"]
 	application_doc.insert(ignore_permissions=True)
 	_insert_addresses(application_doc.name, addresses)
 	return get_loan_application_by_id(application_doc.name)
@@ -69,6 +71,8 @@ def update_loan_application(application_id: str, data: Dict[str, Any]) -> Dict[s
 		)
 		set_application_values(application_doc, data)
 		validate_application(application_doc, [address["address_type"] for address in addresses])
+		if application_doc.status == DRAFT:
+			application_doc.loan_product = assign_product(application_doc.as_dict())["product"]
 
 	set_stage_values(application_doc, data)
 	application_doc.save(ignore_permissions=True)

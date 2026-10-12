@@ -6,6 +6,7 @@ from frappe.utils import cint
 from ..common import add_date_range, load_json, parse_flag, parse_id_list
 from .constant import (
 	ALLOWED_UPDATE_FIELDS,
+	DESCRIPTION_MAX_LENGTH,
 	DOCUMENT_NAME_MAX_LENGTH,
 	LOAN_PRODUCT_DOCTYPE,
 	MAX_DOCUMENTS,
@@ -52,7 +53,7 @@ def validate_documents(value) -> List[Dict[str, Any]]:
 	for index, document in enumerate(documents, start=1):
 		prefix = f"Document {index}: "
 		if not isinstance(document, dict):
-			raise frappe.ValidationError(f"{prefix}must be an object with document_name and is_required.")
+			raise frappe.ValidationError(f"{prefix}must be an object with document_name, is_required and description.")
 
 		document_name = str(document.get("document_name") or "").strip()
 		if not document_name:
@@ -66,7 +67,11 @@ def validate_documents(value) -> List[Dict[str, Any]]:
 		is_required = document.get("is_required")
 		is_required = 1 if is_required is None else parse_flag(is_required, f"{prefix}is_required")
 
-		cleaned.append({"document_name": document_name, "is_required": is_required})
+		description = str(document.get("description") or "").strip()
+		if len(description) > DESCRIPTION_MAX_LENGTH:
+			raise frappe.ValidationError(f"{prefix}description cannot be longer than {DESCRIPTION_MAX_LENGTH} characters.")
+
+		cleaned.append({"document_name": document_name, "is_required": is_required, "description": description})
 	return cleaned
 
 

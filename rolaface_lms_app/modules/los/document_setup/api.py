@@ -18,12 +18,12 @@ def create_document_setup():
 	description: >
 	  One setup per loan product; its ID is the loan product's ID. Documents are kept in the order sent.
 	  Names are trimmed and must be unique within the product (case does not matter).
-	  is_required defaults to 1 when left out.
+	  is_required defaults to 1 when left out. description is optional; the loan application shows it on the document's upload panel.
 	requestBody:
 	  required: true
 	  content:
 	    application/json:
-	      example: {"loan_product": "HL-PUR", "documents": [{"document_name": "NRC copy", "is_required": 1}, {"document_name": "Last 3 payslips", "is_required": 1}, {"document_name": "Proof of residence", "is_required": 0}]}
+	      example: {"loan_product": "HL-PUR", "documents": [{"document_name": "NRC copy", "is_required": 1, "description": "A clear scan of both sides of the applicant's NRC."}, {"document_name": "Last 3 payslips", "is_required": 1, "description": "Most recent 3 months of salary slips."}, {"document_name": "Proof of residence", "is_required": 0}]}
 	      schema:
 	        type: object
 	        required:
@@ -49,6 +49,9 @@ def create_document_setup():
 	                  type: integer
 	                  enum: [0, 1]
 	                  default: 1
+	                description:
+	                  type: string
+	                  maxLength: 280
 	responses:
 	  201:
 	    description: Document setup created successfully.
@@ -87,7 +90,7 @@ def update_document_setup(id=None):
 	  required: true
 	  content:
 	    application/json:
-	      example: {"documents": [{"document_name": "NRC copy", "is_required": 1}, {"document_name": "Bank statement (6 months)", "is_required": 1}]}
+	      example: {"documents": [{"document_name": "NRC copy", "is_required": 1, "description": "A clear scan of both sides of the applicant's NRC."}, {"document_name": "Bank statement (6 months)", "is_required": 1}]}
 	      schema:
 	        type: object
 	        required:
@@ -109,6 +112,9 @@ def update_document_setup(id=None):
 	                  type: integer
 	                  enum: [0, 1]
 	                  default: 1
+	                description:
+	                  type: string
+	                  maxLength: 280
 	responses:
 	  400:
 	    description: Nothing to update, an invalid document list, or a different loan_product was sent.

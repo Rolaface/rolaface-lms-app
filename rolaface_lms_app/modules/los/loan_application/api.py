@@ -19,7 +19,8 @@ def create_loan_application():
 	  Individual applications need next of kin, employment and a Current address. Business applications need
 	  the business details (with position, PACRA number and TPIN), at least one director and an Office address;
 	  next of kin and employment are not used. company is optional and defaults to the default company.
-	  loan_product, stage, custom_status and the stage data are set by the pipeline, not here.
+	  loan_product is assigned on save by the product assignment rules (engine.api.assign_loan_product previews it);
+	  stage, custom_status and the stage data are set by the pipeline, not here.
 	requestBody:
 	  required: true
 	  content:
@@ -100,7 +101,8 @@ def update_loan_application(id=None):
 	  - LOS Loan Application
 	summary: One update for every stage modal. Send only what changed; fields left out are kept.
 	description: >
-	  Nothing can change once the application is Approved, Rejected or Cancelled (409). Application details (any
+	  Nothing can change once the application is Approved, Rejected or Cancelled (409). While the application is a
+	  Draft, sending application details assigns loan_product again from the rules; after that it stays fixed. Application details (any
 	  create_loan_application field) may be sent in any open stage; a list sent (directors, collaterals, documents, addresses) replaces that whole list, and the result must
 	  still be a complete application. Collateral rows sent with their row_id are updated in place (valuation fields
 	  are kept unless sent), rows without row_id are added, and rows left out are removed; a collateral row may also

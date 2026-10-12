@@ -7,6 +7,7 @@ from rolaface_lms_app.utils.openapi import build_spec
 LOS_PACKAGES = ["rolaface_lms_app.modules.los"]
 TAG_ORDER = [
 	"LOS Loan Application",
+	"LOS Engine",
 	"LOS Loan Type Tree",
 	"LOS Product Assignment",
 	"LOS Pre-Screening",

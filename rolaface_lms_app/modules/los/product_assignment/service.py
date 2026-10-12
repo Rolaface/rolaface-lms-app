@@ -7,7 +7,6 @@ from ..common import (
 	count_records,
 	dump_json,
 	ensure_status_change,
-	json_contains,
 	load_json,
 	name_map,
 	parse_flag,
@@ -20,7 +19,6 @@ from .constant import (
 	LEVEL_PURPOSE,
 	LIST_OPERATORS,
 	LOAN_PRODUCT_DOCTYPE,
-	NO_MATCH_DEFAULT_PRODUCT,
 	NUMBER_OPERATORS,
 	RETURN_FIELDS_GET_ALL,
 	RETURN_FIELDS_GET_BY_ID,
@@ -28,16 +26,11 @@ from .constant import (
 	SEARCH_FIELDS,
 	SETTINGS_DOCTYPE,
 	SETTINGS_FIELDS,
-	STATUS_CONFLICT,
-	STATUS_LOAN_TYPE_DEFAULT,
-	STATUS_MANUAL_REVIEW,
-	STATUS_RULE_MATCHED,
 	TREE_DOCTYPE,
-	VARIABLES,
 )
+from ..engine.product_assignment import condition_variables, match_product, read_settings
 from .utils import (
 	build_rule_filters,
-	evaluate_condition,
 	load_references,
 	parse_rule_row,
 	validate_new_product,
@@ -47,18 +40,8 @@ from .utils import (
 )
 
 
-def _read_settings() -> Dict[str, Any]:
-	stored = frappe.db.get_singles_dict(SETTINGS_DOCTYPE)
-	meta = frappe.get_meta(SETTINGS_DOCTYPE)
-	return {
-		"several_match": stored.get("several_match") or meta.get_field("several_match").default,
-		"no_match": stored.get("no_match") or meta.get_field("no_match").default,
-		"default_product": load_json(stored.get("default_product"), {}) or {},
-	}
-
-
 def get_settings() -> Dict[str, Any]:
-	settings = _read_settings()
+	settings = read_settings()
 	defaults = settings["default_product"]
 	loan_type_names = name_map(TREE_DOCTYPE, defaults.keys(), "node_name")
 	product_names = name_map(LOAN_PRODUCT_DOCTYPE, defaults.values(), "product_name")
@@ -76,7 +59,7 @@ def get_settings() -> Dict[str, Any]:
 
 
 def update_settings(data: Dict[str, Any]) -> Dict[str, Any]:
-	stored = _read_settings()
+	stored = read_settings()
 	settings = dict(stored, default_product=dict(stored["default_product"]))
 	for field in SETTINGS_FIELDS:
 		if data.get(field) is not None:
@@ -196,51 +179,12 @@ def test_rules(data: Dict[str, Any]) -> Dict[str, Any]:
 	facts = load_json(data.get("facts"), {}) or {}
 	if not isinstance(facts, dict):
 		raise frappe.ValidationError("facts must be an object.")
-	unknown = [key for key in facts if key not in VARIABLES]
+	variables = condition_variables()
+	unknown = [key for key in facts if key not in variables]
 	if unknown:
-		raise frappe.ValidationError(f"Unknown facts: {', '.join(unknown)}. Allowed: {', '.join(VARIABLES)}.")
+		raise frappe.ValidationError(f"Unknown facts: {', '.join(unknown)}. Allowed: {', '.join(variables)}.")
 
-	settings = _read_settings()
-	candidates = frappe.get_all(
-		RULE_DOCTYPE,
-		filters=[["is_active", "=", 1], json_contains("sources", source), json_contains("loan_types", loan_type)],
-		fields=RETURN_FIELDS_GET_ALL,
-		limit_page_length=0,
-	)
-	products = {c.product for c in candidates} | set(settings["default_product"].values())
-	enabled_products = (
-		set(frappe.get_all(LOAN_PRODUCT_DOCTYPE, filters={"disabled": 0, "name": ["in", list(products)]}, pluck="name"))
-		if products
-		else set()
-	)
-	matches = [
-		rule
-		for rule in map(parse_rule_row, candidates)
-		if source in rule["sources"]
-		and loan_type in rule["loan_types"]
-		and rule["product"] in enabled_products
-		and evaluate_condition(rule["condition"], facts)
-	]
-	default_product = settings["default_product"].get(loan_type)
-
-	result = {"source": source, "loan_type": loan_type, "matched_rules": [], "product": None}
-	if len(matches) == 1:
-		result.update(status=STATUS_RULE_MATCHED, product=matches[0].product)
-	elif matches:
-		result.update(
-			status=STATUS_CONFLICT,
-			reason="More than one product's rule matches. Change the rules so only one product matches.",
-		)
-	elif settings["no_match"] == NO_MATCH_DEFAULT_PRODUCT and default_product in enabled_products:
-		result.update(status=STATUS_LOAN_TYPE_DEFAULT, product=default_product)
-	else:
-		result.update(status=STATUS_MANUAL_REVIEW, reason="No rule matches and this loan type has no enabled default product.")
-
-	result["matched_rules"] = [{"product": r.product, "product_name": r.product_name} for r in matches]
-	result["product_name"] = (
-		frappe.db.get_value(LOAN_PRODUCT_DOCTYPE, result["product"], "product_name") if result["product"] else None
-	)
-	return result
+	return match_product(source, loan_type, facts)
 
 
 def _resolve_loan_type(data: Dict[str, Any]) -> str:
@@ -276,7 +220,8 @@ def get_condition_variables() -> List[Dict[str, Any]]:
 			"label": spec["label"],
 			"numeric": spec["numeric"],
 			"operators": list(NUMBER_OPERATORS if spec["numeric"] else LIST_OPERATORS),
-			"options": list(spec.get("options") or []),
+			"options": spec["options"],
+			"applies_to": spec["applies_to"],
 		}
-		for name, spec in VARIABLES.items()
+		for name, spec in condition_variables().items()
 	]

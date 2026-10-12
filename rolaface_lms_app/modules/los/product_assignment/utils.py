@@ -1,7 +1,6 @@
 from typing import Any, Dict, List, Optional
 
 import frappe
-from frappe.utils import flt
 
 from ..common import add_date_range, as_bool_flag, json_contains, load_json, parse_id_list, validate_update_fields
 from .constant import (
@@ -17,8 +16,8 @@ from .constant import (
 	RULE_DOCTYPE,
 	SEVERAL_MATCH_OPTIONS,
 	TREE_DOCTYPE,
-	VARIABLES,
 )
+from ..engine.product_assignment import condition_variables
 
 
 def load_references() -> Dict[str, Dict[str, str]]:
@@ -115,9 +114,10 @@ def normalize_condition(value) -> Optional[Dict[str, Any]]:
 	if not isinstance(condition, dict):
 		raise frappe.ValidationError("condition must be an object.")
 
+	variables = condition_variables()
 	groups = []
 	for group in _objects(condition.get("groups"), "condition.groups"):
-		clauses = [_normalize_clause(clause) for clause in _objects(group.get("clauses"), "clauses")]
+		clauses = [_normalize_clause(clause, variables) for clause in _objects(group.get("clauses"), "clauses")]
 		if clauses:
 			groups.append(
 				{
@@ -147,8 +147,8 @@ def _joiner(value) -> str:
 	return joiner
 
 
-def _normalize_clause(clause: Dict[str, Any]) -> Dict[str, Any]:
-	variable = VARIABLES.get(clause.get("variable"))
+def _normalize_clause(clause: Dict[str, Any], variables: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+	variable = variables.get(clause.get("variable"))
 	if not variable:
 		raise frappe.ValidationError("Choose a variable for every condition.")
 
@@ -212,38 +212,3 @@ def build_rule_filters(args: Dict[str, Any]) -> Dict[str, Any]:
 
 	add_date_range(filters, args)
 	return filters
-
-
-def evaluate_condition(condition: Optional[Dict[str, Any]], facts: Dict[str, Any]) -> bool:
-	if not condition or not condition.get("groups"):
-		return True
-	results = [_evaluate_group(group, facts) for group in condition["groups"]]
-	return all(results) if condition.get("join", "AND") == "AND" else any(results)
-
-
-def _evaluate_group(group: Dict[str, Any], facts: Dict[str, Any]) -> bool:
-	results = [_evaluate_clause(clause, facts) for clause in group.get("clauses") or []]
-	return all(results) if group.get("join", "AND") == "AND" else any(results)
-
-
-def _evaluate_clause(clause: Dict[str, Any], facts: Dict[str, Any]) -> bool:
-	actual = facts.get(clause["variable"])
-	if actual is None or actual == "":
-		return False
-
-	operator, expected = clause["operator"], clause["value"]
-	if operator == "between":
-		return flt(expected) <= flt(actual) <= flt(clause["value2"])
-	if VARIABLES[clause["variable"]]["numeric"]:
-		actual, expected = flt(actual), flt(expected)
-	else:
-		actual, expected = str(actual).strip().lower(), str(expected).strip().lower()
-
-	return {
-		"=": actual == expected,
-		"<>": actual != expected,
-		">": actual > expected,
-		">=": actual >= expected,
-		"<": actual < expected,
-		"<=": actual <= expected,
-	}[operator]

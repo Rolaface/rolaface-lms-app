@@ -16,4 +16,5 @@ RETURN_FIELDS_GET_ALL = ["name", "loan_product", "product_name", "documents", "c
 RETURN_FIELDS_GET_BY_ID = RETURN_FIELDS_GET_ALL + ["owner", "modified_by"]
 
 DOCUMENT_NAME_MAX_LENGTH = 140
+DESCRIPTION_MAX_LENGTH = 280
 MAX_DOCUMENTS = 100

@@ -23,7 +23,7 @@ FUND_STATUS_PARTIAL = "Partial"
 FUND_STATUS_PAID = "Paid"
 
 # Record Fund screen: approved investments, until and after they are fully funded.
-FUND_LIST_STATUSES = ["Approved", "Paid"]
+FUND_LIST_STATUSES = ["Approved", "Paid", "Matured"]  # Matured: every payout made; its receipts stay listed
 
 # Child table of received funds (Custom Investor Record Fund).
 FUND_TABLE_FIELD = "details"

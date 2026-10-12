@@ -449,13 +449,13 @@
    "fieldname": "interest_frequency",
    "fieldtype": "Select",
    "label": "Interest Frequency",
-   "options": "Month\nYearly"
+   "options": "Monthly\nYearly"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-12 18:09:01.617818",
+ "modified": "2026-10-12 22:23:29.104308",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom Investor Flow",

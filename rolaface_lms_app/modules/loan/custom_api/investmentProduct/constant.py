@@ -11,7 +11,11 @@ ALLOWED_INVESTMENT_PRODUCT_FIELDS = {
     "min_interest_rate", "maximum_interest_rate",
     "minimum_investment", "maximum_investment",
     "minimum_tenure", "maximum_tenure",
+    "interest_frequency",
 }
+
+# Basis of the product's interest rates: Yearly = % per annum, Monthly = % per month.
+INTEREST_FREQUENCIES = ["Monthly", "Yearly"]
 
 REQUIRED_FIELDS = [
     "product_code", "product_name", "product_description",
@@ -36,6 +40,7 @@ FIELD_LABELS = {
     "maximum_investment": "Maximum Investment",
     "minimum_tenure": "Minimum Tenure",
     "maximum_tenure": "Maximum Tenure",
+    "interest_frequency": "Interest Frequency",
 }
 
 PERCENT_FIELDS = ["default_interest_rate", "default_penalty_rate", "min_interest_rate", "maximum_interest_rate"]

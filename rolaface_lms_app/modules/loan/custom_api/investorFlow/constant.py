@@ -80,6 +80,14 @@ ALLOWED_INVESTOR_FLOW_FIELDS = {
     "maturity_date", "interest_rate", "first_repayment_date", "penalty_rate"
 }
 
+# Interest Frequency = the basis of the interest rate: Yearly = % per annum, Monthly = % per month
+# (12% per annum = 1% per month). Set on the product; each investment keeps its own (field
+# interest_frequency on Custom Investor Flow), falling back to the product's when it is not set.
+INTEREST_FREQUENCY_FIELD = "interest_frequency"
+INTEREST_FREQUENCY_MONTHLY = "Monthly"
+INTEREST_FREQUENCY_YEARLY = "Yearly"
+INTEREST_FREQUENCIES = [INTEREST_FREQUENCY_MONTHLY, INTEREST_FREQUENCY_YEARLY]
+
 ALLOWED_SORT_FIELDS = {
     "name", "creation", "modified", "investor", "investment_product",
     "investment_amount", "interest_rate", "repayment_frequency",
@@ -117,7 +125,8 @@ EARNING_DETAIL_FIELDS = [
 EARNING_SCHEDULE_ROW_FIELDS = [
     "payment_date", "principal_amount", "interest_amount", "penalty_amount", "total_payment"
 ]
-EARNING_SCHEDULE_ROW_READ_ONLY_FIELDS = ["status", "accrual_entry", "payout_entry"]
+# paid_amount: how much of the EMI is paid so far (part-payments from Investor Payouts).
+EARNING_SCHEDULE_ROW_READ_ONLY_FIELDS = ["status", "accrual_entry", "payout_entry", "paid_amount"]
 EARNING_AMOUNT_FIELDS = ["principal_amount", "interest_amount", "penalty_amount", "total_payment"]
 
 # Repayment Record details come from the approved contract's terms:

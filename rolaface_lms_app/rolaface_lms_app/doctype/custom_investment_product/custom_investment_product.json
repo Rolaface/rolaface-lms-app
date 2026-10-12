@@ -11,6 +11,7 @@
   "default_tenure",
   "default_interest_rate",
   "default_penalty_rate",
+  "interest_frequency",
   "column_break_aalx",
   "product_description",
   "payout_frequency",
@@ -129,12 +130,18 @@
    "fieldtype": "Int",
    "label": "Maximum Tenure",
    "reqd": 1
+  },
+  {
+   "fieldname": "interest_frequency",
+   "fieldtype": "Select",
+   "label": "Interest Frequency",
+   "options": "Monthly\nYearly"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-09 16:11:43.587851",
+ "modified": "2026-10-12 16:15:21.464552",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom Investment Product",

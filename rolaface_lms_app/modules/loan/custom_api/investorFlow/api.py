@@ -1,7 +1,7 @@
 import frappe
 from rolaface_lms_app.utils.api_response import send_response, send_response_list, handle_api_error
 from rolaface_lms_app.utils.api_request import parse_api_payload
-from . import service, accounting, maturity, portfolio, renewal, notifications
+from . import service, accounting, maturity, portfolio, renewal, notifications, payouts, mailer
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
@@ -298,7 +298,28 @@ def update_investor_flow_status(id=None, action=None):
 
         action_clean = str(action_value).strip().lower()
 
-        result = service.update_investor_flow_status(investor_flow_id, action_clean)
+        if action_clean == "approved":
+            # Approved only when the contract email reaches the investor (body: subject, message, file_id).
+            mail = parse_api_payload() or {}
+
+            def save_contract_fields(to, sent):
+                frappe.db.set_value(service.DOCTYPE, investor_flow_id, {
+                    "mail_sent": to,
+                    "subject": sent["subject"],
+                    "message": sent["message"],
+                    "contract_status": service.CONTRACT_STATUS_SENT,
+                })
+
+            result = mailer.approve_and_email(
+                investor_flow_id,
+                lambda: service.update_investor_flow_status(investor_flow_id, action_clean),
+                mail,
+                "Contract",
+                "Contract",
+                after_approve=save_contract_fields,
+            )
+        else:
+            result = service.update_investor_flow_status(investor_flow_id, action_clean)
         frappe.db.commit()
 
         return send_response(
@@ -616,7 +637,14 @@ def approve_fund_record(id=None, record=None):
         record_name = record or frappe.request.args.get("record")
         if not record_name:
             raise frappe.ValidationError("Fund record ID is required.")
-        result = service.approve_fund_record(investor_flow_id, record_name)
+        # Approved only when the fund receipt email reaches the investor (body: subject, message, file_id).
+        result = mailer.approve_and_email(
+            investor_flow_id,
+            lambda: service.approve_fund_record(investor_flow_id, record_name),
+            parse_api_payload() or {},
+            "Investment",
+            record_name,
+        )
         frappe.db.commit()
 
         return send_response(
@@ -1884,3 +1912,217 @@ def get_investor_notifications(investor=None, notification_type=None, investment
         )
     except Exception as e:
         return handle_api_error(e, "Get Investor Notifications Error")
+
+
+# ------------------------------- Investor Payouts -------------------------------
+
+def _payout_ids(id, payout):
+    investor_flow_id = id or frappe.request.args.get("id")
+    payout_name = payout or frappe.request.args.get("payout")
+    if not investor_flow_id:
+        raise frappe.ValidationError("Investor Flow ID is required.")
+    return investor_flow_id, payout_name
+
+
+def _payout_ok(message, data, status_code=200):
+    return send_response(status="success", message=message, data=data, status_code=status_code, http_status=status_code)
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_investor_payouts(page=1, page_size=20):
+    """
+    List Investor Payouts
+    ---
+    tags:
+      - Investor Payout
+    summary: Every payout (all investments), newest first.
+    parameters:
+      - {in: query, name: search, schema: {type: string}, description: Investment ID or investor name / mobile / ID / email.}
+      - {in: query, name: record_status, schema: {type: string}, description: One value or a JSON list.}
+      - {in: query, name: payment_type, schema: {type: string}, description: One value or a JSON list.}
+    """
+    try:
+        page, page_size = int(page), int(page_size)
+        records, total, total_pages = payouts.get_payouts(frappe.local.form_dict, page, page_size)
+        return send_response_list(
+            status="success",
+            message="Success",
+            data={
+                "success": True,
+                "message": "Investor payouts retrieved successfully.",
+                "data": records,
+                "pagination": {
+                    "page": page, "page_size": page_size, "total": total, "total_pages": total_pages,
+                    "has_next": page < total_pages, "has_prev": page > 1,
+                },
+            },
+            status_code=200,
+            http_status=200,
+        )
+    except Exception as e:
+        return handle_api_error(e, "Get Investor Payouts Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_payout_candidates(search=None):
+    """
+    Investments to pay out
+    ---
+    tags:
+      - Investor Payout
+    summary: Investments with unpaid EMIs, by investment ID or investor name / mobile / ID / email.
+    """
+    try:
+        return _payout_ok("Investments retrieved successfully.", payouts.get_payout_candidates(search))
+    except Exception as e:
+        return handle_api_error(e, "Get Payout Candidates Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_payout_context(id=None):
+    """
+    Payout screen data for one investment
+    ---
+    tags:
+      - Investor Payout
+    summary: Investor, bank accounts, next EMI, what is owed, the schedule and the payouts.
+    """
+    try:
+        investor_flow_id, _ = _payout_ids(id, None)
+        return _payout_ok("Payout context retrieved successfully.", payouts.get_payout_context(investor_flow_id))
+    except Exception as e:
+        return handle_api_error(e, "Get Payout Context Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def preview_investor_payout(id=None, payment_type=None, amount=None):
+    """
+    Payment effect
+    ---
+    tags:
+      - Investor Payout
+    summary: The amount of a Pay Dues / Pay Any / Pay Full payout and how it is split over the EMIs (nothing saved).
+    """
+    try:
+        investor_flow_id, _ = _payout_ids(id, None)
+        return _payout_ok(
+            "Payment effect calculated successfully.",
+            payouts.preview_payout(investor_flow_id, payment_type, amount),
+        )
+    except Exception as e:
+        return handle_api_error(e, "Preview Investor Payout Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def add_investor_payout(id=None):
+    """
+    Add Payout (Draft)
+    ---
+    tags:
+      - Investor Payout
+    requestBody:
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [value_date, payment_type, payment_mode, paid_from, reference_number, reference_date]
+            properties:
+              value_date: {type: string, format: date}
+              payment_type: {type: string, enum: [Pay Dues, Pay Any, Pay Full]}
+              payment_amount: {type: number, description: Pay Any only; Pay Dues / Pay Full are worked out.}
+              payment_mode: {type: string, enum: [Wire Transfer, Cheque, Cash, Bank Draft]}
+              paid_from: {type: string, description: Company bank GL (Account).}
+              investor_bank_account: {type: string, description: The investor's Bank Account.}
+              reference_number: {type: string}
+              reference_date: {type: string, format: date}
+              comment: {type: string}
+    """
+    try:
+        investor_flow_id, _ = _payout_ids(id, None)
+        result = payouts.add_payout(investor_flow_id, parse_api_payload())
+        frappe.db.commit()
+        return _payout_ok("Payout saved as Draft.", result, 201)
+    except Exception as e:
+        frappe.db.rollback()
+        return handle_api_error(e, "Add Investor Payout Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["PUT", "PATCH"])
+def update_investor_payout(id=None, payout=None):
+    """
+    Edit a Draft payout
+    ---
+    tags:
+      - Investor Payout
+    """
+    try:
+        investor_flow_id, payout_name = _payout_ids(id, payout)
+        result = payouts.update_payout(investor_flow_id, payout_name, parse_api_payload())
+        frappe.db.commit()
+        return _payout_ok("Payout updated successfully.", result)
+    except Exception as e:
+        frappe.db.rollback()
+        return handle_api_error(e, "Update Investor Payout Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["DELETE"])
+def delete_investor_payout(id=None, payout=None):
+    """
+    Delete a Draft / Cancelled payout
+    ---
+    tags:
+      - Investor Payout
+    """
+    try:
+        investor_flow_id, payout_name = _payout_ids(id, payout)
+        payouts.delete_payout(investor_flow_id, payout_name)
+        frappe.db.commit()
+        return _payout_ok("Payout deleted successfully.", {"id": investor_flow_id, "payout": payout_name})
+    except Exception as e:
+        frappe.db.rollback()
+        return handle_api_error(e, "Delete Investor Payout Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def approve_investor_payout(id=None, payout=None):
+    """
+    Approve a payout
+    ---
+    tags:
+      - Investor Payout
+    summary: Posts the payout Journal Entry and marks the EMIs Paid / Partially Paid.
+    """
+    try:
+        investor_flow_id, payout_name = _payout_ids(id, payout)
+        # Approved only when the payment statement email reaches the investor (body: subject, message, file_id).
+        result = mailer.approve_and_email(
+            investor_flow_id,
+            lambda: payouts.approve_payout(investor_flow_id, payout_name),
+            parse_api_payload() or {},
+            "Payment Statement",
+            payout_name,
+        )
+        frappe.db.commit()
+        return _payout_ok("Payout approved successfully.", result)
+    except Exception as e:
+        frappe.db.rollback()
+        return handle_api_error(e, "Approve Investor Payout Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def cancel_investor_payout(id=None, payout=None):
+    """
+    Cancel an Approved payout
+    ---
+    tags:
+      - Investor Payout
+    summary: Cancels its Journal Entry and gives the EMIs back what it paid (latest payout first).
+    """
+    try:
+        investor_flow_id, payout_name = _payout_ids(id, payout)
+        result = payouts.cancel_payout(investor_flow_id, payout_name)
+        frappe.db.commit()
+        return _payout_ok("Payout cancelled successfully.", result)
+    except Exception as e:
+        frappe.db.rollback()
+        return handle_api_error(e, "Cancel Investor Payout Error")

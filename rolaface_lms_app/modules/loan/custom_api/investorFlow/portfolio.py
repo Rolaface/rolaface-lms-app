@@ -20,7 +20,7 @@ from .constant import (
     RECORD_STATUS_DRAFT,
     ROW_STATUS_PAID,
 )
-from .utils import current_schedule
+from .utils import current_schedule, interest_frequency_of
 from .constant import RENEWAL_ALL_FIELDS
 from .renewal import _payment_status
 from . import service
@@ -101,6 +101,7 @@ def get_investor_portfolio(investor: str) -> Dict[str, Any]:
         doc = frappe.get_doc(DOCTYPE, name)
         investments.append({
             **{f: doc.get(f) for f in INVESTMENT_FIELDS},
+            "interest_frequency": interest_frequency_of(doc),
             "investment_product_name": product_names.get(doc.investment_product) or doc.investment_product,
             **_investment_figures(doc),
         })
@@ -139,6 +140,7 @@ def get_investment_detail(investment_id: str) -> Dict[str, Any]:
 
     return {
         **{f: doc.get(f) for f in INVESTMENT_FIELDS},
+            "interest_frequency": interest_frequency_of(doc),
         "investment_product_name": frappe.db.get_value(
             "Custom Investment Product", doc.investment_product, "product_name"
         ) or doc.investment_product,

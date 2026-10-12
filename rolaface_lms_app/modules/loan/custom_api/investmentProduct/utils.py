@@ -4,6 +4,7 @@ import json
 
 from .constant import (
     PAYOUT_FREQUENCIES,
+    INTEREST_FREQUENCIES,
     REQUIRED_FIELDS,
     FIELD_LABELS,
     PERCENT_FIELDS,
@@ -61,6 +62,9 @@ def _validate_investment_product_payload(data: Dict[str, Any]):
                 f"{FIELD_LABELS[field]} must be between {FIELD_LABELS[low]} and {FIELD_LABELS[high]} "
                 f"({data.get(low)} to {data.get(high)})."
             )
+
+    if data.get("interest_frequency") not in (None, "") and data.get("interest_frequency") not in INTEREST_FREQUENCIES:
+        raise frappe.ValidationError(f"Interest Frequency must be one of: {', '.join(INTEREST_FREQUENCIES)}.")
 
     if data.get("payout_frequency") not in PAYOUT_FREQUENCIES:
         raise frappe.ValidationError(

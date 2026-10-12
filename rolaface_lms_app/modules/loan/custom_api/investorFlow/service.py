@@ -3,6 +3,8 @@ from typing import Tuple, Dict, Any
 from .constant import (
     DOCTYPE,
     ALLOWED_INVESTOR_FLOW_FIELDS,
+    INTEREST_FREQUENCY_FIELD,
+    INTEREST_FREQUENCY_YEARLY,
     RETURN_FIELDS_GET_ALL,
     RETURN_FIELDS_GET_BY_ID,
     ALLOWED_SORT_FIELDS,
@@ -43,6 +45,9 @@ from .constant import (
 from . import accounting
 from .utils import (
     AVERAGE_DAYS_PER_MONTH,
+    interest_frequency_of,
+    monthly_interest_fraction,
+    product_limit_warnings,
     _validate_investor_flow_payload,
     _build_investor_flow_filters,
     _as_list,
@@ -52,6 +57,17 @@ from .utils import (
     schedule_version,
 )
 from frappe.utils import getdate, add_months, add_days, flt, nowdate, cint, validate_email_address
+
+
+def _set_interest_frequency(investor_flow_doc, data: Dict[str, Any]) -> bool:
+    """Saves the interest basis on the investment (once the field exists on Custom Investor Flow)."""
+    if not frappe.get_meta(DOCTYPE).has_field(INTEREST_FREQUENCY_FIELD):
+        return False
+    value = interest_frequency_of(investor_flow_doc, data)
+    if investor_flow_doc.get(INTEREST_FREQUENCY_FIELD) != value:
+        investor_flow_doc.set(INTEREST_FREQUENCY_FIELD, value)
+        return True
+    return False
 
 
 def create_investor_flow(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -65,6 +81,7 @@ def create_investor_flow(data: Dict[str, Any]) -> Dict[str, Any]:
 
     investor_flow_doc.status = DEFAULT_STATUS
     investor_flow_doc.fund_status = FUND_STATUS_PENDING
+    _set_interest_frequency(investor_flow_doc, data)
     investor_flow_doc.insert(ignore_permissions=True)
     return get_investor_flow_by_id(investor_flow_doc.name)
 
@@ -95,6 +112,8 @@ def update_investor_flow(investor_flow_id: str, data: Dict[str, Any]) -> Dict[st
             if str(investor_flow_doc.get(field)) != str(data.get(field)):
                 investor_flow_doc.set(field, data.get(field))
                 has_changes = True
+    if _set_interest_frequency(investor_flow_doc, data):
+        has_changes = True
 
     if has_changes:
         investor_flow_doc.save(ignore_permissions=True)
@@ -108,6 +127,9 @@ def get_investor_flow_by_id(investor_flow_id: str) -> Dict[str, Any]:
 
     investor_flow_doc = frappe.get_doc(DOCTYPE, investor_flow_id)
     result = {field: investor_flow_doc.get(field) for field in RETURN_FIELDS_GET_BY_ID}
+    result[INTEREST_FREQUENCY_FIELD] = interest_frequency_of(investor_flow_doc)
+    # Outside the product's ranges: shown as warnings, never blocking.
+    result["warnings"] = product_limit_warnings({}, investor_flow_doc, investor_flow_doc.maturity_date)
 
     return result
 
@@ -159,9 +181,19 @@ def get_investor_flows(
         )
     ) if investor_ids else {}
 
+    # Interest basis of each row (its own when saved, else its product's).
+    product_frequency = dict(frappe.get_all(
+        "Custom Investment Product",
+        filters={"name": ["in", list({r.investment_product for r in investor_flows if r.investment_product})]},
+        fields=["name", INTEREST_FREQUENCY_FIELD],
+        as_list=True,
+    )) if investor_flows else {}
     for row in investor_flows:
         row["investor_id"] = row.investor
         row["investor"] = investor_names.get(row.investor) or row.investor
+        row["interest_frequency"] = (
+            row.get("interest_frequency") or product_frequency.get(row.investment_product) or INTEREST_FREQUENCY_YEARLY
+        )
 
     total_records = len(
         frappe.get_all(
@@ -585,6 +617,20 @@ def get_fund_records(args: Dict[str, Any], page: int, page_size: int) -> Tuple[l
     return result, total_records, total_pages
 
 
+def _matching_investors(search_term: str) -> list:
+    """Customers whose name, email, mobile or ID matches (to find an investment by its investor)."""
+    return frappe.get_all(
+        "Customer",
+        or_filters=[
+            ["customer_name", "like", search_term],
+            ["email_id", "like", search_term],
+            ["mobile_no", "like", search_term],
+            ["name", "like", search_term],
+        ],
+        pluck="name",
+    )
+
+
 def get_investor_funds(args: Dict[str, Any], page: int, page_size: int) -> Tuple[list, int, int]:
     """Investments that can receive funds (Approved) and fully funded ones (Paid), with their totals."""
     filters = [["status", "in", FUND_LIST_STATUSES]]
@@ -597,7 +643,7 @@ def get_investor_funds(args: Dict[str, Any], page: int, page_size: int) -> Tuple
     search = args.get("search")
     if search:
         search_term = f"%{str(search).strip()}%"
-        investor_ids = frappe.get_all("Customer", filters={"customer_name": ["like", search_term]}, pluck="name")
+        investor_ids = _matching_investors(search_term)
         or_filters = [["name", "like", search_term], ["investor", "like", search_term]]
         if investor_ids:
             or_filters.append(["investor", "in", investor_ids])
@@ -659,10 +705,10 @@ def get_record_fund_accounts() -> Dict[str, Any]:
     return accounting.get_record_fund_accounts()
 
 
-def _receipt_interest(amount: float, rate: float, paid_date, maturity_date) -> float:
+def _receipt_interest(amount: float, rate: float, paid_date, maturity_date, interest_frequency: str) -> float:
     """Interest on one receipt, calculated once: simple interest for the whole months from its paid date to maturity."""
     months = max(1, int((getdate(maturity_date) - getdate(paid_date)).days / AVERAGE_DAYS_PER_MONTH + 0.5))
-    return flt(amount * rate / 1200 * months, 2)
+    return flt(amount * monthly_interest_fraction(rate, interest_frequency) * months, 2)
 
 
 def _split_equally(total: float, count: int) -> list:
@@ -682,11 +728,12 @@ def _rebuild_repayment_schedule(investor_flow_doc):
     The result is saved as a new schedule version (the previous one stays in the history).
     """
     rate = flt(investor_flow_doc.interest_rate)
+    interest_frequency = interest_frequency_of(investor_flow_doc)
     maturity_date = getdate(investor_flow_doc.maturity_date)
     receipts = [r for r in _fund_rows(investor_flow_doc) if r.get("record_status") == RECORD_STATUS_APPROVED]
     principal_total = flt(sum(flt(r.amount_paid) for r in receipts), 2)
     interest_total = flt(
-        sum(_receipt_interest(flt(r.amount_paid), rate, r.paid_date, maturity_date) for r in receipts), 2
+        sum(_receipt_interest(flt(r.amount_paid), rate, r.paid_date, maturity_date, interest_frequency) for r in receipts), 2
     )
 
     current = current_schedule(investor_flow_doc)
@@ -694,7 +741,10 @@ def _rebuild_repayment_schedule(investor_flow_doc):
         return
 
     today = getdate(nowdate())
-    locked = [r for r in current if getdate(r.payment_date) <= today or r.status in (ROW_STATUS_ACCRUED, ROW_STATUS_PAID)]
+    locked = [
+        r for r in current
+        if getdate(r.payment_date) <= today or r.status in (ROW_STATUS_ACCRUED, ROW_STATUS_PAID, "Partially Paid")
+    ]
     locked_dates = {getdate(r.payment_date) for r in locked}
     future_dates = [
         d for d in _payout_dates(
@@ -865,6 +915,7 @@ def get_investor_earning_by_id(investor_flow_id: str) -> Dict[str, Any]:
         "payment_date": investor_flow_doc.payment_date,
         "receive_entry": investor_flow_doc.get("receive_entry"),
         "payment_status": _live_payment_status(investor_flow_doc),
+        "interest_frequency": interest_frequency_of(investor_flow_doc),
         "renewal_status": investor_flow_doc.get("renewal_status"),
         # The schedule in use is the highest version; earlier versions are history.
         "schedule_version": schedule_version(current[0]) if current else 1,
@@ -913,6 +964,10 @@ def pay_investor_earning_row(investor_flow_id: str, data: Dict[str, Any]) -> Dic
         )
     if row.status == ROW_STATUS_PAID:
         raise frappe.ValidationError(f"Schedule row {row.idx} is already Paid.")
+    if row.status == "Partially Paid":
+        raise frappe.ValidationError(
+            f"Schedule row {row.idx} is Partially Paid; pay the rest from Investor Payouts (Add Payout)."
+        )
 
     posting_date = _parse_date(data.get("payment_date") or nowdate(), "Payment Date")
     settings = accounting.get_accounting_settings()
@@ -1003,9 +1058,9 @@ def update_investor_earning(investor_flow_id: str, data: Dict[str, Any]) -> Dict
         if row.status == ROW_STATUS_PAID:
             raise frappe.ValidationError(f"Schedule row {number} is Paid and cannot be changed.")
         locked = {"payment_date", "principal_amount", "interest_amount"}
-        if row.status == ROW_STATUS_ACCRUED and locked.intersection(changed):
+        if row.status in (ROW_STATUS_ACCRUED, "Partially Paid") and locked.intersection(changed):
             raise frappe.ValidationError(
-                f"Schedule row {number} is Accrued: only Penalty and Total Payment can be changed."
+                f"Schedule row {number} is {row.status}: only Penalty and Total Payment can be changed."
             )
         values = new_values[row.name]
         if "payment_date" in changed:
@@ -1062,14 +1117,18 @@ def get_schedule(data: Dict[str, Any]) -> Dict[str, Any]:
     if first_repayment_date <= getdate(nowdate()):
         raise frappe.ValidationError("First Repayment Date must be in the future.")
 
-    return _calculate_schedule(
+    result = _calculate_schedule(
         amount=flt(data.get("investment_amount")),
         rate=flt(data.get("interest_rate")),
         penalty_rate=flt(data.get("penalty_rate")),
         frequency=data.get("repayment_frequency"),
         first_repayment_date=first_repayment_date,
         maturity_date=getdate(data.get("maturity_date")),
+        interest_frequency=interest_frequency_of(None, data),
     )
+    # Outside the product's ranges: warnings for the screen, never blocking.
+    result["warnings"] = product_limit_warnings(data, None, getdate(data.get("maturity_date")))
+    return result
 
 
 def _payout_dates(frequency: str, first_repayment_date, maturity_date) -> list:
@@ -1095,12 +1154,13 @@ def _payout_dates(frequency: str, first_repayment_date, maturity_date) -> list:
 
 
 def _calculate_schedule(
-    amount: float, rate: float, penalty_rate: float, frequency: str, first_repayment_date, maturity_date
+    amount: float, rate: float, penalty_rate: float, frequency: str, first_repayment_date, maturity_date,
+    interest_frequency: str = INTEREST_FREQUENCY_YEARLY,
 ) -> Dict[str, Any]:
     today = getdate(nowdate())
-    # Simple interest for the whole months between today and maturity.
+    # Simple interest for the whole months between today and maturity (rate per month or per annum).
     total_months = max(1, int((maturity_date - today).days / AVERAGE_DAYS_PER_MONTH + 0.5))
-    total_interest = amount * rate / 1200 * total_months
+    total_interest = amount * monthly_interest_fraction(rate, interest_frequency) * total_months
 
     dates = _payout_dates(frequency, first_repayment_date, maturity_date)
 
@@ -1128,6 +1188,7 @@ def _calculate_schedule(
     return {
         "investment_amount": amount,
         "interest_rate": rate,
+        "interest_frequency": interest_frequency,
         "penalty_rate": penalty_rate,
         "repayment_frequency": frequency,
         "first_repayment_date": str(first_repayment_date),

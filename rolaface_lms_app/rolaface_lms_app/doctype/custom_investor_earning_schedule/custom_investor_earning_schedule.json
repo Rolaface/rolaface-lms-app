@@ -16,7 +16,8 @@
   "accrual_entry",
   "payout_entry",
   "version",
-  "version_change_date"
+  "version_change_date",
+  "paid_amount"
  ],
  "fields": [
   {
@@ -58,7 +59,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Pending\nAccrued\nPaid"
+   "options": "Pending\nAccrued\nPaid\nPartially Paid"
   },
   {
    "fieldname": "accrual_entry",
@@ -83,13 +84,19 @@
    "fieldname": "version_change_date",
    "fieldtype": "Date",
    "label": "Version Change Date"
+  },
+  {
+   "fieldname": "paid_amount",
+   "fieldtype": "Float",
+   "label": "Paid Amount",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-10-10 10:47:23.303091",
+ "modified": "2026-10-12 17:38:04.660970",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom Investor Earning Schedule",

@@ -13,11 +13,12 @@ Payment Type:
 
 Each EMI keeps how much of it has been paid (paid_amount on Custom Investor Earning Schedule).
 
-Journal Entry on Approve (posting date = value date; no accrual, no Payable GL):
-  Dr Interest Expense    (interest paid)   / Cr Investor Income GL (party = investor)
-  Dr Penalty Expense     (penalty paid)    / Cr Investor Income GL (party = investor)
-  Dr Investor Creditor   (principal paid, party = investor) / Cr Paid From (the GL chosen on the payout)
-The principal goes back where it came from; the interest / penalty is the investor's income.
+Journal Entry on Approve (posting date = value date; no accrual). Mode GL = the GL Investor Settings map to the
+payout's Payment Mode (saved as paid_from):
+  Principal: Paid from Mode GL -> Paid to Investor Creditor GL : Dr Investor Creditor GL (party = investor)
+  Interest : Paid from Interest Expense GL -> Paid to Mode GL  : Dr Interest Expense GL
+  Penalty  : Paid from Penalty Expense GL -> Paid to Mode GL   : Dr Penalty Expense GL
+                                                               / Cr Mode GL (total paid out)
 """
 import json
 import frappe
@@ -34,6 +35,7 @@ from .constant import (
     STATUS_PAID,
     STATUS_MATURED,
     FUND_STATUS_PAID,
+    PAYMENT_MODE_ACCOUNT_FIELDS,
 )
 from .utils import _as_list, _parse_date, current_schedule, schedule_version
 from . import accounting, service
@@ -197,12 +199,17 @@ def _schedule_rows(doc) -> List[Dict[str, Any]]:
     return rows
 
 
+def _mode_accounts() -> Dict[str, Optional[str]]:
+    """Payment Mode -> the GL mapped to it in Investor Settings (None when not set)."""
+    settings = frappe.get_cached_doc("Custom Investor Settings")
+    return {mode: settings.get(field) for mode, field in PAYMENT_MODE_ACCOUNT_FIELDS.items()}
+
+
 def get_payout_context(investor_flow_id: str) -> Dict[str, Any]:
     """Everything the payout screen needs for one investment."""
     doc = _get_doc(investor_flow_id)
     unpaid = _unpaid_rows(doc)
     next_row = unpaid[0] if unpaid else None
-    settings_bank = frappe.db.get_single_value("Custom Investor Settings", "company_bank_account")
     customer = frappe.db.get_value("Customer", doc.investor, ["customer_name", "email_id", "mobile_no"], as_dict=True) or {}
     return {
         "id": doc.name,
@@ -214,7 +221,15 @@ def get_payout_context(investor_flow_id: str) -> Dict[str, Any]:
         "investment_product_name": frappe.db.get_value("Custom Investment Product", doc.investment_product, "product_name")
         or doc.investment_product,
         "investment_amount": flt(doc.investment_amount),
-        "default_paid_from": settings_bank,
+        # Paid From = the GL mapped to the chosen Payment Mode in Investor Settings.
+        "mode_accounts": _mode_accounts(),
+        "default_paid_from": None,
+        # For the accounting shown on the payout screen.
+        "gl": {
+            "investor_creditor_account": frappe.db.get_single_value("Custom Investor Settings", "investor_creditor_account"),
+            "interest_expense_account": frappe.db.get_single_value("Custom Investor Settings", "interest_expense_account"),
+            "penalty_expense_account": frappe.db.get_single_value("Custom Investor Settings", "penalty_expense_account"),
+        },
         "bank_accounts": service.get_investor_bank_accounts(doc.investor),
         "next_emi": {
             "name": next_row.name,
@@ -330,6 +345,14 @@ def get_payouts(args: Dict[str, Any], page: int, page_size: int) -> Tuple[list, 
 # ---------------------------------- Write ----------------------------------
 
 def _validated(doc, data: Dict[str, Any]) -> Dict[str, Any]:
+    # Paid From is always the GL Investor Settings map to the chosen Payment Mode (not picked on the screen).
+    if data.get("payment_mode") in PAYMENT_MODE_ACCOUNT_FIELDS:
+        mode_gl = _mode_accounts().get(data.get("payment_mode"))
+        if not mode_gl:
+            raise frappe.ValidationError(
+                f"Set the {data.get('payment_mode')} GL in Investor Settings to pay with this Payment Mode."
+            )
+        data = {**data, "paid_from": mode_gl}
     if (doc.fund_status or "") not in EARNING_FUND_STATUSES or doc.status == "Cancelled":
         raise frappe.ValidationError("Payouts can be recorded only for an investment with a repayment schedule.")
 
@@ -434,11 +457,12 @@ def approve_payout(investor_flow_id: str, payout_name: str) -> Dict[str, Any]:
         value_date,
         f"Payout ({values['payment_type']}) for Investor Flow {doc.name}",
         [
+            # Principal: Dr Investor Creditor GL; Interest / Penalty: Dr Interest / Penalty Expense GL
+            {"account": settings["investor_creditor_account"], "debit": flt(principal_total, 2)},
             {"account": settings["interest_expense_account"], "debit": flt(interest_total, 2)},
             {"account": settings["penalty_expense_account"], "debit": flt(penalty_total, 2)},
-            {"account": settings["investor_income_account"], "credit": flt(interest_total + penalty_total, 2)},
-            {"account": settings["investor_creditor_account"], "debit": flt(principal_total, 2)},
-            {"account": values["paid_from"], "credit": flt(principal_total, 2)},
+            # Paid out of the Mode GL (principal + interest + penalty)
+            {"account": values["paid_from"], "credit": flt(principal_total + interest_total + penalty_total, 2)},
         ],
         reference_no=values["reference_number"],
     )

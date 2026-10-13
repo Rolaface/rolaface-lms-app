@@ -451,7 +451,7 @@ def _validate_fund_input(investor_flow_doc, data: Dict[str, Any], current_row=No
             f"Amount cannot be more than {available}: the investment amount minus the approved and draft records."
         )
 
-    # Paid to = the GL set for the Mode of Payment, Paid from = Investor Creditor GL (Investor Settings).
+    # Paid from Investor Creditor GL -> Paid to the Mode of Payment GL: Dr Mode of Payment GL / Cr Investor Creditor GL.
     fund_accounts = accounting.get_fund_accounts(data.get("mode_of_payment"))
     return {
         "amount_paid": amount,
@@ -517,7 +517,8 @@ def delete_fund_record(investor_flow_id: str, record_name: str):
 
 
 def approve_fund_record(investor_flow_id: str, record_name: str) -> Dict[str, Any]:
-    """Posts the record's Journal Entry (Dr Paid to / Cr Paid from, party = investor) and counts it as received."""
+    """Posts the record's Journal Entry (Dr Mode of Payment GL / Cr Investor Creditor GL, party = investor)
+    and counts it as received."""
     investor_flow_doc = _get_existing_investor_flow(investor_flow_id)
     row = _get_fund_record(investor_flow_doc, record_name)
     if (row.get("record_status") or RECORD_STATUS_DRAFT) != RECORD_STATUS_DRAFT:
@@ -527,6 +528,10 @@ def approve_fund_record(investor_flow_id: str, record_name: str) -> Dict[str, An
             f"Funds can be approved only for an Approved investment (current status: '{investor_flow_doc.status}')."
         )
 
+    # The GLs as Investor Settings map them now (a Draft saved earlier gets the current mapping).
+    fund_accounts = accounting.get_fund_accounts(row.mode_of_payment)
+    for f in ("debit_gl", "debit_gl_description", "credit_gl", "credit_gl_description"):
+        row.set(f, fund_accounts[f])
     row.journal_entry = accounting.post_fund_entry(investor_flow_doc, row)
     row.record_status = RECORD_STATUS_APPROVED
     _refresh_fund_status(investor_flow_doc)

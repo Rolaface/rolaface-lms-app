@@ -1,9 +1,11 @@
 """
 Investor Flow accounting (all GL accounts come from Custom Investor Settings).
 
-1. Record Fund        : Dr <Mode of Payment GL> (Cash / Cheque / Bank Draft / Wire Transfer)
+1. Record Fund        : Paid from Investor Creditor GL -> Paid to <Mode of Payment GL>:
+                        Dr <Mode of Payment GL> (Cash / Cheque / Bank Draft / Wire Transfer)
                         / Cr Investor Creditor GL (party = investor)
 2. Accrue a row       : not used any more (no accrual, no Payable GL).
+   (Investor Payout entries: see payouts.py.)
 3. Pay a row          : Dr Interest Expense (interest)  / Cr Investor Income GL (party = investor)
                         Dr Penalty Expense  (penalty)   / Cr Investor Income GL (party = investor)
                         Dr Investor Creditor GL (principal, party = investor) / Cr Company Bank (principal)
@@ -31,7 +33,7 @@ SETTINGS_REQUIRED_ON_SAVE = ["investor_creditor_account"]
 
 # Needed by the repayment steps (accrual / payout).
 PAYOUT_ACCOUNT_FIELDS = [
-    "company_bank_account", "investor_creditor_account", "investor_income_account",
+    "company_bank_account", "investor_creditor_account",
     "interest_expense_account", "penalty_expense_account",
 ]
 
@@ -101,6 +103,8 @@ def get_fund_accounts(payment_mode: str) -> Dict[str, Any]:
         {f: accounts[f] for f in ("investor_creditor_account", mode_field)},
         required=("investor_creditor_account", mode_field),
     )
+    # Paid from "Fund received" (Investor Creditor GL) -> Paid to the Mode of Payment GL:
+    # Dr Mode of Payment GL / Cr Investor Creditor GL.
     debit = checked["details"][accounts[mode_field]]
     credit = checked["details"][accounts["investor_creditor_account"]]
     return {
@@ -144,7 +148,8 @@ def get_accounting_settings() -> Dict[str, Any]:
         "company": checked["company"],
         "company_bank_currency": checked["details"][accounts["company_bank_account"]].account_currency,
         # Lines on these accounts carry the investor as party (per-investor ledger).
-        "party_accounts": {accounts["investor_creditor_account"], accounts["investor_income_account"]},
+        "party_accounts": {accounts["investor_creditor_account"]},
+        "investor_income_account": accounts.get("investor_income_account"),
     }
 
 
@@ -215,12 +220,13 @@ def _make_journal_entry(
 
 def post_fund_entry(investor_flow_doc, row) -> str:
     """
-    1. Approve a fund record: Dr <row.debit_gl> / Cr <row.credit_gl> (party = investor),
-    using the GLs stored on the row when it was saved.
+    1. Approve a fund record: Dr <row.debit_gl> (Mode of Payment GL) / Cr <row.credit_gl>
+    (Investor Creditor GL, party = investor), using the GLs stored on the row.
     """
     company = frappe.db.get_value("Account", row.debit_gl, "company")
+    creditor = _settings_accounts().get("investor_creditor_account")
     return _make_journal_entry(
-        {"company": company, "party_accounts": {row.credit_gl}},
+        {"company": company, "party_accounts": {creditor}},
         investor_flow_doc.investor,
         row.paid_date,
         f"Fund received for Investor Flow {investor_flow_doc.name} (record {row.idx})",

@@ -3,12 +3,10 @@ Investor Flow accounting (all GL accounts come from Custom Investor Settings).
 
 1. Record Fund        : Dr <Mode of Payment GL> (Cash / Cheque / Bank Draft / Wire Transfer)
                         / Cr Investor Creditor GL (party = investor)
-2. Accrue a row       : Dr Interest Expense
-                        Dr Penalty Expense (if any) / Cr Interest Payable (party = investor)
-3. Pay a row          : Dr Investor Creditor GL (principal)
-                        Dr Interest Payable (accrued interest + penalty)
-                        Dr Penalty Expense (penalty added after accrual)
-                                                    / Cr Company Bank (total)
+2. Accrue a row       : not used any more (no accrual, no Payable GL).
+3. Pay a row          : Dr Interest Expense (interest)  / Cr Investor Income GL (party = investor)
+                        Dr Penalty Expense  (penalty)   / Cr Investor Income GL (party = investor)
+                        Dr Investor Creditor GL (principal, party = investor) / Cr Company Bank (principal)
 """
 import frappe
 from typing import Dict, Any, List, Iterable
@@ -33,7 +31,7 @@ SETTINGS_REQUIRED_ON_SAVE = ["investor_creditor_account"]
 
 # Needed by the repayment steps (accrual / payout).
 PAYOUT_ACCOUNT_FIELDS = [
-    "company_bank_account", "investor_creditor_account", "interest_payable_account",
+    "company_bank_account", "investor_creditor_account", "investor_income_account",
     "interest_expense_account", "penalty_expense_account",
 ]
 
@@ -146,7 +144,7 @@ def get_accounting_settings() -> Dict[str, Any]:
         "company": checked["company"],
         "company_bank_currency": checked["details"][accounts["company_bank_account"]].account_currency,
         # Lines on these accounts carry the investor as party (per-investor ledger).
-        "party_accounts": {accounts["investor_creditor_account"], accounts["interest_payable_account"]},
+        "party_accounts": {accounts["investor_creditor_account"], accounts["investor_income_account"]},
     }
 
 
@@ -244,46 +242,48 @@ def cancel_journal_entry(journal_entry: str):
         doc.cancel()
 
 
-def accrue_row(investor_flow_doc, row, settings, posting_date=None) -> str:
-    """2. Accrue one schedule row on its due date: Dr Interest (+ Penalty) Expense / Cr Interest Payable."""
-    interest, penalty = flt(row.interest_amount, 2), flt(row.penalty_amount, 2)
-    entry = _make_journal_entry(
-        settings,
-        investor_flow_doc.investor,
-        posting_date or row.payment_date,
-        f"Interest accrued for Investor Flow {investor_flow_doc.name}, schedule row {row.idx}",
-        [
-            {"account": settings["interest_expense_account"], "debit": interest},
-            {"account": settings["penalty_expense_account"], "debit": penalty},
-            {"account": settings["interest_payable_account"], "credit": interest + penalty},
-        ],
-    )
-    row.status = ROW_STATUS_ACCRUED
-    row.accrual_entry = entry
-    return entry
-
-
-def _accrued_amount(row, settings) -> float:
-    """Interest + penalty credited to Interest Payable by the row's accrual entry."""
-    if not row.accrual_entry:
-        # A renewal's deferred-interest row is Accrued without an entry of its own:
-        # its interest was booked in Interest Payable before the renewal.
-        return flt(row.interest_amount, 2) if row.status == ROW_STATUS_ACCRUED else 0
-    credits = frappe.get_all(
-        "Journal Entry Account",
-        filters={"parent": row.accrual_entry, "account": settings["interest_payable_account"]},
-        pluck="credit_in_account_currency",
-    )
-    return flt(sum(flt(c) for c in credits), 2)
+# No accrual: interest is booked straight from the Interest Expense GL when it is paid (Payable GL not used).
+# def accrue_row(investor_flow_doc, row, settings, posting_date=None) -> str:
+#     """2. Accrue one schedule row on its due date: Dr Interest (+ Penalty) Expense / Cr Interest Payable."""
+#     interest, penalty = flt(row.interest_amount, 2), flt(row.penalty_amount, 2)
+#     entry = _make_journal_entry(
+#         settings,
+#         investor_flow_doc.investor,
+#         posting_date or row.payment_date,
+#         f"Interest accrued for Investor Flow {investor_flow_doc.name}, schedule row {row.idx}",
+#         [
+#             {"account": settings["interest_expense_account"], "debit": interest},
+#             {"account": settings["penalty_expense_account"], "debit": penalty},
+#             {"account": settings["interest_payable_account"], "credit": interest + penalty},
+#         ],
+#     )
+#     row.status = ROW_STATUS_ACCRUED
+#     row.accrual_entry = entry
+#     return entry
+#
+#
+# def _accrued_amount(row, settings) -> float:
+#     """Interest + penalty credited to Interest Payable by the row's accrual entry."""
+#     if not row.accrual_entry:
+#         # A renewal's deferred-interest row is Accrued without an entry of its own:
+#         # its interest was booked in Interest Payable before the renewal.
+#         return flt(row.interest_amount, 2) if row.status == ROW_STATUS_ACCRUED else 0
+#     credits = frappe.get_all(
+#         "Journal Entry Account",
+#         filters={"parent": row.accrual_entry, "account": settings["interest_payable_account"]},
+#         pluck="credit_in_account_currency",
+#     )
+#     return flt(sum(flt(c) for c in credits), 2)
 
 
 def pay_row(
     investor_flow_doc, row, settings, posting_date, reference_no: str = None, principal_to_pay: float = None
 ) -> str:
     """
-    3. Pay one schedule row: Dr Investor Deposits + Interest Payable (+ late Penalty) / Cr Company Bank.
-    principal_to_pay (Renew): pay only this much of the row's principal in cash; the rest stays in
-    Investor Deposits and is carried into the renewed investment.
+    3. Pay one schedule row (no accrual):
+       Dr Interest Expense + Penalty Expense / Cr Investor Income GL; Dr Investor Creditor GL / Cr Company Bank.
+    principal_to_pay (Renew): pay only this much of the row's principal; the rest stays in the Investor
+    Creditor GL and is carried into the renewed investment.
     """
     principal = flt(row.principal_amount, 2)
     interest, penalty = flt(row.interest_amount, 2), flt(row.penalty_amount, 2)
@@ -298,30 +298,17 @@ def pay_row(
             f"Principal + Interest + Penalty ({total})."
         )
 
-    # Rows saved before the status field existed have no status: treat them as Pending.
-    if row.status in (None, "", ROW_STATUS_PENDING):
-        # Paid before its due date: accrue on the payout date, not in the future.
-        accrue_row(investor_flow_doc, row, settings, min(getdate(row.payment_date), getdate(posting_date)))
-
-    accrued = _accrued_amount(row, settings)
-    # Penalty entered after the accrual has not gone through Interest Payable yet.
-    late_penalty = flt(interest + penalty - accrued, 2)
-    if late_penalty < 0:
-        raise frappe.ValidationError(
-            f"Schedule row {row.idx}: Interest + Penalty ({flt(interest + penalty, 2)}) is less than "
-            f"the amount already accrued ({accrued})."
-        )
-
     entry = _make_journal_entry(
         settings,
         investor_flow_doc.investor,
         posting_date,
         f"Payout for Investor Flow {investor_flow_doc.name}, schedule row {row.idx}",
         [
+            {"account": settings["interest_expense_account"], "debit": interest},
+            {"account": settings["penalty_expense_account"], "debit": penalty},
+            {"account": settings["investor_income_account"], "credit": flt(interest + penalty, 2)},
             {"account": settings["investor_creditor_account"], "debit": principal_paid},
-            {"account": settings["interest_payable_account"], "debit": accrued},
-            {"account": settings["penalty_expense_account"], "debit": late_penalty},
-            {"account": settings["company_bank_account"], "credit": flt(principal_paid + interest + penalty, 2)},
+            {"account": settings["company_bank_account"], "credit": principal_paid},
         ],
         reference_no=reference_no,
     )
@@ -330,39 +317,40 @@ def pay_row(
     return entry
 
 
-def accrue_due_rows():
-    """Daily job: accrue every Pending schedule row whose payment date has arrived."""
-    today = getdate(nowdate())
-    flow_ids = frappe.get_all(
-        "Custom Investor Earning Schedule",
-        filters={
-            "parenttype": DOCTYPE,
-            "parentfield": SCHEDULE_TABLE_FIELD,
-            "status": ROW_STATUS_PENDING,
-            "payment_date": ["<=", today],
-        },
-        pluck="parent",
-        distinct=True,
-    )
-    if not flow_ids:
-        return
-
-    try:
-        settings = get_accounting_settings()
-    except Exception:
-        frappe.log_error(title="Investor Flow accrual: settings incomplete")
-        return
-
-    for flow_id in flow_ids:
-        try:
-            investor_flow_doc = frappe.get_doc(DOCTYPE, flow_id)
-            if investor_flow_doc.fund_status not in ("Partial", "Paid") or investor_flow_doc.status == "Cancelled":
-                continue
-            for row in current_schedule(investor_flow_doc):
-                if row.status == ROW_STATUS_PENDING and getdate(row.payment_date) <= today:
-                    accrue_row(investor_flow_doc, row, settings)
-            investor_flow_doc.save(ignore_permissions=True)
-            frappe.db.commit()
-        except Exception:
-            frappe.db.rollback()
-            frappe.log_error(title=f"Investor Flow accrual failed: {flow_id}")
+# No accrual: the daily job is no longer scheduled (hooks.py) and is kept here commented out.
+# def accrue_due_rows():
+#     """Daily job (no longer scheduled, see hooks.py): accrue every Pending schedule row whose payment date has arrived."""
+#     today = getdate(nowdate())
+#     flow_ids = frappe.get_all(
+#         "Custom Investor Earning Schedule",
+#         filters={
+#             "parenttype": DOCTYPE,
+#             "parentfield": SCHEDULE_TABLE_FIELD,
+#             "status": ROW_STATUS_PENDING,
+#             "payment_date": ["<=", today],
+#         },
+#         pluck="parent",
+#         distinct=True,
+#     )
+#     if not flow_ids:
+#         return
+#
+#     try:
+#         settings = get_accounting_settings()
+#     except Exception:
+#         frappe.log_error(title="Investor Flow accrual: settings incomplete")
+#         return
+#
+#     for flow_id in flow_ids:
+#         try:
+#             investor_flow_doc = frappe.get_doc(DOCTYPE, flow_id)
+#             if investor_flow_doc.fund_status not in ("Partial", "Paid") or investor_flow_doc.status == "Cancelled":
+#                 continue
+#             for row in current_schedule(investor_flow_doc):
+#                 if row.status == ROW_STATUS_PENDING and getdate(row.payment_date) <= today:
+#                     accrue_row(investor_flow_doc, row, settings)
+#             investor_flow_doc.save(ignore_permissions=True)
+#             frappe.db.commit()
+#         except Exception:
+#             frappe.db.rollback()
+#             frappe.log_error(title=f"Investor Flow accrual failed: {flow_id}")

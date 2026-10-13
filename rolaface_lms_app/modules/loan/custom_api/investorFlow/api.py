@@ -1246,9 +1246,9 @@ def update_investor_settings():
               company_bank_account:
                 type: string
                 description: Asset, Account Type Bank or Cash (payouts).
-              interest_payable_account:
+              investor_income_account:
                 type: string
-                description: Liability account, blank Account Type.
+                description: Investor Income GL (interest / penalty paid to investors; party = investor).
               interest_expense_account:
                 type: string
                 description: Expense account.

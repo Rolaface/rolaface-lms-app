@@ -65,7 +65,9 @@ SETTINGS_ACCOUNT_FIELDS = {
     "bank_draft_account": "Bank Draft GL",
     "wire_transfer_account": "Wire Transfer GL",
     "company_bank_account": "Company Bank Account",
-    "interest_payable_account": "Payable GL (Investor Payable)",
+    # No accrual: the Payable GL is not used any more.
+    # "interest_payable_account": "Payable GL (Investor Payable)",
+    "investor_income_account": "Investor Income GL",
     "interest_expense_account": "Interest Expense GL",
     "penalty_expense_account": "Penalty Expense GL",
 }

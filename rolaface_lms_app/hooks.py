@@ -151,7 +151,8 @@ app_license = "mit"
 
 scheduler_events = {
 	"daily": [
-		"rolaface_lms_app.modules.loan.custom_api.investorFlow.accounting.accrue_due_rows",
+		# No accrual (the Payable GL is not used): interest is booked when it is paid.
+		# "rolaface_lms_app.modules.loan.custom_api.investorFlow.accounting.accrue_due_rows",
 	],
 }
 

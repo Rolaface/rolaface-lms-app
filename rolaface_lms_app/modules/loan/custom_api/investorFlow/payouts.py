@@ -13,13 +13,11 @@ Payment Type:
 
 Each EMI keeps how much of it has been paid (paid_amount on Custom Investor Earning Schedule).
 
-Journal Entry on Approve (posting date = value date, party = investor):
-  Dr Investor Creditor   (principal paid)
-  Dr Interest Payable    (interest / penalty already booked by the accrual)
-  Dr Penalty Expense     (penalty added after the accrual, not yet booked)
-  Cr Paid From           (the company bank GL chosen on the payout)
-Every EMI touched that is still Pending is first accrued (booked on its due date, or on the value date
-when it is paid before it is due), exactly like a single EMI payout.
+Journal Entry on Approve (posting date = value date; no accrual, no Payable GL):
+  Dr Interest Expense    (interest paid)   / Cr Investor Income GL (party = investor)
+  Dr Penalty Expense     (penalty paid)    / Cr Investor Income GL (party = investor)
+  Dr Investor Creditor   (principal paid, party = investor) / Cr Paid From (the GL chosen on the payout)
+The principal goes back where it came from; the interest / penalty is the investor's income.
 """
 import json
 import frappe
@@ -423,21 +421,11 @@ def approve_payout(investor_flow_id: str, payout_name: str) -> Dict[str, Any]:
         raise frappe.ValidationError("Nothing is owed on this investment.")
 
     settings = accounting.get_accounting_settings()
-    principal_total = interest_payable = penalty_expense = 0.0
+    principal_total = interest_total = penalty_total = 0.0
     for a in allocations:
-        row = rows_by_name[a["row"]]
-        # Book the EMI's interest first (on its due date, or the value date when paid before it).
-        if row.status in (None, "", ROW_STATUS_PENDING):
-            accounting.accrue_row(doc, row, settings, min(getdate(row.payment_date), value_date))
-            a["accrued_now"] = True
-        accrued = accounting._accrued_amount(row, settings)
-        booked_paid_before = min(_paid(row), flt(row.interest_amount) + flt(row.penalty_amount))
-        booked_left = max(flt(accrued - booked_paid_before, 2), 0)
-        interest_part = flt(a["interest"] + a["penalty"], 2)
-        from_payable = min(interest_part, booked_left)
-        interest_payable += from_payable
-        penalty_expense += flt(interest_part - from_payable, 2)
         principal_total += a["principal"]
+        interest_total += a["interest"]
+        penalty_total += a["penalty"]
         a["number"] = _number_of(doc, a["row"])
 
     entry = accounting._make_journal_entry(
@@ -446,10 +434,11 @@ def approve_payout(investor_flow_id: str, payout_name: str) -> Dict[str, Any]:
         value_date,
         f"Payout ({values['payment_type']}) for Investor Flow {doc.name}",
         [
+            {"account": settings["interest_expense_account"], "debit": flt(interest_total, 2)},
+            {"account": settings["penalty_expense_account"], "debit": flt(penalty_total, 2)},
+            {"account": settings["investor_income_account"], "credit": flt(interest_total + penalty_total, 2)},
             {"account": settings["investor_creditor_account"], "debit": flt(principal_total, 2)},
-            {"account": settings["interest_payable_account"], "debit": flt(interest_payable, 2)},
-            {"account": settings["penalty_expense_account"], "debit": flt(penalty_expense, 2)},
-            {"account": values["paid_from"], "credit": flt(values["payment_amount"], 2)},
+            {"account": values["paid_from"], "credit": flt(principal_total, 2)},
         ],
         reference_no=values["reference_number"],
     )

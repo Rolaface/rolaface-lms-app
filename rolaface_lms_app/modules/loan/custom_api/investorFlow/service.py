@@ -224,6 +224,11 @@ def delete_investor_flow(investor_flow_id: str):
             "and cannot be deleted."
         )
 
+    # Its notification log (emails sent about this investment) goes with it; otherwise the link blocks the delete.
+    from .notifications import NOTIFICATION_DOCTYPE
+    for name in frappe.get_all(NOTIFICATION_DOCTYPE, filters={"investment": investor_flow_id}, pluck="name"):
+        frappe.delete_doc(NOTIFICATION_DOCTYPE, name, ignore_permissions=True)
+
     frappe.delete_doc(DOCTYPE, investor_flow_id, ignore_permissions=True)
 
 def update_investor_flow_status(investor_flow_id: str, action: str) -> Dict[str, Any]:
@@ -955,7 +960,7 @@ def _row_value_changed(row, field: str, value) -> bool:
 
 
 def pay_investor_earning_row(investor_flow_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-    """Pays one schedule row: accrues it first if needed, then posts the payout Journal Entry."""
+    """Pays one schedule row: posts the payout Journal Entry (no accrual)."""
     investor_flow_doc = _get_earning_doc(investor_flow_id, for_update=True)
 
     row_name = data.get("row")

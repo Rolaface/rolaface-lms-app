@@ -13,7 +13,8 @@
   "investor_creditor_account",
   "cheque_account",
   "bank_draft_account",
-  "wire_transfer_account"
+  "wire_transfer_account",
+  "investor_income_account"
  ],
  "fields": [
   {
@@ -69,13 +70,19 @@
    "fieldtype": "Link",
    "label": "Wire Transfer GL",
    "options": "Account"
+  },
+  {
+   "fieldname": "investor_income_account",
+   "fieldtype": "Link",
+   "label": "Investor Income Account",
+   "options": "Account"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-08 18:27:47.908312",
+ "modified": "2026-10-13 11:59:28.873108",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom Investor Settings",

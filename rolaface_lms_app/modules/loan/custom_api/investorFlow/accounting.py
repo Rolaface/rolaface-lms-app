@@ -31,10 +31,15 @@ from .constant import (
 # Needed to save the settings; the others can be set as they are needed.
 SETTINGS_REQUIRED_ON_SAVE = ["investor_creditor_account"]
 
-# Needed by the repayment steps (accrual / payout).
+# Used by the repayment steps (payout); checked when set.
 PAYOUT_ACCOUNT_FIELDS = [
     "company_bank_account", "investor_creditor_account",
     "interest_expense_account", "penalty_expense_account",
+]
+# Must be set for an Investor Payout. Company Bank Account is not: the payout pays from the Mode of Payment GL
+# (it is still needed by pay_row, used by Maturity).
+PAYOUT_REQUIRED_ACCOUNT_FIELDS = [
+    "investor_creditor_account", "interest_expense_account", "penalty_expense_account",
 ]
 
 
@@ -141,12 +146,15 @@ def get_accounting_settings() -> Dict[str, Any]:
     """Accounts for the repayment steps (accrual / payout), all in one company."""
     accounts = _settings_accounts()
     selected = {f: accounts[f] for f in PAYOUT_ACCOUNT_FIELDS}
-    checked = validate_settings_accounts(selected, required=PAYOUT_ACCOUNT_FIELDS)
+    checked = validate_settings_accounts(selected, required=PAYOUT_REQUIRED_ACCOUNT_FIELDS)
 
     return {
         **selected,
         "company": checked["company"],
-        "company_bank_currency": checked["details"][accounts["company_bank_account"]].account_currency,
+        "company_bank_currency": (
+            checked["details"][accounts["company_bank_account"]].account_currency
+            if accounts.get("company_bank_account") else None
+        ),
         # Lines on these accounts carry the investor as party (per-investor ledger).
         "party_accounts": {accounts["investor_creditor_account"]},
         "investor_income_account": accounts.get("investor_income_account"),
@@ -291,6 +299,11 @@ def pay_row(
     principal_to_pay (Renew): pay only this much of the row's principal; the rest stays in the Investor
     Creditor GL and is carried into the renewed investment.
     """
+    missing = [SETTINGS_ACCOUNT_FIELDS[f] for f in ("company_bank_account", "investor_income_account")
+               if not settings.get(f)]
+    if missing:
+        raise frappe.ValidationError(f"Set these accounts in {SETTINGS_DOCTYPE} first: {', '.join(missing)}.")
+
     principal = flt(row.principal_amount, 2)
     interest, penalty = flt(row.interest_amount, 2), flt(row.penalty_amount, 2)
     total = flt(principal + interest + penalty, 2)

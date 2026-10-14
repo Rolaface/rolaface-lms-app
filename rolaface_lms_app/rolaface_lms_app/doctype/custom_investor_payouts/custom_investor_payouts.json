@@ -10,7 +10,7 @@
   "payment_type",
   "payment_amount",
   "payment_mode",
-  "paid_from",
+  "principal_paid_from",
   "reference_number",
   "reference_date",
   "investor_bank_account",
@@ -20,7 +20,8 @@
   "interest_paid",
   "penalty_paid",
   "schedule_rows",
-  "comment"
+  "comment",
+  "interest_paid_from"
  ],
  "fields": [
   {
@@ -44,12 +45,6 @@
    "fieldtype": "Select",
    "label": "Payment Mode",
    "options": "Wire Transfer\nCheque\nCash\nBank Draft"
-  },
-  {
-   "fieldname": "paid_from",
-   "fieldtype": "Link",
-   "label": "Paid From",
-   "options": "Account"
   },
   {
    "fieldname": "reference_number",
@@ -107,13 +102,25 @@
    "fieldname": "comment",
    "fieldtype": "Small Text",
    "label": "Comment"
+  },
+  {
+   "fieldname": "principal_paid_from",
+   "fieldtype": "Link",
+   "label": "Principal Paid From",
+   "options": "Account"
+  },
+  {
+   "fieldname": "interest_paid_from",
+   "fieldtype": "Link",
+   "label": "Interest Paid From",
+   "options": "Account"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-10-12 17:32:06.266023",
+ "modified": "2026-10-14 13:25:14.898187",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom Investor Payouts",

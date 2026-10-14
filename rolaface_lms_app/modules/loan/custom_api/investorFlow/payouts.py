@@ -13,8 +13,9 @@ Payment Type:
 
 Each EMI keeps how much of it has been paid (paid_amount on Custom Investor Earning Schedule).
 
-Journal Entry on Approve (posting date = value date; no accrual). Mode GL = the GL Investor Settings map to the
-payout's Payment Mode (saved as paid_from):
+Journal Entry on Approve (posting date = value date; no accrual). Mode GL = principal_paid_from: the GL Investor Settings
+map to the payout's Payment Mode. The interest is credited to interest_paid_from (default the Mode GL; the user can
+pick another account on the screen):
   Principal: Paid from Mode GL -> Paid to Investor Creditor GL : Dr Investor Creditor GL (party = investor)
   Interest : Paid from Interest Expense GL -> Paid to Mode GL  : Dr Interest Expense GL
   Penalty  : Paid from Penalty Expense GL -> Paid to Mode GL   : Dr Penalty Expense GL
@@ -55,8 +56,8 @@ PAYOUT_APPROVED = "Approved"
 PAYOUT_CANCELLED = "Cancelled"
 
 INPUT_FIELDS = [
-    "value_date", "payment_type", "payment_amount", "payment_mode", "paid_from", "investor_bank_account",
-    "reference_number", "reference_date", "comment",
+    "value_date", "payment_type", "payment_amount", "payment_mode", "principal_paid_from", "investor_bank_account",
+    "reference_number", "reference_date", "comment", "interest_paid_from",
 ]
 PAYOUT_FIELDS = INPUT_FIELDS + [
     "record_status", "journal_entry", "principal_paid", "interest_paid", "penalty_paid", "schedule_rows",
@@ -165,8 +166,20 @@ def _get_payout(doc, payout_name: str):
     return row
 
 
+def _legacy_paid_from(names: List[str]) -> Dict[str, str]:
+    """Payouts saved before Principal Paid From existed kept the account in the old paid_from column."""
+    if not names or not frappe.db.has_column(PAYOUT_DOCTYPE, "paid_from"):
+        return {}
+    return dict(frappe.db.sql(
+        "select name, paid_from from `tabCustom Investor Payouts` where name in %(names)s and paid_from is not null",
+        {"names": names},
+    ))
+
+
 def _payout_dict(doc, p) -> Dict[str, Any]:
     result = {f: p.get(f) for f in PAYOUT_FIELDS}
+    # The screen reads the principal account as paid_from (stored in principal_paid_from).
+    result["paid_from"] = p.get("principal_paid_from") or _legacy_paid_from([p.name]).get(p.name)
     for f in ("value_date", "reference_date"):
         result[f] = str(result[f]) if result[f] else None
     result["record_status"] = p.get("record_status") or PAYOUT_DRAFT
@@ -332,7 +345,9 @@ def get_payouts(args: Dict[str, Any], page: int, page_size: int) -> Tuple[list, 
         DOCTYPE, filters={"name": ["in", list({r.parent for r in rows})]}, fields=["name", "investor"], as_list=True,
     )) if rows else {}
     names = service._get_names("Customer", "customer_name", list(investors.values()))
+    legacy = _legacy_paid_from([r.name for r in rows if not r.get("principal_paid_from")])
     for r in rows:
+        r["paid_from"] = r.get("principal_paid_from") or legacy.get(r.name)
         r["investment_id"] = r.parent
         r["investor_id"] = investors.get(r.parent)
         r["investor"] = names.get(investors.get(r.parent)) or investors.get(r.parent)
@@ -345,7 +360,8 @@ def get_payouts(args: Dict[str, Any], page: int, page_size: int) -> Tuple[list, 
 # ---------------------------------- Write ----------------------------------
 
 def _validated(doc, data: Dict[str, Any]) -> Dict[str, Any]:
-    # Paid From is always the GL Investor Settings map to the chosen Payment Mode (not picked on the screen).
+    # Paid From (principal) is always the GL Investor Settings map to the chosen Payment Mode.
+    # Interest Paid From: the account chosen on the screen; by default the same Payment Mode GL.
     if data.get("payment_mode") in PAYMENT_MODE_ACCOUNT_FIELDS:
         mode_gl = _mode_accounts().get(data.get("payment_mode"))
         if not mode_gl:
@@ -353,6 +369,7 @@ def _validated(doc, data: Dict[str, Any]) -> Dict[str, Any]:
                 f"Set the {data.get('payment_mode')} GL in Investor Settings to pay with this Payment Mode."
             )
         data = {**data, "paid_from": mode_gl}
+    data = {**data, "interest_paid_from": data.get("interest_paid_from") or data.get("paid_from")}
     if (doc.fund_status or "") not in EARNING_FUND_STATUSES or doc.status == "Cancelled":
         raise frappe.ValidationError("Payouts can be recorded only for an investment with a repayment schedule.")
 
@@ -377,6 +394,16 @@ def _validated(doc, data: Dict[str, Any]) -> Dict[str, Any]:
     if account.is_group or account.disabled:
         raise frappe.ValidationError(f"Paid From '{data.get('paid_from')}' must be an enabled ledger (not a group) account.")
 
+    interest_account = frappe.db.get_value(
+        "Account", data.get("interest_paid_from"), ["is_group", "disabled"], as_dict=True
+    )
+    if not interest_account:
+        raise frappe.DoesNotExistError(f"Account '{data.get('interest_paid_from')}' does not exist.")
+    if interest_account.is_group or interest_account.disabled:
+        raise frappe.ValidationError(
+            f"Interest Paid From '{data.get('interest_paid_from')}' must be an enabled ledger (not a group) account."
+        )
+
     bank_account = data.get("investor_bank_account")
     if bank_account:
         party = frappe.db.get_value("Bank Account", bank_account, ["party_type", "party"], as_dict=True)
@@ -391,7 +418,8 @@ def _validated(doc, data: Dict[str, Any]) -> Dict[str, Any]:
         "payment_type": payment_type,
         "payment_amount": amount,
         "payment_mode": data.get("payment_mode"),
-        "paid_from": data.get("paid_from"),
+        "principal_paid_from": data.get("paid_from"),
+        "interest_paid_from": data.get("interest_paid_from"),
         "investor_bank_account": bank_account or None,
         "reference_number": str(data.get("reference_number")).strip(),
         "reference_date": reference_date,
@@ -427,6 +455,17 @@ def delete_payout(investor_flow_id: str, payout_name: str):
     doc.save(ignore_permissions=True)
 
 
+def _credit_lines(values: Dict[str, Any], principal: float, interest: float, penalty: float) -> List[Dict[str, Any]]:
+    """Cr Paid From (principal + penalty) and Cr Interest Paid From (interest); one line when they are the same GL."""
+    credits: Dict[str, float] = {}
+    for account, amount in (
+        (values["principal_paid_from"], principal + penalty),
+        (values.get("interest_paid_from") or values["principal_paid_from"], interest),
+    ):
+        credits[account] = flt(credits.get(account, 0) + amount, 2)
+    return [{"account": a, "credit": c} for a, c in credits.items()]
+
+
 def approve_payout(investor_flow_id: str, payout_name: str) -> Dict[str, Any]:
     doc = _get_doc(investor_flow_id)
     payout = _get_payout(doc, payout_name)
@@ -452,7 +491,7 @@ def approve_payout(investor_flow_id: str, payout_name: str) -> Dict[str, Any]:
         a["number"] = _number_of(doc, a["row"])
 
     entry = accounting._make_journal_entry(
-        {**settings, "company": frappe.db.get_value("Account", values["paid_from"], "company") or settings["company"]},
+        {**settings, "company": frappe.db.get_value("Account", values["principal_paid_from"], "company") or settings["company"]},
         doc.investor,
         value_date,
         f"Payout ({values['payment_type']}) for Investor Flow {doc.name}",
@@ -461,8 +500,8 @@ def approve_payout(investor_flow_id: str, payout_name: str) -> Dict[str, Any]:
             {"account": settings["investor_creditor_account"], "debit": flt(principal_total, 2)},
             {"account": settings["interest_expense_account"], "debit": flt(interest_total, 2)},
             {"account": settings["penalty_expense_account"], "debit": flt(penalty_total, 2)},
-            # Paid out of the Mode GL (principal + interest + penalty)
-            {"account": values["paid_from"], "credit": flt(principal_total + interest_total + penalty_total, 2)},
+            # Paid out of: the Mode GL (principal + penalty) and Interest Paid From (interest); one line if the same
+            *_credit_lines(values, principal_total, interest_total, penalty_total),
         ],
         reference_no=values["reference_number"],
     )

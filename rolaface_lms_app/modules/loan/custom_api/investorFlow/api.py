@@ -1,7 +1,7 @@
 import frappe
 from rolaface_lms_app.utils.api_response import send_response, send_response_list, handle_api_error
 from rolaface_lms_app.utils.api_request import parse_api_payload
-from . import service, accounting, maturity, portfolio, renewal, notifications, payouts, mailer
+from . import service, accounting, maturity, portfolio, renewal, notifications, payouts, mailer, reports
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
@@ -2116,3 +2116,33 @@ def cancel_investor_payout(id=None, payout=None):
     except Exception as e:
         frappe.db.rollback()
         return handle_api_error(e, "Cancel Investor Payout Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_investor_report(page=1, page_size=20):
+    """
+    Investor Report
+    ---
+    tags:
+      - Investor Report
+    summary: One row per investment (amount, paid out, principal / interest / penalty paid and due, start / end date),
+      with totals and status counts of every filtered investment.
+    parameters:
+      - {in: query, name: search, schema: {type: string}, description: Investment ID or investor name / mobile / ID / email.}
+      - {in: query, name: status, schema: {type: string}, description: One value or a JSON list (default every status except Cancelled).}
+      - {in: query, name: product, schema: {type: string}, description: Investment Product ID.}
+      - {in: query, name: start_from, schema: {type: string}, description: Start date (first fund received) from, YYYY-MM-DD.}
+      - {in: query, name: start_to, schema: {type: string}, description: Start date to, YYYY-MM-DD.}
+      - {in: query, name: page_size, schema: {type: integer}, description: Rows per page; 0 = all rows (export).}
+    """
+    try:
+        result = reports.get_investor_report(frappe.local.form_dict, int(page), int(page_size))
+        return send_response(
+            status="success",
+            message="Investor report retrieved successfully.",
+            data=result,
+            status_code=200,
+            http_status=200,
+        )
+    except Exception as e:
+        return handle_api_error(e, "Get Investor Report Error")

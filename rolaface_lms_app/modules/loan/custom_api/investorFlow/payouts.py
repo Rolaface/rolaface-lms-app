@@ -117,7 +117,7 @@ def _allocate(rows: list, amount: float) -> List[Dict[str, Any]]:
 def _amount_for(doc, payment_type: str, amount=None) -> float:
     rows = _unpaid_rows(doc)
     if not rows:
-        raise frappe.ValidationError("Nothing is owed on this investment: every EMI is paid.")
+        raise frappe.ValidationError("Nothing is owed on this investment: every payout is paid.")
     owed = flt(sum(_row_remaining(r) for r in rows), 2)
     if payment_type == PAY_DUES:
         return _row_remaining(rows[0])

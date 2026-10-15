@@ -52,7 +52,9 @@ from .utils import (
     _build_investor_flow_filters,
     _as_list,
     _parse_date,
+    AMEND_STATUS_FIELD,
     current_schedule,
+    next_schedule_version,
     schedule_history,
     schedule_version,
 )
@@ -810,9 +812,9 @@ def _rebuild_repayment_schedule(investor_flow_doc):
     if current and _key(current_values) == _key(new_rows):
         return
 
-    version = (schedule_version(current[0]) + 1) if current else 1
+    version = next_schedule_version(investor_flow_doc)
     for values in new_rows:
-        investor_flow_doc.append(SCHEDULE_TABLE_FIELD, {**values, "version": version})
+        investor_flow_doc.append(SCHEDULE_TABLE_FIELD, {**values, "version": version, AMEND_STATUS_FIELD: ""})
 
     # Earning & Settlement details (read-only on screen).
     investor_flow_doc.amount_invested = cint(round(principal_total))
@@ -1016,6 +1018,21 @@ def update_investor_earning(investor_flow_id: str, data: Dict[str, Any]) -> Dict
     earlier versions stay as history.
     """
     investor_flow_doc = _get_earning_doc(investor_flow_id, for_update=True)
+    current, new_values, any_change = edited_schedule(investor_flow_doc, data)
+    if not any_change:
+        return get_investor_earning_by_id(investor_flow_doc.name)
+
+    # Edited schedule = a full new set of rows with a new version; the earlier rows stay as history.
+    append_schedule_version(investor_flow_doc, current, new_values)
+    investor_flow_doc.save(ignore_permissions=True)
+    return get_investor_earning_by_id(investor_flow_doc.name)
+
+
+def edited_schedule(investor_flow_doc, data: Dict[str, Any]):
+    """
+    Checks the edits of the schedule in use (data["schedule"]: rows by name) and applies them to a copy.
+    Returns (current rows, new values by current row name, any_change). Used by schedule edits and amendments.
+    """
 
     # Fully paid: nothing is left to change; the Repayment Record can only be viewed.
     if _live_payment_status(investor_flow_doc) == "Paid":
@@ -1090,16 +1107,20 @@ def update_investor_earning(investor_flow_id: str, data: Dict[str, Any]) -> Dict
                 values[field] = value
         any_change = True
 
-    if not any_change:
-        return get_investor_earning_by_id(investor_flow_doc.name)
+    return current, new_values, any_change
 
-    # Edited schedule = a full new set of rows with version max + 1; the earlier rows stay as history.
-    new_version = schedule_version(current[0]) + 1
+
+def append_schedule_version(investor_flow_doc, current, new_values, amend_status: str = None) -> int:
+    """Adds the edited rows as a new schedule version (amend_status set for an amendment); returns the version."""
+    version = next_schedule_version(investor_flow_doc)
+    # Not an amendment: "" (left empty, Frappe would set the Select's first option, Draft).
+    extra = (
+        {AMEND_STATUS_FIELD: amend_status, "version_change_date": getdate(nowdate())}
+        if amend_status else {AMEND_STATUS_FIELD: ""}
+    )
     for row in current:
-        investor_flow_doc.append(SCHEDULE_TABLE_FIELD, {**new_values[row.name], "version": new_version})
-
-    investor_flow_doc.save(ignore_permissions=True)
-    return get_investor_earning_by_id(investor_flow_doc.name)
+        investor_flow_doc.append(SCHEDULE_TABLE_FIELD, {**new_values[row.name], "version": version, **extra})
+    return version
 
 
 # How far apart the payouts are for each Repayment Frequency.

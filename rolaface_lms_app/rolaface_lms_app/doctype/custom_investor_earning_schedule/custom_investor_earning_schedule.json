@@ -17,7 +17,8 @@
   "payout_entry",
   "version",
   "version_change_date",
-  "paid_amount"
+  "paid_amount",
+  "amend_status"
  ],
  "fields": [
   {
@@ -90,13 +91,19 @@
    "fieldtype": "Float",
    "label": "Paid Amount",
    "read_only": 1
+  },
+  {
+   "fieldname": "amend_status",
+   "fieldtype": "Select",
+   "label": "Amend Status",
+   "options": "Draft\nApproved\nCancelled"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-10-12 17:38:04.660970",
+ "modified": "2026-10-15 12:57:10.029051",
  "modified_by": "Administrator",
  "module": "Rolaface Lms App",
  "name": "Custom Investor Earning Schedule",

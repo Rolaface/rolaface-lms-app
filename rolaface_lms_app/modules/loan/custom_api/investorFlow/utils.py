@@ -22,9 +22,28 @@ def schedule_version(row) -> int:
     return cint(row.get("version")) or 1
 
 
-def current_schedule(investor_flow_doc) -> List:
-    """The repayment schedule in use: the rows of the highest version, in order."""
+# Amend Payouts: a schedule version saved as an amendment carries amend_status on its rows.
+# Draft / Cancelled amendments are not in use; Approved ones (and versions without a status) are.
+AMEND_STATUS_FIELD = "amend_status"
+AMEND_DRAFT = "Draft"
+AMEND_APPROVED = "Approved"
+AMEND_CANCELLED = "Cancelled"
+
+
+def in_use(row) -> bool:
+    """Whether a schedule row belongs to a version that can be in use (not a Draft / Cancelled amendment)."""
+    return (row.get(AMEND_STATUS_FIELD) or "") in ("", AMEND_APPROVED)
+
+
+def next_schedule_version(investor_flow_doc) -> int:
+    """Version number for a new schedule version (above every version, amendments included)."""
     rows = investor_flow_doc.get(SCHEDULE_TABLE_FIELD) or []
+    return (max(schedule_version(r) for r in rows) + 1) if rows else 1
+
+
+def current_schedule(investor_flow_doc) -> List:
+    """The repayment schedule in use: the rows of the highest version in use, in order."""
+    rows = [r for r in (investor_flow_doc.get(SCHEDULE_TABLE_FIELD) or []) if in_use(r)]
     if not rows:
         return []
     latest = max(schedule_version(r) for r in rows)
@@ -32,8 +51,8 @@ def current_schedule(investor_flow_doc) -> List:
 
 
 def schedule_history(investor_flow_doc) -> List[Dict[str, Any]]:
-    """Earlier versions of the schedule (newest first): [{"version": n, "rows": [...]}]."""
-    rows = investor_flow_doc.get(SCHEDULE_TABLE_FIELD) or []
+    """Earlier versions of the schedule in use (newest first): [{"version": n, "rows": [...]}]."""
+    rows = [r for r in (investor_flow_doc.get(SCHEDULE_TABLE_FIELD) or []) if in_use(r)]
     if not rows:
         return []
     latest = max(schedule_version(r) for r in rows)

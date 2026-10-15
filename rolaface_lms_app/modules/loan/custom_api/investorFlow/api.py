@@ -1,7 +1,7 @@
 import frappe
 from rolaface_lms_app.utils.api_response import send_response, send_response_list, handle_api_error
 from rolaface_lms_app.utils.api_request import parse_api_payload
-from . import service, accounting, maturity, portfolio, renewal, notifications, payouts, mailer, reports
+from . import service, accounting, maturity, portfolio, renewal, notifications, payouts, mailer, reports, amendments
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
@@ -1960,7 +1960,7 @@ def get_payout_candidates(search=None):
     ---
     tags:
       - Investor Payout
-    summary: Investments with unpaid EMIs, by investment ID or investor name / mobile / ID / email.
+    summary: Investments with unpaid payouts, by investment ID or investor name / mobile / ID / email.
     """
     try:
         return _payout_ok("Investments retrieved successfully.", payouts.get_payout_candidates(search))
@@ -1975,7 +1975,7 @@ def get_payout_context(id=None):
     ---
     tags:
       - Investor Payout
-    summary: Investor, bank accounts, next EMI, what is owed, the schedule and the payouts.
+    summary: Investor, bank accounts, next payout, what is owed, the schedule and the payouts.
     """
     try:
         investor_flow_id, _ = _payout_ids(id, None)
@@ -1991,7 +1991,7 @@ def preview_investor_payout(id=None, payment_type=None, amount=None):
     ---
     tags:
       - Investor Payout
-    summary: The amount of a Pay Dues / Pay Any / Pay Full payout and how it is split over the EMIs (nothing saved).
+    summary: The amount of a Pay Dues / Pay Any / Pay Full payout and how it is split over the scheduled payouts (nothing saved).
     """
     try:
         investor_flow_id, _ = _payout_ids(id, None)
@@ -2080,7 +2080,7 @@ def approve_investor_payout(id=None, payout=None):
     ---
     tags:
       - Investor Payout
-    summary: Posts the payout Journal Entry and marks the EMIs Paid / Partially Paid.
+    summary: Posts the payout Journal Entry and marks the scheduled payouts Paid / Partially Paid.
     """
     try:
         investor_flow_id, payout_name = _payout_ids(id, payout)
@@ -2106,7 +2106,7 @@ def cancel_investor_payout(id=None, payout=None):
     ---
     tags:
       - Investor Payout
-    summary: Cancels its Journal Entry and gives the EMIs back what it paid (latest payout first).
+    summary: Cancels its Journal Entry and gives the scheduled payouts back what it paid (latest payout first).
     """
     try:
         investor_flow_id, payout_name = _payout_ids(id, payout)
@@ -2146,3 +2146,167 @@ def get_investor_report(page=1, page_size=20):
         )
     except Exception as e:
         return handle_api_error(e, "Get Investor Report Error")
+
+
+# ------------------------------ Amend Payouts ------------------------------
+
+def _amend_ids(id, version, required_version=True):
+    investor_flow_id = id or frappe.request.args.get("id")
+    version = version or frappe.request.args.get("version")
+    if not investor_flow_id:
+        raise frappe.ValidationError("Investor Flow ID is required.")
+    if required_version and not version:
+        raise frappe.ValidationError("Amendment version is required.")
+    return investor_flow_id, (int(version) if version else None)
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_amendments(page=1, page_size=20):
+    """
+    List schedule amendments
+    ---
+    tags:
+      - Amend Payouts
+    summary: Every amendment (one row per investment and version), newest first.
+    parameters:
+      - {in: query, name: search, schema: {type: string}, description: Investment ID or investor name / mobile / ID / email.}
+      - {in: query, name: amend_status, schema: {type: string}, description: Draft / Approved / Cancelled (one value or a JSON list).}
+    """
+    try:
+        page, page_size = int(page), int(page_size)
+        records, total, total_pages = amendments.get_amendments(frappe.local.form_dict, page, page_size)
+        return _payout_ok("Amendments retrieved successfully.", {
+            "data": records,
+            "pagination": {
+                "page": page, "page_size": page_size, "total": total, "total_pages": total_pages,
+                "has_next": page < total_pages, "has_prev": page > 1,
+            },
+        })
+    except Exception as e:
+        return handle_api_error(e, "Get Amendments Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_amend_candidates(search=None):
+    """
+    Investments that can be amended
+    ---
+    tags:
+      - Amend Payouts
+    summary: Funded investments with a schedule that can still change and no Draft amendment.
+    """
+    try:
+        return _payout_ok("Investments retrieved successfully.", amendments.get_amend_candidates(search))
+    except Exception as e:
+        return handle_api_error(e, "Get Amend Candidates Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_amendment(id=None, version=None):
+    """
+    One amendment
+    ---
+    tags:
+      - Amend Payouts
+    summary: An amendment; without version, the schedule in use to create a new amendment from.
+    """
+    try:
+        investor_flow_id, version = _amend_ids(id, version, required_version=False)
+        return _payout_ok("Amendment retrieved successfully.", amendments.get_amendment(investor_flow_id, version))
+    except Exception as e:
+        return handle_api_error(e, "Get Amendment Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def create_amendment(id=None):
+    """
+    Create a Draft amendment
+    ---
+    tags:
+      - Amend Payouts
+    summary: Body {schedule: [{name, payment_date, principal_amount, interest_amount, penalty_amount, total_payment}]}
+      with the rows of the schedule in use; saved as a Draft (not in use until approved).
+    """
+    try:
+        investor_flow_id, _ = _amend_ids(id, None, required_version=False)
+        result = amendments.create_amendment(investor_flow_id, parse_api_payload() or {})
+        frappe.db.commit()
+        return _payout_ok("Amendment saved as Draft.", result, 201)
+    except Exception as e:
+        frappe.db.rollback()
+        return handle_api_error(e, "Create Amendment Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["PUT", "PATCH"])
+def update_amendment(id=None, version=None):
+    """
+    Edit a Draft amendment
+    ---
+    tags:
+      - Amend Payouts
+    """
+    try:
+        investor_flow_id, version = _amend_ids(id, version)
+        result = amendments.update_amendment(investor_flow_id, version, parse_api_payload() or {})
+        frappe.db.commit()
+        return _payout_ok("Amendment updated successfully.", result)
+    except Exception as e:
+        frappe.db.rollback()
+        return handle_api_error(e, "Update Amendment Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["DELETE"])
+def delete_amendment(id=None, version=None):
+    """
+    Delete a Draft / Cancelled amendment
+    ---
+    tags:
+      - Amend Payouts
+    """
+    try:
+        investor_flow_id, version = _amend_ids(id, version)
+        amendments.delete_amendment(investor_flow_id, version)
+        frappe.db.commit()
+        return _payout_ok("Amendment deleted successfully.", {"id": investor_flow_id, "version": version})
+    except Exception as e:
+        frappe.db.rollback()
+        return handle_api_error(e, "Delete Amendment Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def approve_amendment(id=None, version=None):
+    """
+    Approve a Draft amendment
+    ---
+    tags:
+      - Amend Payouts
+    summary: Applies it to the schedule in use; it becomes the schedule in use.
+    """
+    try:
+        investor_flow_id, version = _amend_ids(id, version)
+        result = amendments.approve_amendment(investor_flow_id, version)
+        frappe.db.commit()
+        return _payout_ok("Amendment approved successfully.", result)
+    except Exception as e:
+        frappe.db.rollback()
+        return handle_api_error(e, "Approve Amendment Error")
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def cancel_amendment(id=None, version=None):
+    """
+    Cancel an Approved amendment
+    ---
+    tags:
+      - Amend Payouts
+    summary: The schedule in use goes back to the version before it (only if none of its payouts was paid since).
+    """
+    try:
+        investor_flow_id, version = _amend_ids(id, version)
+        result = amendments.cancel_amendment(investor_flow_id, version)
+        frappe.db.commit()
+        return _payout_ok("Amendment cancelled successfully.", result)
+    except Exception as e:
+        frappe.db.rollback()
+        return handle_api_error(e, "Cancel Amendment Error")
+

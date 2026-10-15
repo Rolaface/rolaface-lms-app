@@ -67,7 +67,7 @@ from .constant import (
     CONTRACT_STATUS_SENT,
     CONTRACT_STATUS_PAID,
 )
-from .utils import _as_list, _parse_date, current_schedule, schedule_version
+from .utils import next_schedule_version, _as_list, _parse_date, current_schedule, schedule_version
 from . import accounting, service
 
 
@@ -620,10 +620,10 @@ def approve_renewal(investor_flow_id: str) -> Dict[str, Any]:
 
     # 3. The renewed schedule becomes the next version; the old one stays in the history.
     current = current_schedule(doc)
-    version = schedule_version(current[0]) + 1
+    version = next_schedule_version(doc)
     today = getdate(nowdate())
     for row in _schedule_rows(values):
-        doc.append(SCHEDULE_TABLE_FIELD, {**row, "version": version, "version_change_date": today})
+        doc.append(SCHEDULE_TABLE_FIELD, {**row, "version": version, "version_change_date": today, "amend_status": ""})
 
     doc.renewal_journal_entry = entry
     doc.renewal_status = RENEWAL_STATUS_APPROVED
@@ -675,6 +675,7 @@ def cancel_renewal(investor_flow_id: str) -> Dict[str, Any]:
     today = getdate(nowdate())
     for row in sorted(previous, key=lambda r: r.idx):
         doc.append(SCHEDULE_TABLE_FIELD, {
+            "amend_status": "",
             **{f: row.get(f) for f in EARNING_SCHEDULE_ROW_FIELDS + EARNING_SCHEDULE_ROW_READ_ONLY_FIELDS},
             "version": version + 1,
             "version_change_date": today,

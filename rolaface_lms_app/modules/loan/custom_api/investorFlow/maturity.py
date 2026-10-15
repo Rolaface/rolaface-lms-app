@@ -20,7 +20,7 @@ from .constant import (
     STATUS_RENEWED,
     ROW_STATUS_PAID,
 )
-from .utils import _as_list, current_schedule, schedule_version
+from .utils import _as_list, current_schedule, in_use, schedule_version
 from . import accounting, service
 
 MATURITY_VIEWS = ["due", "upcoming", "closed"]
@@ -91,9 +91,11 @@ def get_investor_maturities(args: Dict[str, Any], page: int, page_size: int) -> 
         for r in frappe.get_all(
             "Custom Investor Earning Schedule",
             filters={"parenttype": DOCTYPE, "parent": ["in", [row.name for row in rows]]},
-            fields=["parent", "status", "principal_amount", "interest_amount", "penalty_amount", "version"],
+            fields=["parent", "status", "principal_amount", "interest_amount", "penalty_amount", "version",
+                    "amend_status"],
         ):
-            schedule_by_flow.setdefault(r.parent, []).append(r)
+            if in_use(r):  # Draft / Cancelled amendments are not in use
+                schedule_by_flow.setdefault(r.parent, []).append(r)
         # Only the current (highest) version of each schedule counts.
         for parent, schedule_rows in schedule_by_flow.items():
             latest = max(schedule_version(r) for r in schedule_rows)

@@ -20,6 +20,7 @@ Insights (as of today):
   efficiency          - paid on the EMIs due up to today / what those EMIs total
   overdue             - unpaid EMIs whose date has passed: count, investments, amount, oldest; top 5 investments
   trend               - per month (last 6 and next 3): scheduled (EMIs due) vs actual (approved payouts, by value date)
+  upcoming_emis       - the next unpaid EMIs from today (5 soonest)
   upcoming_maturities - maturity date in the next 90 days (not Matured): count, outstanding; the 5 soonest
   top_investors / top_products - the 5 largest by amount invested
 """
@@ -28,7 +29,7 @@ from typing import Any, Dict, List
 from frappe.utils import add_months, date_diff, flt, getdate, nowdate
 
 from .constant import DOCTYPE, FUND_RECORD_DOCTYPE, FUND_TABLE_FIELD, SCHEDULE_TABLE_FIELD, RECORD_STATUS_APPROVED
-from .utils import _as_list, schedule_version
+from .utils import _as_list, in_use, schedule_version
 from . import service
 
 SCHEDULE_DOCTYPE = "Custom Investor Earning Schedule"
@@ -39,7 +40,8 @@ TREND_NEXT_MONTHS = 3
 TOP_N = 5
 DEFAULT_EXCLUDED_STATUSES = ["Cancelled"]
 AMOUNT_FIELDS = [
-    "investment_amount", "fund_received", "amount_paid", "principal_paid", "total_interest", "interest_paid",
+    "investment_amount", "fund_received", "amount_paid", "total_principal", "principal_paid", "total_interest",
+    "interest_paid",
     "total_penalty", "penalty_paid", "total_due", "outstanding",
 ]
 
@@ -57,6 +59,7 @@ def _paid_parts(row) -> Dict[str, float]:
 
 
 def _current_rows(rows: List) -> List:
+    rows = [r for r in rows if in_use(r)]
     if not rows:
         return []
     latest = max(schedule_version(r) for r in rows)
@@ -95,7 +98,7 @@ def _report_rows(args: Dict[str, Any]):
     for r in frappe.get_all(
         SCHEDULE_DOCTYPE,
         filters={"parent": ["in", names], "parenttype": DOCTYPE, "parentfield": SCHEDULE_TABLE_FIELD},
-        fields=["parent", "version", "payment_date", "principal_amount", "interest_amount", "penalty_amount",
+        fields=["parent", "idx", "version", "amend_status", "payment_date", "principal_amount", "interest_amount", "penalty_amount",
                 "total_payment", "paid_amount", "status"],
         parent_doctype=DOCTYPE,
     ):
@@ -151,6 +154,7 @@ def _report_rows(args: Dict[str, Any]):
             "investment_amount": flt(inv.investment_amount, 2),
             "fund_received": received.get(inv.name, 0.0),
             "amount_paid": amount_paid,
+            "total_principal": total_principal,
             "principal_paid": flt(paid["principal"], 2),
             "total_interest": total_interest,
             "interest_paid": flt(paid["interest"], 2),
@@ -240,6 +244,22 @@ def _insights(rows: List[Dict[str, Any]], current_by_inv: Dict[str, List]) -> Di
         for t in trend.values()
     ]
 
+    # Upcoming EMIs: the next unpaid EMIs from today
+    upcoming_emis = []
+    for inv_id, current in current_by_inv.items():
+        for number, row in enumerate(sorted(current, key=lambda x: x.idx), start=1):
+            left = _remaining(row)
+            if left > 0 and row.payment_date and getdate(row.payment_date) >= today:
+                upcoming_emis.append({
+                    "investment_id": inv_id,
+                    "investor": by_id[inv_id]["investor"],
+                    "emi_number": number,
+                    "payment_date": str(getdate(row.payment_date)),
+                    "days_left": date_diff(row.payment_date, today),
+                    "amount": left,
+                })
+    upcoming_emis.sort(key=lambda e: (e["payment_date"], e["investment_id"]))
+
     # Upcoming maturities
     upcoming = sorted(
         (r for r in rows
@@ -273,6 +293,7 @@ def _insights(rows: List[Dict[str, Any]], current_by_inv: Dict[str, List]) -> Di
                 for r in upcoming[:TOP_N]
             ],
         },
+        "upcoming_emis": upcoming_emis[:TOP_N],
         "top_investors": _top(rows, "investor_id", "investor"),
         "top_products": _top(rows, "product", "product"),
     }

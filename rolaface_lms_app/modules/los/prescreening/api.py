@@ -88,6 +88,9 @@ def get_prescreening_fields():
 	tags:
 	  - LOS Pre-Screening
 	summary: Fields, operators per field type, severities with their default action, actions and date units for the rule builder.
+	description: >
+	  The fields are the loan application's own fields (engine/prescreening.py FIELDS). Dropdown options come from the
+	  application DocType, the loan type tree and the Loan Security Types, so they always match what applications store.
 	"""
 	try:
 		return send_response("success", "Pre-screening fields retrieved successfully.", service.get_prescreening_fields())
@@ -105,15 +108,16 @@ def test_ruleset(id=None):
 	summary: Runs sample applicant values through a version (drafts too) and returns the verdict, each group and rule result, and the failed rules.
 	description: >
 	  Verdict is Not Eligible (a Blocking rule failed), Manual Review (a Review rule failed), Eligible with Warnings
-	  (a Warning rule failed) or Eligible. A rule's passed is null when its field has no value or the rule is unfinished;
-	  failures only count when their group fails. Disabled rules are skipped. Nothing is saved.
+	  (a Warning rule failed) or Eligible. A rule whose field has no value fails at its own severity (missing is true);
+	  failures only count when their group fails. Disabled rules are skipped. Same evaluator as the LOS engine
+	  (engine/prescreening.py). Nothing is saved.
 	parameters:
 	  - {in: query, name: id, required: true, schema: {type: string}}
 	requestBody:
 	  required: true
 	  content:
 	    application/json:
-	      example: {"facts": {"age": 34, "monthly_income": 14500, "credit_score": 712, "has_previous_default": false, "dti": 28}}
+	      example: {"facts": {"age": 34, "nationality": "Zambian", "employment_status": "Salaried", "monthly_income": 14500, "credit_score": 712, "dti": 28}}
 	      schema:
 	        type: object
 	        required: [facts]
@@ -121,7 +125,7 @@ def test_ruleset(id=None):
 	          facts:
 	            type: object
 	            description: Applicant values by field ID.
-	            example: {"age": 25, "monthly_income": 12500, "employment_status": "Permanent", "has_previous_default": false}
+	            example: {"age": 25, "monthly_income": 12500, "employment_status": "Salaried", "experience_years": 3}
 	responses:
 	  400:
 	    description: facts is not an object, or a value has the wrong type (e.g. text for a number field).
@@ -192,7 +196,7 @@ def update_ruleset(id=None):
 	  required: true
 	  content:
 	    application/json:
-	      example: {"groups": [{"name": "Credit Standing", "logic": "ALL", "rules": [{"field": "credit_score", "operator": "greater_than_or_equal", "value": 550, "severity": "Blocking", "action": "Reject Application"}, {"field": "has_previous_default", "operator": "equals", "value": false, "severity": "Blocking", "action": "Reject Application"}, {"field": "dti", "operator": "less_than", "value": 45, "severity": "Warning", "action": "Continue with Warning"}]}]}
+	      example: {"groups": [{"name": "Credit Standing", "logic": "ALL", "rules": [{"field": "credit_score", "operator": "greater_than_or_equal", "value": 550, "severity": "Blocking", "action": "Reject Application"}, {"field": "employment_status", "operator": "in", "values": ["Salaried", "Pensioner"], "severity": "Blocking", "action": "Reject Application"}, {"field": "dti", "operator": "less_than", "value": 45, "severity": "Warning", "action": "Continue with Warning"}]}]}
 	      schema:
 	        type: object
 	        properties:

@@ -1,14 +1,23 @@
 APPLICATION_DOCTYPE = "Custom LOS Loan Application"
 CHANNEL_DOCTYPE = "Custom LOS Channel"
 CUSTOMER_DOCTYPE = "Customer"
+LOAN_DOCTYPE = "Loan"
 LOAN_PRODUCT_DOCTYPE = "Loan Product"
 ADDRESS_DOCTYPE = "Address"
 
 DRAFT = "Draft"
-CLOSED_STATUSES = ("Approved", "Rejected", "Cancelled")
+APPROVED = "Approved"
+CLOSED_STATUSES = (APPROVED, "Rejected", "Cancelled")
+STAGE_ORDER = (DRAFT, "Pre-Screening", "Appraisal", "Underwriting", "Offer", APPROVED)
+BOOKED = "Booked"
 INDIVIDUAL = "Individual"
 BUSINESS = "Business"
 EXISTING_CUSTOMER = "Existing"
+CUSTOMER_TYPES = {INDIVIDUAL: "Individual", BUSINESS: "Company"}
+REPAY_OVER_PERIODS = "Repay Over Number of Periods"
+MONTHLY = "Monthly"
+BIWEEKLY = "Bi-weekly"
+LOAN_BIWEEKLY = "Bi-Weekly"
 
 COMMON_FIELDS = (
 	"application_date",
@@ -152,6 +161,7 @@ RETURN_FIELDS_GET_ALL = [
 	"final_amount",
 	"contract_status",
 	"signing_method",
+	"loan",
 	"creation",
 	"modified",
 ]

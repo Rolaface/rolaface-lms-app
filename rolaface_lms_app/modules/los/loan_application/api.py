@@ -253,3 +253,27 @@ def delete_loan_application(id=None):
 		return send_response("success", "Loan application deleted successfully.")
 	except Exception as e:
 		return handle_api_error(e, "Delete LOS Loan Application Error")
+
+
+@frappe.whitelist(methods=["POST"])
+def create_loan(id=None):
+	"""
+	Create Loan From LOS Loan Application
+	---
+	tags:
+	  - LOS Loan Application
+	summary: Converts an Approved application into a Loan. Creates the Customer for a new applicant, carries the final amount, interest rate, tenure, frequency and documents over, and links the Loan back on the application (stage becomes Booked).
+	parameters:
+	  - {in: query, name: id, required: true, schema: {type: string}}
+	responses:
+	  409:
+	    description: A loan already exists for this application.
+	  400:
+	    description: The application is not Approved.
+	"""
+	try:
+		result = service.create_loan(require_id(id, "Loan Application"))
+		frappe.db.commit()
+		return send_response("success", "Loan created successfully.", result, status_code=201, http_status=201)
+	except Exception as e:
+		return handle_api_error(e, "Create Loan From LOS Loan Application Error")

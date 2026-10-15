@@ -1,6 +1,10 @@
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import frappe
+from frappe.utils import cint, flt, nowdate
+
+from rolaface_lms_app.modules.loan.loan import service as loan_service
+from rolaface_lms_app.modules.loan.loan.utils import sync_loan_documents
 
 from ..common import build_order_by, count_records, search_or_filters
 from ..engine.product_assignment import assign_product
@@ -10,14 +14,24 @@ from .constant import (
 	ALLOWED_SORT_FIELDS,
 	APPLICATION_DOCTYPE,
 	ALLOWED_UPDATE_FIELDS,
+	APPROVED,
+	BIWEEKLY,
+	BOOKED,
 	CLOSED_STATUSES,
 	DRAFT,
+	LOAN_BIWEEKLY,
+	LOAN_PRODUCT_DOCTYPE,
+	MONTHLY,
+	REPAY_OVER_PERIODS,
 	RETURN_FIELDS_GET_ALL,
 	SEARCH_FIELDS,
+	STAGE_ORDER,
 )
 from .utils import (
 	add_display_names,
+	applicant_name,
 	build_application_filters,
+	create_customer,
 	parse_application,
 	set_application_values,
 	set_stage_values,
@@ -116,6 +130,53 @@ def delete_loan_application(application_id: str):
 	_ensure_draft(application_id, "only a draft can be deleted")
 	_delete_addresses(application_id)
 	frappe.delete_doc(APPLICATION_DOCTYPE, application_id, ignore_permissions=True)
+
+
+def workflow_block_reason(application_doc, next_state: str) -> Optional[str]:
+	current = application_doc.workflow_state
+	if current == DRAFT or current not in STAGE_ORDER or next_state not in STAGE_ORDER:
+		return None
+	if STAGE_ORDER.index(next_state) <= STAGE_ORDER.index(current) or application_doc.custom_status == APPROVED:
+		return None
+	return f"{current} is {application_doc.custom_status or 'Pending'}. Approve it first."
+
+
+def create_loan(application_id: str) -> Dict[str, Any]:
+	_ensure_exists(application_id)
+	application_doc = frappe.get_doc(APPLICATION_DOCTYPE, application_id)
+	if application_doc.workflow_state != APPROVED:
+		raise frappe.ValidationError("Only an approved application can be converted to a loan.")
+	if application_doc.loan:
+		raise frappe.LinkExistsError(f"Loan {application_doc.loan} already exists for this application.")
+
+	customer = application_doc.customer or create_customer(application_doc)
+	months = cint(application_doc.approved_tenure_months or application_doc.tenure_months)
+	biweekly = (application_doc.approved_frequency or application_doc.repayment_frequency) == BIWEEKLY
+	loan = loan_service.create_loan(
+		{
+			"applicant_type": "Customer",
+			"applicant": customer,
+			"applicant_name": applicant_name(application_doc),
+			"company": application_doc.company,
+			"loan_product": application_doc.loan_product,
+			"loan_amount": flt(application_doc.final_amount or application_doc.approved_amount or application_doc.requested_amount),
+			"rate_of_interest": flt(application_doc.interest_rate)
+			or flt(frappe.db.get_value(LOAN_PRODUCT_DOCTYPE, application_doc.loan_product, "rate_of_interest")),
+			"posting_date": nowdate(),
+			"repayment_method": REPAY_OVER_PERIODS,
+			"repayment_frequency": LOAN_BIWEEKLY if biweekly else MONTHLY,
+			"repayment_periods": round(months * 26 / 12) if biweekly else months,
+		}
+	)
+	documents = [
+		{"file_name": row.document_name, "file_url": row.file}
+		for row in application_doc.documents
+		if row.file and frappe.db.exists("File", {"file_url": row.file})
+	]
+	if documents:
+		sync_loan_documents(loan["name"], documents)
+	application_doc.db_set({"customer": customer, "loan": loan["name"], "stage": BOOKED})
+	return get_loan_application_by_id(application_id)
 
 
 def _address_names(application_id: str) -> List[str]:

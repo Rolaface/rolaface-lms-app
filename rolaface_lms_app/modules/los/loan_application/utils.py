@@ -23,6 +23,7 @@ from .constant import (
 	COMMON_FIELDS,
 	CREDIT_SCORE_RANGE,
 	CUSTOMER_DOCTYPE,
+	CUSTOMER_TYPES,
 	DATE_FIELDS,
 	EXISTING_CUSTOMER,
 	FILTER_FIELDS,
@@ -222,6 +223,12 @@ def parse_application(application_doc) -> Dict[str, Any]:
 	return result
 
 
+def applicant_name(row) -> str:
+	if row.get("applicant_type") == BUSINESS:
+		return row.get("company_name")
+	return " ".join(filter(None, (row.get("first_name"), row.get("middle_name"), row.get("last_name"))))
+
+
 def add_display_names(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 	tree_fields = ("loan_type", "loan_sub_type", "loan_purpose")
 	tree_names = name_map(
@@ -231,12 +238,7 @@ def add_display_names(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 	customer_names = name_map(CUSTOMER_DOCTYPE, [row.get("customer") for row in rows], "customer_name")
 
 	for row in rows:
-		if row.get("applicant_type") == BUSINESS:
-			row["applicant_name"] = row.get("company_name")
-		else:
-			row["applicant_name"] = " ".join(
-				filter(None, (row.get("first_name"), row.get("middle_name"), row.get("last_name")))
-			)
+		row["applicant_name"] = applicant_name(row)
 		for field in tree_fields:
 			if field in row:
 				row[f"{field}_name"] = tree_names.get(row[field])
@@ -247,8 +249,22 @@ def add_display_names(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def build_application_filters(args: Dict[str, Any]) -> Dict[str, Any]:
 	filters = {field: args.get(field) for field in FILTER_FIELDS if args.get(field)}
+	if "," in (filters.get("workflow_state") or ""):
+		filters["workflow_state"] = ["in", filters["workflow_state"].split(",")]
 	add_date_range(filters, args, "application_date")
 	return filters
+
+
+def create_customer(application_doc) -> str:
+	customer_doc = frappe.new_doc(CUSTOMER_DOCTYPE)
+	customer_doc.customer_name = applicant_name(application_doc)
+	customer_doc.customer_type = CUSTOMER_TYPES[application_doc.applicant_type]
+	customer_doc.customer_group = frappe.db.get_value("Customer Group", {"is_group": 0}, "name")
+	customer_doc.territory = frappe.db.get_value("Territory", {"is_group": 0}, "name")
+	customer_doc.mobile_no = application_doc.phone
+	customer_doc.email_id = application_doc.email
+	customer_doc.insert(ignore_permissions=True)
+	return customer_doc.name
 
 
 def _clean_value(field: str, label: str, value):

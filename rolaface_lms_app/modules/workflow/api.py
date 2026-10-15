@@ -7,6 +7,8 @@ from . import service
 def get_allowed_workflow_actions(doctype, docname):
     """
     Returns the current state and available workflow actions for the UI.
+    Each action carries blocked_reason: null when it can be applied, otherwise why not
+    (constant.ACTION_GUARDS; LOS: the stage must be Approved before moving forward).
     """
     try:
         if not doctype or not docname:
@@ -29,6 +31,9 @@ def get_allowed_workflow_actions(doctype, docname):
 def process_dynamic_workflow_action():
     """
     Generic endpoint to process any workflow action for any doctype.
+    The response carries action_result when the action has a handler in constant.ACTION_HANDLERS
+    (LOS "Submit for Pre-Screening" runs the pre-screening and eligibility engines), otherwise null.
+    A blocked action (see get_workflow_actions) is refused with its blocked_reason.
     """
     try:
         data = parse_api_payload()

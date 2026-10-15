@@ -3,6 +3,8 @@ from typing import Dict, Any, List, Tuple, Optional
 from frappe.model.workflow import apply_workflow, get_workflow_name
 from frappe.desk.form.assign_to import add as add_assign, remove as remove_assign
 
+from .constant import ACTION_GUARDS, ACTION_HANDLERS
+
 def _get_and_validate_doc(doctype: str, docname: str) -> Tuple[Any, str]:
     """
     Internal helper to fetch a document, validate its existence, 
@@ -49,13 +51,18 @@ def get_allowed_workflow_actions(doctype: str, docname: str) -> Dict[str, Any]:
                 "action": transition.action,
                 "next_state": transition.next_state,
                 "allowed_role": transition.allowed,
-                "assignable_role": state_edit_roles.get(transition.next_state)
+                "assignable_role": state_edit_roles.get(transition.next_state),
+                "blocked_reason": _block_reason(doc, transition.next_state),
             })
 
     return {
         "current_state": current_state,
         "allowed_actions": allowed_actions
     }
+
+def _block_reason(doc, next_state: str) -> Optional[str]:
+    guard = ACTION_GUARDS.get(doc.doctype)
+    return frappe.get_attr(guard)(doc, next_state) if guard else None
 
 def clear_all_assignments(doctype: str, docname: str) -> None:
     """Removes all open ToDo assignments to ensure single-user ownership."""
@@ -87,6 +94,15 @@ def apply_dynamic_workflow_action(
     
     # Enforce write permissions before altering the document
     doc.check_permission("write")
+
+    workflow_doc = frappe.get_doc("Workflow", workflow_name)
+    current_state = doc.get(workflow_doc.workflow_state_field)
+    for transition in workflow_doc.get("transitions", []):
+        if transition.state == current_state and transition.action == action:
+            reason = _block_reason(doc, transition.next_state)
+            if reason:
+                frappe.throw(reason)
+            break
     
     if comment:
         log_text = f"Workflow Action: **{action}**\nNote: {comment}"
@@ -113,14 +129,15 @@ def apply_dynamic_workflow_action(
             "name": docname,
             "description": comment or f"Document requires your attention following action: {action}"
         })
-        
-    workflow_doc = frappe.get_doc("Workflow", workflow_name)
+
     if comment:
         updated_doc.add_comment("Workflow", comment)
-        
+
+    handler = ACTION_HANDLERS.get((doctype, action))
     return {
         "docname": updated_doc.name,
-        "workflow_state": updated_doc.get(workflow_doc.workflow_state_field)
+        "workflow_state": updated_doc.get(workflow_doc.workflow_state_field),
+        "action_result": frappe.get_attr(handler)(updated_doc.name) if handler else None,
     }
 
 def get_dynamic_workflow(doctype: str) -> Dict[str, Any]:

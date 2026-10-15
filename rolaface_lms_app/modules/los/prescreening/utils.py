@@ -1,21 +1,11 @@
 from typing import Any, Dict, List
 
 import frappe
-from frappe.utils import add_days, add_months, add_years, getdate, nowdate
+from frappe.utils import getdate
 
 from ..common import load_json
-from .constant import (
-	ACTIONS,
-	DATE_UNITS,
-	FIELDS,
-	LOGICS,
-	OPERATORS,
-	SEVERITIES,
-	VERDICT_ELIGIBLE,
-	VERDICT_NOT_ELIGIBLE,
-	VERDICT_REVIEW,
-	VERDICT_WARNINGS,
-)
+from ..engine.prescreening import prescreening_fields
+from .constant import ACTIONS, DATE_UNITS, LOGICS, OPERATORS, SEVERITIES
 
 
 def normalize_groups(value, complete: bool = False) -> List[Dict[str, Any]]:
@@ -24,10 +14,11 @@ def normalize_groups(value, complete: bool = False) -> List[Dict[str, Any]]:
 		raise frappe.ValidationError("groups must be a list.")
 	if complete and not groups:
 		raise frappe.ValidationError("Add at least one rule group.")
-	return [_normalize_group(group, index, complete) for index, group in enumerate(groups)]
+	fields = prescreening_fields()
+	return [_normalize_group(group, index, complete, fields) for index, group in enumerate(groups)]
 
 
-def _normalize_group(group, index: int, complete: bool) -> Dict[str, Any]:
+def _normalize_group(group, index: int, complete: bool, fields: Dict[str, Any]) -> Dict[str, Any]:
 	if not isinstance(group, dict):
 		raise frappe.ValidationError(f"Group {index + 1} must be an object.")
 	name = str(group.get("name") or "").strip() or f"Group {index + 1}"
@@ -45,11 +36,11 @@ def _normalize_group(group, index: int, complete: bool) -> Dict[str, Any]:
 		"id": group.get("id") or frappe.generate_hash(length=8),
 		"name": name,
 		"logic": logic,
-		"rules": [_normalize_rule(rule, f'"{name}", rule {i + 1}', complete) for i, rule in enumerate(rules)],
+		"rules": [_normalize_rule(rule, f'"{name}", rule {i + 1}', complete, fields) for i, rule in enumerate(rules)],
 	}
 
 
-def _normalize_rule(rule, where: str, complete: bool) -> Dict[str, Any]:
+def _normalize_rule(rule, where: str, complete: bool, fields: Dict[str, Any]) -> Dict[str, Any]:
 	if not isinstance(rule, dict):
 		raise frappe.ValidationError(f"{where} must be an object.")
 
@@ -69,7 +60,7 @@ def _normalize_rule(rule, where: str, complete: bool) -> Dict[str, Any]:
 		"disabled": bool(rule.get("disabled")),
 	}
 
-	field = FIELDS.get(result["field"]) if result["field"] else None
+	field = fields.get(result["field"]) if result["field"] else None
 	if result["field"] and not field:
 		raise frappe.ValidationError(f"{where}: unknown field '{result['field']}'.")
 	if not field:
@@ -178,108 +169,3 @@ def clean_ruleset_name(value, max_length: int) -> str:
 	if len(name) > max_length:
 		raise frappe.ValidationError(f"Rule Set Name cannot be longer than {max_length} characters.")
 	return name
-
-
-def evaluate(groups: List[Dict[str, Any]], facts: Dict[str, Any]) -> Dict[str, Any]:
-	group_results, failed = [], []
-	for group in groups:
-		rules = [_rule_result(rule, facts) for rule in group["rules"] if not rule.get("disabled")]
-		checked = [r["passed"] for r in rules if r["passed"] is not None]
-		if not checked:
-			passed = None
-		elif group["logic"] == "ALL":
-			passed = all(checked)
-		else:
-			passed = any(checked)
-
-		if passed is False:
-			failed += [{**r, "group": group["name"]} for r in rules if r["passed"] is False]
-		group_results.append({"id": group["id"], "name": group["name"], "logic": group["logic"], "passed": passed, "rules": rules})
-
-	return {"verdict": _verdict(failed), "failed": failed, "groups": group_results}
-
-
-def _verdict(failed: List[Dict[str, Any]]) -> str:
-	severities = {r["severity"] for r in failed}
-	if "Blocking" in severities:
-		return VERDICT_NOT_ELIGIBLE
-	if "Review" in severities:
-		return VERDICT_REVIEW
-	if "Warning" in severities:
-		return VERDICT_WARNINGS
-	return VERDICT_ELIGIBLE
-
-
-def _rule_result(rule: Dict[str, Any], facts: Dict[str, Any]) -> Dict[str, Any]:
-	field = FIELDS.get(rule.get("field"))
-	actual = facts.get(rule.get("field")) if field else None
-	result = {
-		"id": rule["id"],
-		"field": rule.get("field"),
-		"label": field["label"] if field else None,
-		"operator": rule.get("operator"),
-		"severity": rule["severity"],
-		"action": rule["action"],
-		"actual": actual,
-		"passed": None,
-	}
-	if field and not _empty(actual) and _is_complete(rule):
-		result["passed"] = _compare(field["type"], rule, actual)
-	return result
-
-
-def _is_complete(rule: Dict[str, Any]) -> bool:
-	if rule["operator"] in ("in", "not_in"):
-		return bool(rule.get("values"))
-	if rule["operator"] == "between":
-		return rule.get("value") is not None and rule.get("value2") is not None
-	return rule.get("value") is not None
-
-
-def _compare(kind: str, rule: Dict[str, Any], actual) -> bool:
-	operator, where = rule["operator"], f"facts.{rule['field']}"
-	value, value2 = rule.get("value"), rule.get("value2")
-
-	if kind == "numeric":
-		actual = _number(actual, where, complete=True)
-	elif kind == "boolean":
-		actual = _boolean(actual, where, complete=True)
-	elif kind == "date":
-		actual = _date(actual, where, complete=True)
-	else:
-		actual = str(actual).strip().lower()
-		value = str(value).strip().lower() if value is not None else None
-
-	if operator == "equals":
-		return actual == value
-	if operator == "not_equals":
-		return actual != value
-	if operator in ("greater_than", "after"):
-		return actual > value
-	if operator == "greater_than_or_equal":
-		return actual >= value
-	if operator in ("less_than", "before"):
-		return actual < value
-	if operator == "less_than_or_equal":
-		return actual <= value
-	if operator == "between":
-		return value <= actual <= value2
-	if operator in ("in", "not_in"):
-		found = actual in [str(v).strip().lower() for v in rule["values"]]
-		return found if operator == "in" else not found
-	if operator == "contains":
-		return value in actual
-	if operator == "starts_with":
-		return actual.startswith(value)
-	if operator == "older_than":
-		return getdate(actual) <= _ago(rule["value"], rule.get("date_unit") or "months")
-	raise frappe.ValidationError(f"Operator '{operator}' is not supported.")
-
-
-def _ago(amount, unit: str):
-	amount = int(amount)
-	if unit == "days":
-		return getdate(add_days(nowdate(), -amount))
-	if unit == "years":
-		return getdate(add_years(nowdate(), -amount))
-	return getdate(add_months(nowdate(), -amount))

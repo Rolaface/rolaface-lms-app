@@ -10,7 +10,6 @@ from .constant import (
 	ALLOWED_UPDATE_FIELDS,
 	COPY_TO_DRAFT_FIELDS,
 	DATE_UNITS,
-	FIELDS,
 	OPERATORS,
 	RETURN_FIELDS,
 	RULESET_DOCTYPE,
@@ -18,7 +17,8 @@ from .constant import (
 	RULESET_NAME_MAX_LENGTH,
 	SEVERITIES,
 )
-from .utils import clean_ruleset_name, count_rules, evaluate, normalize_groups
+from ..engine.prescreening import prescreening_fields, run_prescreening
+from .utils import clean_ruleset_name, count_rules, normalize_groups
 
 
 def _get_row(ruleset_id: str) -> Dict[str, Any]:
@@ -54,7 +54,7 @@ def get_ruleset_versions(loan_product: str) -> List[Dict[str, Any]]:
 
 def get_prescreening_fields() -> Dict[str, Any]:
 	return {
-		"fields": [{"id": field_id, **spec} for field_id, spec in FIELDS.items()],
+		"fields": [{"id": field_id, **spec} for field_id, spec in prescreening_fields().items()],
 		"operators": OPERATORS,
 		"severities": [{"severity": severity, "default_action": action} for severity, action in SEVERITIES.items()],
 		"actions": ACTIONS,
@@ -68,7 +68,7 @@ def test_ruleset(ruleset_id: str, facts) -> Dict[str, Any]:
 	if not isinstance(facts, dict):
 		raise frappe.ValidationError("facts must be an object of {field: value}.")
 
-	result = evaluate(normalize_groups(row.groups), facts)
+	result = run_prescreening(normalize_groups(row.groups), facts)
 	return {"name": row.name, "version": row.version, "status": row.status, **result}
 
 

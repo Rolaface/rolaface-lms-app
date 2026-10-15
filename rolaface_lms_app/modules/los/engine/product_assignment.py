@@ -1,17 +1,15 @@
 from typing import Any, Dict, List, Optional
 
 import frappe
-from frappe.utils import date_diff, flt, getdate, nowdate
+from frappe.utils import flt
 
 from ..common import json_contains, load_json
+from .facts import FOREIGN, ZAMBIAN, application_facts, field_options
 
-APPLICATION_DOCTYPE = "Custom LOS Loan Application"
 RULE_DOCTYPE = "Custom LOS Product Assignment Rule"
 SETTINGS_DOCTYPE = "Custom LOS Product Assignment Settings"
 DOCUMENT_SETUP_DOCTYPE = "Custom LOS Product Document Setup"
 LOAN_PRODUCT_DOCTYPE = "Loan Product"
-TREE_DOCTYPE = "Custom LOS Loan Type Tree"
-SECURITY_TYPE_DOCTYPE = "Loan Security Type"
 
 NO_MATCH_DEFAULT_PRODUCT = "Default Product"
 
@@ -19,9 +17,6 @@ STATUS_RULE_MATCHED = "Rule matched"
 STATUS_LOAN_TYPE_DEFAULT = "Loan type default"
 STATUS_MANUAL_REVIEW = "Manual review"
 STATUS_CONFLICT = "Conflict"
-
-ZAMBIAN = "Zambian"
-FOREIGN = "Foreign national"
 
 VARIABLES = {
 	"customer_type": {"label": "Customer type", "options": "select"},
@@ -50,18 +45,7 @@ VARIABLES = {
 
 
 def variable_options(spec: Dict[str, Any], name: str) -> List[str]:
-	source = spec.get("options")
-	if isinstance(source, list):
-		return source
-	if source == "select":
-		options = frappe.get_meta(APPLICATION_DOCTYPE).get_field(name).options or ""
-		return [option for option in options.split("\n") if option]
-	if source == "security_type":
-		return frappe.get_all(SECURITY_TYPE_DOCTYPE, pluck="name", order_by="name asc")
-	if source and source.startswith("tree:"):
-		names = frappe.get_all(TREE_DOCTYPE, filters={"level": int(source[5:]), "is_active": 1}, pluck="node_name")
-		return sorted(set(names))
-	return []
+	return field_options(spec.get("options"), name)
 
 
 def condition_variables() -> Dict[str, Dict[str, Any]]:
@@ -73,51 +57,6 @@ def condition_variables() -> Dict[str, Dict[str, Any]]:
 			"applies_to": spec.get("applies_to"),
 		}
 		for name, spec in VARIABLES.items()
-	}
-
-
-def _years_since(value) -> Optional[int]:
-	if not value:
-		return None
-	return date_diff(nowdate(), getdate(value)) // 365
-
-
-def _total(items) -> float:
-	return sum(flt(item.get("monthly_amount")) for item in items or [])
-
-
-def application_facts(application: Dict[str, Any]) -> Dict[str, Any]:
-	nodes = [application.get("loan_sub_type"), application.get("loan_purpose")]
-	node_names = dict(frappe.get_all(TREE_DOCTYPE, filters={"name": ["in", [n for n in nodes if n]]}, fields=["name", "node_name"], as_list=True)) if any(nodes) else {}
-	financials = load_json(application.get("financials"), {}) or {}
-	individual = application.get("applicant_type") == "Individual"
-	income = _total(financials.get("income")) if individual else None
-	obligations = _total(financials.get("obligations")) if individual else None
-	collaterals = application.get("collaterals") or []
-	nationality = application.get("nationality")
-	return {
-		"customer_type": application.get("customer_type"),
-		"loan_sub_type": node_names.get(application.get("loan_sub_type")),
-		"loan_purpose": node_names.get(application.get("loan_purpose")),
-		"requested_amount": application.get("requested_amount"),
-		"tenure_months": application.get("tenure_months"),
-		"repayment_frequency": application.get("repayment_frequency"),
-		"credit_score": application.get("credit_score") or None,
-		"age": _years_since(application.get("date_of_birth")),
-		"gender": application.get("gender"),
-		"marital_status": application.get("marital_status"),
-		"citizenship": (ZAMBIAN if nationality == "Zambia" else FOREIGN) if nationality else None,
-		"employment_status": application.get("employment_status"),
-		"employment_type": application.get("employment_type"),
-		"experience_years": application.get("experience_years"),
-		"monthly_income": income,
-		"monthly_obligations": obligations,
-		"debt_to_income": round((obligations or 0) / income * 100, 2) if income else None,
-		"business_type": application.get("business_type"),
-		"years_in_business": _years_since(application.get("established_date")),
-		"director_count": len(application.get("directors") or []) or None,
-		"collateral_type": [row.get("collateral_type") for row in collaterals if row.get("collateral_type")],
-		"collateral_value": sum(flt(row.get("estimated_value")) for row in collaterals),
 	}
 
 

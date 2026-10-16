@@ -142,14 +142,11 @@ def load_application(application_id: str) -> Dict[str, Any]:
 def _check_approval(result: Dict[str, Any]):
 	if result["verdict"] == VERDICT_NOT_ELIGIBLE:
 		raise frappe.ValidationError("A Fail result cannot be approved. Reject the application from the workflow menu.")
-	eligibility = result["eligibility"]
-	if result["verdict"] != VERDICT_REVIEW and not eligibility.get("meets_request"):
-		raise frappe.ValidationError("The requested amount is above the eligible amount. Use the eligible amount before approving.")
 
 
 def evaluate_application(application_id: str, overrides=None, save: bool = False, trigger: str = TRIGGER_OFFICER, approve: bool = False) -> Dict[str, Any]:
 	application = load_application(application_id)
-	if approve and overrides is None:
+	if overrides is None and trigger == TRIGGER_OFFICER and (save or approve):
 		overrides = ((load_json(application.get("prescreening_data"), {}) or {}).get("engine") or {}).get("overrides")
 	cleaned = clean_overrides(overrides)
 	if (save or approve) and application.get("workflow_state") != PRESCREENING_STATE:

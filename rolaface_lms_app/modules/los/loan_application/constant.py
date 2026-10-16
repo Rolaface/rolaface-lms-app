@@ -74,6 +74,7 @@ TABLE_FIELDS = {
 	"documents": ("document_name", "file"),
 }
 FINANCIAL_KEYS = ("income", "obligations", "expenses")
+FACILITY_TEXT_FIELDS = ("institution", "status", "origin")
 
 ADDRESS_FIELDS = ("address_type", "address_line1", "address_line2", "city", "state", "country", "pincode")
 ADDRESS_TYPES = ("Current", "Permanent", "Office")

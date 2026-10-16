@@ -5,7 +5,7 @@ from frappe.utils import cint, flt, getdate, now_datetime, nowdate
 
 from ..common import dump_json, load_json
 from ..loan_application.constant import CREDIT_SCORE_RANGE
-from ..loan_application.utils import parse_application
+from ..loan_application.utils import parse_application, validate_financials
 from .eligibility import run_eligibility
 from .facts import APPLICATION_DOCTYPE, application_facts
 from .prescreening import VERDICT_ELIGIBLE, VERDICT_NOT_ELIGIBLE, VERDICT_REVIEW, VERDICT_WARNINGS, run_prescreening, worst_verdict
@@ -86,14 +86,10 @@ def clean_overrides(overrides) -> Dict[str, Any]:
 		if flt(overrides["requested_amount"]) <= 0:
 			raise frappe.ValidationError("requested_amount must be more than 0.")
 		cleaned["requested_amount"] = flt(overrides["requested_amount"])
-	for key in ("income", "obligations"):
-		if key in overrides:
-			lines = overrides[key] or []
-			if not isinstance(lines, list) or not all(isinstance(line, dict) for line in lines):
-				raise frappe.ValidationError(f"{key} must be a list of {{source, monthly_amount}}.")
-			if any(flt(line.get("monthly_amount")) < 0 for line in lines):
-				raise frappe.ValidationError(f"{key}: monthly_amount cannot be negative.")
-			cleaned[key] = [{"source": str(line.get("source") or "").strip(), "monthly_amount": flt(line.get("monthly_amount"))} for line in lines]
+	lines = {key: overrides[key] or [] for key in ("income", "obligations") if key in overrides}
+	if lines:
+		financials = validate_financials(lines)
+		cleaned.update({key: financials[key] for key in lines})
 	return cleaned
 
 
@@ -146,8 +142,6 @@ def _check_approval(result: Dict[str, Any]):
 
 def evaluate_application(application_id: str, overrides=None, save: bool = False, trigger: str = TRIGGER_OFFICER, approve: bool = False) -> Dict[str, Any]:
 	application = load_application(application_id)
-	if overrides is None and trigger == TRIGGER_OFFICER and (save or approve):
-		overrides = ((load_json(application.get("prescreening_data"), {}) or {}).get("engine") or {}).get("overrides")
 	cleaned = clean_overrides(overrides)
 	if (save or approve) and application.get("workflow_state") != PRESCREENING_STATE:
 		raise frappe.ValidationError(f"Results can only be saved while the application is in {PRESCREENING_STATE}.")
@@ -157,12 +151,17 @@ def evaluate_application(application_id: str, overrides=None, save: bool = False
 	if save or approve:
 		status = APPROVED if approve else STAGE_STATUS[result["verdict"]]
 		result.update(status=status, trigger=trigger, ran_on=str(now_datetime()), ran_by=frappe.session.user, overrides=cleaned)
-		_store(application_id, result)
+		_store(application_id, result, cleaned)
 	return result
 
 
-def _store(application_id: str, result: Dict[str, Any]):
+def _store(application_id: str, result: Dict[str, Any], overrides: Optional[Dict[str, Any]] = None):
 	doc = frappe.get_doc(APPLICATION_DOCTYPE, application_id)
+	if overrides:
+		merged = apply_overrides({"credit_score": doc.credit_score, "requested_amount": doc.requested_amount, "financials": doc.financials}, overrides)
+		doc.credit_score = merged["credit_score"]
+		doc.requested_amount = merged["requested_amount"]
+		doc.financials = dump_json(merged["financials"])
 	data = load_json(doc.prescreening_data, {}) or {}
 	data["engine"] = result
 	doc.prescreening_data = dump_json(data)

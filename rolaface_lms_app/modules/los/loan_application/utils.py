@@ -26,6 +26,7 @@ from .constant import (
 	CUSTOMER_TYPES,
 	DATE_FIELDS,
 	EXISTING_CUSTOMER,
+	FACILITY_TEXT_FIELDS,
 	FILTER_FIELDS,
 	FINANCIAL_KEYS,
 	INDIVIDUAL,
@@ -187,7 +188,13 @@ def validate_financials(value) -> Optional[Dict[str, List[Dict[str, Any]]]]:
 			amount = _number(
 				item.get("monthly_amount"), f"financials.{key} '{source}' monthly_amount", allow_zero=True
 			)
-			cleaned[key].append({"source": source, "monthly_amount": amount or 0})
+			line = {"source": source, "monthly_amount": amount or 0}
+			for field in FACILITY_TEXT_FIELDS:
+				if _text(item.get(field)):
+					line[field] = _text(item.get(field))
+			if item.get("outstanding") not in (None, ""):
+				line["outstanding"] = _number(item.get("outstanding"), f"financials.{key} '{source}' outstanding", allow_zero=True)
+			cleaned[key].append(line)
 	return cleaned
 
 

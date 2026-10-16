@@ -56,8 +56,10 @@ def evaluate_application():
 	  obligations (each a list of {source, monthly_amount} that replaces the application's lines). With save=1
 	  (only while the application is in Pre-Screening) the result is stored in prescreening_data.engine,
 	  eligible_amount is updated and custom_status becomes the stage status (the officer's Save). With approve=1 the
-	  same is stored but custom_status becomes Approved (the officer's decision). Save or approve without overrides reuses the
-	  officer's last saved figures, so the list's Approve and Rerun pre-screening match what the screen showed; it is refused for a Fail result. A request
+	  same is stored but custom_status becomes Approved (the officer's decision). On save / approve the overrides are written onto
+	  the application itself (credit_score, requested_amount, financials income / obligations lines), so the application
+	  is the only source and a later run (list Approve, Rerun pre-screening, Return) evaluates it as it is. Without
+	  overrides the application is evaluated as stored; it is refused for a Fail result. A request
 	  above the eligible amount can still be approved; Appraisal then defaults to the eligible amount. The workflow actions Submit for Pre-Screening and Return (when the application lands
 	  in Pre-Screening) run this automatically with save and set custom_status to the stage status: Pass (Eligible),
 	  Warning (Eligible with Warnings), Review (Manual Review) or Fail (Not Eligible).
